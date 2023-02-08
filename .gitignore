@@ -2,9 +2,4 @@
 **/.idea
 **/.vscode
 **/.vs
-/bin/lnx64/*
-/bin/win64/*
-/bin/man/*
 */*/*.user
-**/cmake-build-*
-**/CMakeLists.txt.user
