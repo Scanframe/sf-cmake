@@ -8,6 +8,7 @@
     * [Repository as Sub-Module](#repository-as-sub-module)
   * [Project Structure](#project-structure)
   * [Head Start](#head-start)
+  * [DoxyGen Document](#doxygen-document)
 <!-- TOC -->
 
 # Introduction
@@ -49,7 +50,7 @@ The preferred way is to create a Git submodule `lib` in the `<project-root>/cmak
   git submodule add -b main -- ssh://git@git.scanframe.com:8022/library/cmake-lib.git lib
 ```
 
-## Project Structure
+## Project Directory Structure
 
 A project directory tree could look like this.
 
@@ -63,7 +64,7 @@ A project directory tree could look like this.
     │   └── win64
     ├── cmake
     │   └── lib
-    └── manual
+    └── doc
 ```
 
 | Path     | Description                            |
@@ -71,12 +72,48 @@ A project directory tree could look like this.
 | src      | Application source files.              |
 | src/test | Test application source files.         |
 | bin      | Root for compiled results from builds. |
+| doc      | DoxyGen document project.              |
 
 The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
 output directory for subprojects. Reason for building only subprojects instead of all is to speed
 up debugging by compiling only the dynamic loaded library separately.
+When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.  
 
-## Head Start
+## Main Project Head Start
 
 To get a head start look into the **[tpl/root](./tpl/root)** directory for files that will
-give a head start getting a project going. 
+give a head start getting a project going.
+
+## DoxyGen Document
+
+For generating documentation from the code using [DoxyGen](https://www.doxygen.nl/) the `doc` subdirectory is to be added. 
+in the main `CMakeLists.txt`.
+
+```cmake
+# Add Doxygen document project.
+add_subdirectory(doc)
+```
+The `doc` directory `CMakeLists.txt` looks like this where header files are added to the config file. 
+
+```cmake
+# Required first entry checking the cmake version.
+cmake_minimum_required(VERSION 3.18)
+# Set the global project name.
+project("document")
+# Add doxygen project when SfDoxyGen was found.
+# On Windows this is only possible when doxygen is installed in Cygwin.
+find_package(SfDoxyGen QUIET)
+if (SfDoxyGen_FOUND)
+	# Get the markdown files in this project directory including the README.md.
+	file(GLOB _SourceList RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "*.md" "../*.md")
+	# Get all the header files from the application.
+	file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../src/*.h" "../src/*.md")
+	# Remove unwanted header file(s) ending on 'Private.h'.
+	list(FILTER _SourcesListTmp EXCLUDE REGEX ".*Private\\.h$")
+	# Append the list with headers.
+	list(APPEND _SourceList ${_SourceListTmp})
+	# Adds the actual manual target and the last argument is the optional PlantUML jar version to download use.
+	Sf_AddManual("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" "v1.2023.0")
+endif ()
+```
+
