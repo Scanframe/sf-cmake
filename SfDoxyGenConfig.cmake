@@ -41,11 +41,9 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	# Path to images adding the passed base directory. ()
 	file(RELATIVE_PATH _Temp "${CMAKE_CURRENT_BINARY_DIR}" "${_BaseDir}")
 	set(DG_ImagePath "${_Temp}")
-#[[
-	# Add the top project source dir.
+	# Add the top project source dir so images in the code can be referenced from the root of the project.
 	file(RELATIVE_PATH _Temp "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}")
 	set(DG_ImagePath "${DG_ImagePath} ${_Temp}")
-]]
 	# Enable when to change the output directory.
 	file(RELATIVE_PATH DG_OutputDir "${CMAKE_CURRENT_BINARY_DIR}" "${_OutDir}")
 	# Set the MarkDown main page for the manual.
