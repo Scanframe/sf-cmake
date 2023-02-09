@@ -81,7 +81,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 		add_custom_command(
 			TARGET ${_Target}
 			PRE_BUILD
-			COMMAND ${CMAKE_COMMAND} -E rm "${_OutDir}/inline_*.pu"
+			COMMAND ${CMAKE_COMMAND} -E rm -f "${_OutDir}/inline_*.pu"
 		)
 	endif ()
 endfunction()
