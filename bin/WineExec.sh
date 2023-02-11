@@ -15,9 +15,9 @@ function WriteLog()
 }
 
 # Only when it could find the script.
-if [[ -f "${SCRIPT_DIR}/../cmake/bin/QtLibDir.sh" ]] ; then
+if [[ -f "${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh" ]] ; then
 	# Get the Qt installed directory.
-	QT_VER_DIR="$(bash "${SCRIPT_DIR}/../cmake/bin/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
+	QT_VER_DIR="$(bash "${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
 	# Qt version on Linux.
 	QT_VER="$(basename "${QT_VER_DIR}")"
 	# Qt lib sub directory build by certain compiler version.
@@ -25,6 +25,7 @@ if [[ -f "${SCRIPT_DIR}/../cmake/bin/QtLibDir.sh" ]] ; then
 	# Location of Qt DLLs.
 	DIR_QT_DLL="$(realpath "${HOME}/lib/QtWin/${QT_VER}/${QT_LIB_SUB}/bin")"
 else
+	WriteLog "File not found: ${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh"
 	DIR_QT_DLL=""
 fi
 # Form the binary target directory for cross Windows builds.
@@ -76,4 +77,5 @@ export WINEPATH="${WDIR_EXE_DLL};${WDIR_QT_DLL};${WDIR_MINGW_DLL};${WDIR_MINGW_D
 
 # Execute it in its own shell to contain the temp dir change.
 # Redirect wine stderr to be ignored.
-(cd "${DIR_BIN_WIN}" && wine "$@" 2> /dev/null)
+#(cd "${DIR_BIN_WIN}" && wine "$@" 2> /dev/null)
+cd "${DIR_BIN_WIN}" && wine "$@"

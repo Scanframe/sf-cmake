@@ -126,7 +126,7 @@ function InstallPackages()
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]] ; then
-		if ! sudo apt install --install-recommends mingw-w64 cmake doxygen graphviz wine exiftool ; then
+		if ! sudo apt install --install-recommends mingw-w64 cmake doxygen graphviz wine winbind exiftool ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
