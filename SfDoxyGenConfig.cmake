@@ -6,6 +6,12 @@ include(FetchContent)
 #     file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../*.h" "../*.md")
 #
 function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
+	# Get the actual output directory.
+	get_filename_component(_OutDir "${_OutDir}" REALPATH)
+	# Check if the resulting directory exists.
+	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
+	endif()
 	# Initialize plantuml version with empty string.
 	set(_PlantUmlVer "")
 	# Check if argument 4 which is the plantuml version is passed
@@ -13,7 +19,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 		if ("${ARGV4}" STREQUAL "")
 			# Set default plantuml version.
 			set(_PlantUmlVer "v1.2023.1")
-		else()
+		else ()
 			set(_PlantUmlVer "${ARGV4}")
 		endif ()
 		message(STATUS "DoxyGen > PlantUML version to download: '${_PlantUmlVer}'")
@@ -70,11 +76,15 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	# Generate the configure the file for doxygen.
 	configure_file("${_FileIn}" "${_FileOut}" @ONLY)
 	# Note the option ALL which allows to build the docs together with the application.
-	add_custom_target("${_Target}" ALL
-		COMMAND ${DOXYGEN_EXECUTABLE} ${_FileOut}
-		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+	add_custom_target("${_Target}"
+		# Remove previous resulting 'html' directory.
+		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_OutDir}/html/"
+		# Execute DoxyGen and generate the document.
+		COMMAND ${DOXYGEN_EXECUTABLE} "${_FileOut}"
+		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Generating documentation with Doxygen"
-		VERBATIM)
+		VERBATIM
+		)
 	# Only applicable when plantuml is available.
 	if (NOT "${DG_PlantUmlJar}" STREQUAL "")
 		# Remove plantuml cache file which prevent changes in the include file to propagate.
@@ -82,6 +92,8 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 			TARGET ${_Target}
 			PRE_BUILD
 			COMMAND ${CMAKE_COMMAND} -E rm -f "${_OutDir}/inline_*.pu"
+			COMMENT "Cleanup plantuml files for next build."
 		)
 	endif ()
 endfunction()
+
