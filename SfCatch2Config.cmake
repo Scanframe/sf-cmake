@@ -8,3 +8,14 @@ FetchContent_Declare(
 )
 # Adds Catch2::Catch2
 FetchContent_MakeAvailable(Catch2)
+
+### Lines to add to a project using this library.
+#[[
+
+# Make nlohmann_json::nlohmann_json library available.
+find_package(SfCatch2 CONFIG REQUIRED)
+
+# Link the library to the target.
+target_link_libraries(MyTargetName PRIVATE Catch2::Catch2)
+
+]]
