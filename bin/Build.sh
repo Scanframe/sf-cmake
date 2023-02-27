@@ -121,12 +121,12 @@ function InstallPackages()
 	WriteLog "About to install required packages for ($1)..."
 	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]] ; then
 		if ! sudo apt install --install-recommends make cmake gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev \
-			libxkbfile-dev libvulkan-dev libssl-dev exiftool ; then
+			libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]] ; then
-		if ! sudo apt install --install-recommends mingw-w64 make cmake doxygen graphviz wine winbind exiftool ; then
+		if ! sudo apt install --install-recommends mingw-w64 make cmake doxygen graphviz wine winbind exiftool default-jre ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
