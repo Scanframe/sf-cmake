@@ -161,7 +161,7 @@ if [[ "${SF_TARGET_OS}" == "Cygwin" ]] ; then
 	FLAG_WINDOWS=true
 	# Set the directory the local QT root.
 	# shellcheck disable=SC2012
-	LOCAL_QT_ROOT="$( (ls -d /cygdrive/?/Qt | tail -n 1) 2> /dev/null )"
+	LOCAL_QT_ROOT="$( (ls -d /cygdrive/?/Qt | head -n 1) 2> /dev/null )"
 	if [[ -d "$LOCAL_QT_ROOT" ]] ; then
 		WriteLog "- Found QT in '${LOCAL_QT_ROOT}'"
 	fi
@@ -460,9 +460,9 @@ if ${FLAG_WINDOWS} ; then
 	TOOLSET_PRE['native']=""
 	# shellcheck disable=SC2154
 	# shellcheck disable=SC2012
-	TOOLSET_CMAKE['clion']="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/bin/cmake.exe 2> /dev/null | tail -n 1)"
+	TOOLSET_CMAKE['clion']="$(ls "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin/cmake.exe)"
 	# shellcheck disable=SC2012
-	TOOLSET_CTEST['clion']="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/bin/ctest.exe 2> /dev/null | tail -n 1)"
+	TOOLSET_CTEST['clion']="$(ls "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin/ctest.exe 2> /dev/null | tail -n 1)"
 	# shellcheck disable=SC2012
 	TOOLSET_DIR['clion']="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/mingw/bin | tail -n 1)"
 	TOOLSET_PRE['clion']=""
