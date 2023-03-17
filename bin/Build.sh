@@ -101,11 +101,11 @@ function ShowHelp()
   Examples:
     Make/Build all projects: ${0} -mb .
     Same as above: ${0} -mb . all
-    Clean all projects: ${0} . clean
-    Install all projects: ${0} . install
-    Show all projects to be build in the current directory: ${0} . help
-    Build 'com' sub-project in the current directory: ${0} -b . com
-    Build all projects in the 'com' directory: ${0} -b com
+    Clean all projects: ${0} -b . clean
+    Install all projects: ${0} -b . install
+    Show all targets to be build in the current directory: ${0} -b . help
+    Build 'com' sub-project in the current directory i.e.:  ${0} -b . com
+    Build all projects in the 'com' directory i.e.: ${0} -b com
 	"
 }
 
