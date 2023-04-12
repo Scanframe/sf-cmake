@@ -54,8 +54,9 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	file(RELATIVE_PATH DG_OutputDir "${CMAKE_CURRENT_BINARY_DIR}" "${_OutDir}")
 	# Set the MarkDown main page for the manual.
 	file(RELATIVE_PATH DG_MainPage "${CMAKE_CURRENT_BINARY_DIR}" "${_BaseDir}/mainpage.md")
-	# Replace the list separator ';' with space in the list.
-	list(JOIN _SourceList " " DG_Source)
+	# Replace the list separator ';' with a space and a double quotes in the list to allow names wioth spaces in it.
+	list(JOIN _SourceList "\" \"" DG_Source)
+	set(DG_Source "\"${DG_Source}\"")
 	# Enable when generating Zen styling output.
 	if (FALSE)
 		set(DG_HtmlHeader "${SfDoxyGen_DIR}/theme/zen/header.html")
@@ -97,3 +98,35 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	endif ()
 endfunction()
 
+# Gets the include directories from all targets in the list.
+# When not found it returns "${_VarOut}-NOTFOUND"
+# _var: Variable receiving resulting list of include directories.
+# _targets: Build targets to get the include directories from.
+#
+function(Sf_GetIncludeDirectories _var _targets)
+	set(_list "")
+	# Iterate through the passed list of build targets.
+	foreach (_target IN LISTS ${_targets})
+		# Get the source directory from the target.
+		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
+		# Get all the include directories from the target.
+		get_target_property(_incdirs "${_target}" INCLUDE_DIRECTORIES)
+		# Check if there are include directories for this target.
+		if ("${_incdirs}" STREQUAL "_incdirs-NOTFOUND")
+			#message("The '${_target}' has no includes...")
+			continue()
+		endif ()
+		# Get for each include directory...
+		foreach (_incdir IN LISTS _incdirs)
+			# The real path by combining the source dir and in dir.
+			get_filename_component(_dir "${_incdir}" REALPATH)
+			# Append the real directory to the resulting list.
+			list(APPEND _list "${_dir}/")
+		endforeach ()
+	endforeach ()
+	# Remove any duplicates directories from the list but sorting is needed first before removing duplicates.
+	list(SORT _list)
+	list(REMOVE_DUPLICATES _list)
+	# Assign the list to the passed resulting variable.
+	set(${_var} ${_list} PARENT_SCOPE)
+endfunction()

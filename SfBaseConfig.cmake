@@ -163,36 +163,56 @@ macro(Sf_AddExifTarget _Target)
 	#endif ()
 endmacro()
 
-# Add version resource 'resource.rc' to be compiled by passed target.
+# Get all added targets in all subdirectories.
+# Arguments:
+#  _result: the list containing all found targets
+#  _dir: root directory to start looking from
 #
-function(Sf_AddVersionResource _Target)
-	get_target_property(_Version "${_Target}" SOVERSION)
-	get_target_property(_OutputName "${_Target}" OUTPUT_NAME)
-	get_target_property(_OutputSuffix "${_Target}" SUFFIX)
-	string(REPLACE "." "," RC_WindowsFileVersion "${_Version},0")
-	set(RC_WindowsProductVersion "${RC_WindowsFileVersion}")
-	set(RC_FileVersion "${_Version}")
-	set(RC_ProductVersion "${RC_FileVersion}")
-	set(RC_FileDescription "${CMAKE_PROJECT_DESCRIPTION}")
-	set(RC_ProductName "${CMAKE_PROJECT_DESCRIPTION}")
-	set(RC_OriginalFilename "${_OutputName}${_OutputSuffix}")
-	set(RC_InternalName "${_OutputName}${_OutputSuffix}")
-	string(TIMESTAMP RC_BuildDateTime "%Y-%m-%dT%H:%M:%SZ" UTC)
-	if (NOT DEFINED SF_COMPANY_NAME)
-		set(RC_CompanyName "Unknown")
-	else ()
-		set(RC_CompanyName "${SF_COMPANY_NAME}")
-	endif ()
-	set(_HomepageUrl "${HOMEPAGE_URL}")
-	set(RC_Comments "Build on '${CMAKE_HOST_SYSTEM_NAME} ${CMAKE_HOST_SYSTEM_PROCESSOR} ${CMAKE_HOST_SYSTEM_VERSION}' (${CMAKE_PROJECT_HOMEPAGE_URL})")
-	# Set input and output files for the generation of the actual config file.
-	set(_FileIn "${SfBase_DIR}/tpl/res/version.rc")
-	# MAke sure the file exists.
-	Sf_CheckFileExists("${_FileIn}")
-	# Assemble the file out.
-	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
-	# Generate the configure the file for doxygen.
-	configure_file("${_FileIn}" "${_FileOut}" @ONLY NEWLINE_STYLE LF)
-	#
-	target_sources("${_Target}" PRIVATE "${_FileOut}")
+function(Sf_GetAllTargets _result _dir)
+	# Get the length of the name to skip.
+	string(LENGTH "${FETCHCONTENT_BASE_DIR}" _length)
+	get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+	foreach(_subdir IN LISTS _subdirs)
+		string(SUBSTRING "${_subdir}" 0 ${_length} _tmp)
+		if (_tmp STREQUAL FETCHCONTENT_BASE_DIR)
+			#message(NOTICE "Skipping: ${_tmp}")
+			continue()
+		endif ()
+		Sf_GetAllTargets(${_result} "${_subdir}")
+	endforeach()
+	get_directory_property(_sub_targets DIRECTORY "${_dir}" BUILDSYSTEM_TARGETS)
+	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
+endfunction()
+
+# Gets the include directories from all targets in the list.
+# When not found it returns "${_VarOut}-NOTFOUND"
+# _var: Variable receiving resulting list of include directories.
+# _targets: Build targets to get the include directories from.
+#
+function(Sf_GetIncludeDirectories _var _targets)
+	set(_list "")
+	# Iterate through the passed list of build targets.
+	foreach (_target IN LISTS ${_targets})
+		# Get the source directory from the target.
+		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
+		# Get all the include directories from the target.
+		get_target_property(_incdirs "${_target}" INCLUDE_DIRECTORIES)
+		# Check if there are include directories for this target.
+		if ("${_incdirs}" STREQUAL "_incdirs-NOTFOUND")
+			#message("The '${_target}' has no includes...")
+			continue()
+		endif ()
+		# Get for each include directory...
+		foreach (_incdir IN LISTS _incdirs)
+			# The real path by combining the source dir and in dir.
+			get_filename_component(_dir "${_incdir}" REALPATH)
+			# Append the real directory to the resulting list.
+			list(APPEND _list "${_dir}/")
+		endforeach ()
+	endforeach ()
+	# Remove any duplicates directories from the list but sorting is needed first before removing duplicates.
+	list(SORT _list)
+	list(REMOVE_DUPLICATES _list)
+	# Assign the list to the passed resulting variable.
+	set(${_var} ${_list} PARENT_SCOPE)
 endfunction()

@@ -584,7 +584,7 @@ if ${FLAG_WINDOWS} ; then
 		if ${FLAG_TEST} ; then
 			echo -e "\n:: === CTest Section ==="
 			echo "\"${CTEST_BIN}\" ^"
-			echo "--test-dir \"${BUILD_DIR}\""
+			echo "-V --test-dir \"${BUILD_DIR}\""
 		fi
 	} >> "${EXEC_SCRIPT}"
 else
@@ -622,7 +622,7 @@ else
 		if ${FLAG_TEST} ; then
 			echo -e "\n# === CTest Section ==="
 			echo "\"${CTEST_BIN}\" \\"
-			echo "--test-dir \"${BUILD_DIR}\""
+			echo "-V --test-dir \"${BUILD_DIR}\""
 		fi
 	} >> "${EXEC_SCRIPT}"
 fi
