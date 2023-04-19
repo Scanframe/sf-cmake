@@ -163,6 +163,40 @@ macro(Sf_AddExifTarget _Target)
 	#endif ()
 endmacro()
 
+# Add version resource 'resource.rc' to be compiled by passed target.
+#
+function(Sf_AddVersionResource _Target)
+	get_target_property(_Version "${_Target}" SOVERSION)
+	get_target_property(_OutputName "${_Target}" OUTPUT_NAME)
+	get_target_property(_OutputSuffix "${_Target}" SUFFIX)
+	string(REPLACE "." "," RC_WindowsFileVersion "${_Version},0")
+	set(RC_WindowsProductVersion "${RC_WindowsFileVersion}")
+	set(RC_FileVersion "${_Version}")
+	set(RC_ProductVersion "${RC_FileVersion}")
+	set(RC_FileDescription "${CMAKE_PROJECT_DESCRIPTION}")
+	set(RC_ProductName "${CMAKE_PROJECT_DESCRIPTION}")
+	set(RC_OriginalFilename "${_OutputName}${_OutputSuffix}")
+	set(RC_InternalName "${_OutputName}${_OutputSuffix}")
+	string(TIMESTAMP RC_BuildDateTime "%Y-%m-%dT%H:%M:%SZ" UTC)
+	if (NOT DEFINED SF_COMPANY_NAME)
+		set(RC_CompanyName "Unknown")
+	else ()
+		set(RC_CompanyName "${SF_COMPANY_NAME}")
+	endif ()
+	set(_HomepageUrl "${HOMEPAGE_URL}")
+	set(RC_Comments "Build on '${CMAKE_HOST_SYSTEM_NAME} ${CMAKE_HOST_SYSTEM_PROCESSOR} ${CMAKE_HOST_SYSTEM_VERSION}' (${CMAKE_PROJECT_HOMEPAGE_URL})")
+	# Set input and output files for the generation of the actual config file.
+	set(_FileIn "${SfBase_DIR}/tpl/res/version.rc")
+	# MAke sure the file exists.
+	Sf_CheckFileExists("${_FileIn}")
+	# Assemble the file out.
+	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
+	# Generate the configure the file for doxygen.
+	configure_file("${_FileIn}" "${_FileOut}" @ONLY NEWLINE_STYLE LF)
+	#
+	target_sources("${_Target}" PRIVATE "${_FileOut}")
+endfunction()
+
 # Get all added targets in all subdirectories.
 # Arguments:
 #  _result: the list containing all found targets
