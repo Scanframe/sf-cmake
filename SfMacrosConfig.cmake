@@ -75,7 +75,6 @@ function(Sf_SetOutputDirs _DirName)
 		if (_OutputDir STREQUAL "")
 			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
 		else ()
-			message(STATUS "Output Directory (${PROJECT_NAME}): ${_OutputDir}")
 			# Set the directories accordingly in the parents scope.
 			set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
 			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)

@@ -138,6 +138,10 @@ macro(Sf_AddSharedLibrary _Target)
 	Sf_SetTargetDefaultCompileOptions("${_Target}")
 	# Set the version of this target.
 	Sf_SetTargetVersion("${_Target}")
+	# In Windows builds the output directory for libraries is ignored and the runtime is used and is now corrected.
+	if (WIN32)
+		set_target_properties("${PROJECT_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+	endif()
 endmacro()
 
 ##!

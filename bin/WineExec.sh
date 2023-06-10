@@ -73,7 +73,7 @@ WDIR_MINGW_DLL2="$(winepath -w "${DIR_MINGW_DLL2}")"
 # Path to QT runtime DLL's
 WDIR_QT_DLL="$(winepath -w "${DIR_QT_DLL}")"
 # Export the path to find the needed DLLs in.
-export WINEPATH="${WDIR_EXE_DLL};${WDIR_QT_DLL};${WDIR_MINGW_DLL};${WDIR_MINGW_DLL2}"
+export WINEPATH="${WINEPATH};${WDIR_EXE_DLL};${WDIR_QT_DLL};${WDIR_MINGW_DLL};${WDIR_MINGW_DLL2}"
 
 # Execute it in its own shell to contain the temp dir change.
 # Redirect wine stderr to be ignored.
