@@ -1,3 +1,4 @@
+##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
 #
 if (${CMAKE_VERSION} VERSION_LESS 3.14)
@@ -10,6 +11,7 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
 	endmacro()
 endif ()
 
+##!
 # Checks if the required passed file exists.
 # When not a useful fatal message is produced.
 #
@@ -19,6 +21,7 @@ macro(Sf_CheckFileExists _File)
 	endif ()
 endmacro()
 
+##!
 # Works around for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden)
 #
 function(Sf_SetTargetDefaultCompileOptions _Target)
@@ -26,6 +29,7 @@ function(Sf_SetTargetDefaultCompileOptions _Target)
 	target_compile_options("${_Target}" PRIVATE "-fvisibility=hidden")
 endfunction()
 
+##!
 # Gets the version from the Git repository using 'PROJECT_SOURCE_DIR' variable.
 # When not found it returns "${_VarOut}-NOTFOUND"
 #
@@ -71,6 +75,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	endif ()
 endfunction()
 
+##!
 # Sets the passed target version properties according the version of the sub project
 # or by default use the tag in vN.N.N format
 #
@@ -113,6 +118,7 @@ function(Sf_SetTargetVersion _Target)
 	endif ()
 endfunction()
 
+##!
 # Adds an executable application target and also sets the default compile options.
 #
 macro(Sf_AddExecutable _Target)
@@ -134,6 +140,7 @@ macro(Sf_AddSharedLibrary _Target)
 	Sf_SetTargetVersion("${_Target}")
 endmacro()
 
+##!
 # Adds an exif custom target for reporting the resource stored versions.
 #
 macro(Sf_AddExifTarget _Target)
@@ -163,6 +170,7 @@ macro(Sf_AddExifTarget _Target)
 	#endif ()
 endmacro()
 
+##!
 # Add version resource 'resource.rc' to be compiled by passed target.
 #
 function(Sf_AddVersionResource _Target)
@@ -197,10 +205,10 @@ function(Sf_AddVersionResource _Target)
 	target_sources("${_Target}" PRIVATE "${_FileOut}")
 endfunction()
 
+##!
 # Get all added targets in all subdirectories.
-# Arguments:
-#  _result: the list containing all found targets
-#  _dir: root directory to start looking from
+#  @param _result The list containing all found targets
+#  @param _dir Root directory to start looking from
 #
 function(Sf_GetAllTargets _result _dir)
 	# Get the length of the name to skip.
@@ -218,10 +226,11 @@ function(Sf_GetAllTargets _result _dir)
 	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
 endfunction()
 
+##!
 # Gets the include directories from all targets in the list.
 # When not found it returns "${_VarOut}-NOTFOUND"
-# _var: Variable receiving resulting list of include directories.
-# _targets: Build targets to get the include directories from.
+# @param _var Variable receiving resulting list of include directories.
+# @param _targets Build targets to get the include directories from.
 #
 function(Sf_GetIncludeDirectories _var _targets)
 	set(_list "")
@@ -249,4 +258,48 @@ function(Sf_GetIncludeDirectories _var _targets)
 	list(REMOVE_DUPLICATES _list)
 	# Assign the list to the passed resulting variable.
 	set(${_var} ${_list} PARENT_SCOPE)
+endfunction()
+
+##!
+# Waits until the files are actually available.
+# @param _DepName Dependenciy name passed to FetchContent_Declare().
+# @param _Timeout Amount of seconds to wait until timeout failure.
+#
+function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
+	# Initialize the flag
+	set(_Populated False)
+	set(_DepDir "")
+	set(_SleepTime 0.2)
+	set(_LoopsPerSec 5)
+	# Calculate the max amount of loops allowed. Some ho
+	math(EXPR _Loops "${_Timeout} * ${_LoopsPerSec}")
+	# Populate the library and wait for it.
+	FetchContent_Populate("${_DepName}")
+	while (NOT ${_Populated})
+		# Notify waiting for population of content.
+		message(STATUS "[${_Loops}] Waiting for '${_DepName}' to populate...")
+		# Generic sleep command of CMake itself.
+		execute_process(COMMAND ${CMAKE_COMMAND} -E sleep ${_SleepTime})
+		# Get the population flag of the content.
+		FetchContent_GetProperties("${_DepName}" POPULATED _Populated)
+		# Check if populated and continue to check if actually true.
+		if (${_Populated})
+			# Get the unpacked location of the content.
+			FetchContent_GetProperties("${_DepName}" SOURCE_DIR _DepDir)
+			# When the directory is not yet available the content is not either.
+			if (NOT EXISTS "${_DepDir}")
+				# Wait some longer to unpack fully.
+				execute_process(COMMAND ${CMAKE_COMMAND} -E sleep ${_SleepTime})
+				# Notify waiting for population of content.
+				message(STATUS "[${_Loops}] Almost there for '${_DepName}' content to be available in '${_DepDir}'...")
+				# Reset the flag. Populating needs more time.
+				set(_Populated False)
+			endif ()
+			# Decrement the loops variable.
+			math(EXPR _Loops "${_Loops} - 1")
+			if (${_Loops} LESS_EQUAL 0)
+				message(FATAL_ERROR "[${_Loops}] Populating '${_DepName}' took more then the given '${_Timeout}s'!")
+			endif ()
+		endif ()
+	endwhile ()
 endfunction()
