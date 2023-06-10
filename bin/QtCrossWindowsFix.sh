@@ -47,8 +47,12 @@ if [[ ! -d "${DIR_TO}" ]]; then
 	exit 1
 fi
 
+# Set the tab size to 2.
+tabs -2
+# Show intent.
+WriteLog -e "Fixing Windows Qt for Cross-compiling: \n\tSource: '${DIR_FROM}'\n\tDestination: '${DIR_TO}'"
 # Ask for permission
-read -rp "Continue [y/N]?" && if [[ $REPLY = [yY] ]]
+read -rp "Continue [y/N]? " && if [[ $REPLY = [yY] ]]
 then
 	WriteLog "Starting..."
 else

@@ -33,33 +33,29 @@ macro(Sf_AddImportLibrary TargetName)
 endmacro()
 
 ##
-## Locates a top 'bin' directory containing the file named '__output__'.
+## Locates a top '_DirName' directory containing the file named '__output__'.
 ## Sets the '_OutputDir' variable when found.
 ##
-function(Sf_LocateOutputDir)
+function(Sf_LocateOutputDir _DirName _OutputDir)
 	# InitializeBase return value variable.
-	set(_OutputDir "" PARENT_SCOPE)
-	# Look into this sub directory.
-	set(_BinDir "bin")
+	set(${_OutputDir} "" PARENT_SCOPE)
 	# Loop from 9 to 4 with step 1.
 	foreach (_Counter RANGE 0 4 1)
 		# Form the string to the parent directory.
 		string(REPEAT "/.." ${_Counter} _Sub)
 		# Get the real filepath which is looked for.
-		get_filename_component(_Dir "${CMAKE_CURRENT_LIST_DIR}${_Sub}/${_BinDir}" REALPATH)
+		get_filename_component(_Dir "${CMAKE_CURRENT_LIST_DIR}${_Sub}/${_DirName}" REALPATH)
 		# When the file inside is found Set the output directories and break the loop.
 		if (EXISTS "${_Dir}/__output__")
 			set(_Sep "/")
-			#[[
-						if ("$ENV{CI_SERVER}" STREQUAL "yes")
-							set(_Sep "-")
-						endif()
-			]]
+			if ("$ENV{CI_SERVER}" STREQUAL "yes")
+				set(_Sep "-")
+			endif()
 			# Make a distinction based on targeted system.
 			if (WIN32)
-				set(_OutputDir "${_Dir}${_Sep}win64" PARENT_SCOPE)
+				set(${_OutputDir} "${_Dir}${_Sep}win64" PARENT_SCOPE)
 			else ()
-				set(_OutputDir "${_Dir}${_Sep}lnx64" PARENT_SCOPE)
+				set(${_OutputDir} "${_Dir}${_Sep}lnx64" PARENT_SCOPE)
 			endif ()
 			# Stop here the directory has been found.
 			break()
@@ -72,18 +68,18 @@ endfunction()
 ## Only when the top project is the current project.
 ## Fatal error when not able to do so.
 ##
-function(Sf_SetOutputDirs)
+function(Sf_SetOutputDirs _DirName)
 	if (CMAKE_PROJECT_NAME STREQUAL "${PROJECT_NAME}")
-		Sf_LocateOutputDir()
+		Sf_LocateOutputDir("${_DirName}" _OutputDir)
 		# Check if the directory was found.
 		if (_OutputDir STREQUAL "")
-			message(FATAL_ERROR "Sf_SetOutputDirs() (${PROJECT_NAME}): Output directory could not be located")
+			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
 		else ()
 			message(STATUS "Output Directory (${PROJECT_NAME}): ${_OutputDir}")
 			# Set the directories accordingly in the parents scope.
 			set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
-			set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
-			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
+			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
+			#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
 		endif ()
 	endif ()
 endfunction()
