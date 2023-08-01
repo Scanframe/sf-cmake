@@ -157,7 +157,7 @@ macro(Sf_AddExifTarget _Target)
 				COMMAND bash -c "exiftool '$<TARGET_FILE:${_Target}>' | egrep -i '(File Name|Product Version|File Version|File Type|CPU Type)\\s*:' | sed 's/\\s*:/:/g'"
 				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
 				DEPENDS "$<TARGET_FILE:${_Target}>"
-				COMMENT "Reading resource information from '$<TARGET_DIR:${_Target}>'."
+				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
 				)
 		else ()
@@ -165,7 +165,7 @@ macro(Sf_AddExifTarget _Target)
 				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
 				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
 				DEPENDS "$<TARGET_FILE:${_Target}>"
-				COMMENT "Reading resource information from '$<TARGET_DIR:${_Target}>'."
+				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
 				)
 		endif ()
@@ -266,7 +266,7 @@ endfunction()
 
 ##!
 # Waits until the files are actually available.
-# @param _DepName Dependenciy name passed to FetchContent_Declare().
+# @param _DepName Dependency name passed to FetchContent_Declare().
 # @param _Timeout Amount of seconds to wait until timeout failure.
 #
 function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
