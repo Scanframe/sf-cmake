@@ -1,8 +1,9 @@
 #!/bin/bash
-#set -x
 
-# Get the bash script directory.
-#SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+# Get the script directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Include WriteLog function.
+source "${SCRIPT_DIR}/inc/WriteLog.sh"
 
 # Set the directory the local QT root expected.
 if [[ -z "$1" ]] ; then
@@ -10,13 +11,6 @@ if [[ -z "$1" ]] ; then
 else
 	LOCAL_QT_ROOT="$1"
 fi
-
-# Writes to stderr.
-#
-function WriteLog()
-{
-	echo "$@" 1>&2;
-}
 
 # Find newest local Qt version directory.
 #
@@ -39,8 +33,6 @@ function GetLocalQtDir()
 	fi
 	echo -n "${LocalQtDir}"
 }
-
-
 
 if ! GetLocalQtDir ; then
 	exit 1

@@ -76,35 +76,35 @@ function(Sf_SetOutputDirs _DirName)
 			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
 		else ()
 			# Set the directories accordingly in the parents scope.
-			set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
-			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
+			#if (CMAKE_RUNTIME_OUTPUT_DIRECTORY STREQUAL "")
+				set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
+			#endif ()
+			#if (CMAKE_LIBRARY_OUTPUT_DIRECTORY STREQUAL "")
+				set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
+			#endif ()
 			#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
 		endif ()
 	endif ()
 endfunction()
 
 ##
-## Sets the extension of the created executable binary.
+## Sets the extension of the created shared library or executable.
 ##
-function(Sf_SetBinarySuffix)
-	foreach (_var IN LISTS ARGN)
-		if (WIN32)
-			set_target_properties(${_var} PROPERTIES OUTPUT_NAME "${_var}" SUFFIX ".exe")
-		else ()
-			set_target_properties(${_var} PROPERTIES OUTPUT_NAME "${_var}" SUFFIX ".bin")
-		endif ()
-	endforeach ()
-endfunction()
-
-##
-## Sets the extension of the created dynamic library.
-##
-function(Sf_SetDynamicLibrarySuffix)
-	foreach (_var IN LISTS ARGN)
-		if (WIN32)
-			set_target_properties(${_var} PROPERTIES OUTPUT_NAME "${_var}" SUFFIX ".dll")
-		else ()
-			set_target_properties(${_var} PROPERTIES OUTPUT_NAME "${_var}" SUFFIX ".so")
+function(Sf_SetTargetSuffix)
+	foreach (_Target IN LISTS ARGN)
+		get_target_property(_Type "${_Target}" TYPE)
+		if (_Type STREQUAL "EXECUTABLE")
+			if (WIN32)
+				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".exe")
+			else ()
+				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".bin")
+			endif ()
+		elseif (_Type STREQUAL "SHARED_LIBRARY")
+			if (WIN32)
+				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".dll")
+			else ()
+				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".so")
+			endif ()
 		endif ()
 	endforeach ()
 endfunction()
@@ -173,4 +173,27 @@ function(Sf_WorkAroundSmbShare)
 			message(FATAL_ERROR "Failed execution of script: ${_Script}")
 		endif ()
 	]]
+endfunction()
+
+##!
+# Get all source files from the passed targets.
+#  @param _Targets  The list containing all found targets
+#  @param _OutVar Output variable returning a list variable.
+#
+function(Sf_GetTargetSource _Targets _OutVar)
+	# Create or recreate empty variable since this is global namespace.
+	set(_ActiveSources)
+	# Iterate through the targets.
+	foreach (_target IN LISTS _Targets)
+		# Get the source list from the target.
+		get_target_property(_Sources ${_target} SOURCES)
+		# Append the target source list to the collection.
+		list(APPEND _ActiveSources ${_Sources})
+	endforeach ()
+	# For convenience sort the list.
+	list(SORT _ActiveSources)
+	# Since some targets have the same sources remove duplicates.
+	list(REMOVE_DUPLICATES _ActiveSources)
+	# Assign the passed variable.
+	set("${_OutVar}" "${_ActiveSources}" PARENT_SCOPE)
 endfunction()

@@ -4,7 +4,7 @@ function(Sf_SetToolChain)
 	set(_CmakeFile "${CMAKE_CURRENT_BINARY_DIR}/.sf/SfToolChain.cmake")
 	file(WRITE "${_CmakeFile}" "#### Created by function '${CMAKE_CURRENT_FUNCTION}'\n")
 	# Check if this is a cross compile for windows.
-	if (NOT DEFINED SF_CROSS_WINDOWS OR "${SF_CROSS_WINDOWS}" STREQUAL "OFF")
+	if (NOT WIN32 AND NOT DEFINED SF_CROSS_WINDOWS OR "${SF_CROSS_WINDOWS}" STREQUAL "OFF")
 		# By default the toolset for Linux is GNU
 		if (NOT DEFINED SF_COMPILER OR "${SF_COMPILER}" STREQUAL "gnu")
 			foreach (_Version RANGE 14 8 -1)
@@ -45,6 +45,8 @@ function(Sf_SetToolChain)
 		else ()
 			message(FATAL_ERROR "Toolset '${SF_COMPILER}' is unknown!")
 		endif ()
+	elseif ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		file(APPEND "${_CmakeFile}" "# Empty since CMake locates the compilers by itself.")
 	else ()
 		# Find the Windows cross compiler
 		find_program(SF_CROSS_COMPILER "x86_64-w64-mingw32-c++-posix")
@@ -67,7 +69,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 # Search programs in the host environment
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 ")
-
 		# Cygwin compilers.
 		if (False)
 			file(APPEND "${_CmakeFile}"
@@ -86,11 +87,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 ")
 		endif ()
-
-
 	endif ()
-
-		set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
+	set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
 endfunction()
 
 

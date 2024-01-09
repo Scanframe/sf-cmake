@@ -141,7 +141,7 @@ macro(Sf_AddSharedLibrary _Target)
 	# In Windows builds the output directory for libraries is ignored and the runtime is used and is now corrected.
 	if (WIN32)
 		set_target_properties("${PROJECT_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
-	endif()
+	endif ()
 endmacro()
 
 ##!
@@ -159,7 +159,7 @@ macro(Sf_AddExifTarget _Target)
 				DEPENDS "$<TARGET_FILE:${_Target}>"
 				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
-				)
+			)
 		else ()
 			add_custom_target("exif-${_Target}" ALL
 				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
@@ -167,7 +167,7 @@ macro(Sf_AddExifTarget _Target)
 				DEPENDS "$<TARGET_FILE:${_Target}>"
 				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
-				)
+			)
 		endif ()
 		add_dependencies("exif" "exif-${_Target}")
 	endif ()
@@ -179,7 +179,12 @@ endmacro()
 #
 function(Sf_AddVersionResource _Target)
 	get_target_property(_Version "${_Target}" SOVERSION)
-	get_target_property(_OutputName "${_Target}" OUTPUT_NAME)
+	get_target_property(_Type "${_Target}" TYPE)
+	if (_Type STREQUAL "EXECUTABLE")
+		get_target_property(_OutputName "${_Target}" OUTPUT_NAME)
+	elseif (_Type STREQUAL "SHARED_LIBRARY")
+		get_target_property(_OutputName "${_Target}" LIBRARY_OUTPUT_NAME)
+	endif ()
 	get_target_property(_OutputSuffix "${_Target}" SUFFIX)
 	string(REPLACE "." "," RC_WindowsFileVersion "${_Version},0")
 	set(RC_WindowsProductVersion "${RC_WindowsFileVersion}")
@@ -218,14 +223,14 @@ function(Sf_GetAllTargets _result _dir)
 	# Get the length of the name to skip.
 	string(LENGTH "${FETCHCONTENT_BASE_DIR}" _length)
 	get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
-	foreach(_subdir IN LISTS _subdirs)
+	foreach (_subdir IN LISTS _subdirs)
 		string(SUBSTRING "${_subdir}" 0 ${_length} _tmp)
 		if (_tmp STREQUAL FETCHCONTENT_BASE_DIR)
 			#message(NOTICE "Skipping: ${_tmp}")
 			continue()
 		endif ()
 		Sf_GetAllTargets(${_result} "${_subdir}")
-	endforeach()
+	endforeach ()
 	get_directory_property(_sub_targets DIRECTORY "${_dir}" BUILDSYSTEM_TARGETS)
 	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
 endfunction()
@@ -306,4 +311,34 @@ function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
 			endif ()
 		endif ()
 	endwhile ()
+endfunction()
+
+##!
+# Sets or appends the rpath for all compiled targets.
+# @param _Path A path string like "\${ORIGIN}:\${ORIGIN}/lib".
+#
+function (Sf_SetRPath _Path)
+	# Is a Linux only thing.
+	if (WIN32)
+		# When building for Windows using GNU report warnings on MSVC incompatibilities.
+		#add_definitions(-D__MINGW_MSVC_COMPAT_WARNINGS)
+		# Suppressing the warning that out-of-line inline functions are redeclared.
+		#add_link_options(-Wno-inconsistent-dllimport)
+	else ()
+		# Using Cmake's way of RPATH.
+		set(CMAKE_SKIP_BUILD_RPATH FALSE)
+		set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+		# Linker option -rpath is not working due to doubling of the '$' sign by CMAKE.
+		#    add_link_options(-Wl,-rpath-link "\${ORIGIN\}")
+		if (CMAKE_INSTALL_RPATH STREQUAL "")
+			set(CMAKE_INSTALL_RPATH "${_Path}")
+		else ()
+			set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${_Path}")
+		endif ()
+		# Set the parent scope version.
+		set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}" PARENT_SCOPE)
+		# Report the resulting RPath.
+		message(STATUS "Install RPATH: ${CMAKE_INSTALL_RPATH}")
+	endif ()
 endfunction()
