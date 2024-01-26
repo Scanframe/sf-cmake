@@ -429,10 +429,11 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			WriteLog "Build preset '${preset}' does not exist!"
 			cmake --list-presets build
 		else
-			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
-			binary_dir="${binary_dir//\$env{/\${}"
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
+			binary_dir="${binary_dir//\$env{/\${}"
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
+			# Notify the build of the preset.
+			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			# When the binary directory exists and the Wipe flag is set.
 			if ${FLAG_WIPE} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
