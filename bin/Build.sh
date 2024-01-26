@@ -9,6 +9,20 @@ if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
 	exit 1
 fi
+
+# Check if the needed commands are installed.
+COMMANDS=("git" "jq" "cmake" "ctest")
+# Add interactive commands when running interactively.
+if [[ "${CI}" != "true" ]]; then
+	COMMANDS+=("dialog")
+fi
+for COMMAND in "${COMMANDS[@]}"; do
+	if ! command -v "${COMMAND}" >/dev/null; then
+		WriteLog "Missing command '${COMMAND}' for this script!"
+		exit 1
+	fi
+done
+
 # Get the include directory which is this script's directory.
 INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the WriteLog function.
@@ -402,15 +416,6 @@ if [[ "${TARGET}" == @(help|install) && ${FLAG_WIPE} == true ]]; then
 	FLAG_WIPE=false
 	WriteLog "Wiping clean with target '${TARGET}' not possible!"
 fi
-
-# Check if the needed commands are installed.
-COMMANDS=("dialog" "git" "recode" "jq" "cmake")
-for COMMAND in "${COMMANDS[@]}"; do
-	if ! command -v "${COMMAND}" >/dev/null; then
-		WriteLog "Missing command '${COMMAND}' for this script"
-		exit 1
-	fi
-done
 
 # When building is requested.
 if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
