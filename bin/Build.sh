@@ -48,8 +48,7 @@ function ShowHelp() {
   -b, --build      : Build target only.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
   -t, --test       : Runs the ctest application in the cmake-build-* directory.
-  --toolset <name> : Preferred toolset in Windows (clion,qt,studio) where:
-                     qt = QT Group Framework, studio = Microsoft Visual Studio, clion = JetBrains CLion.
+  -n, --target     : Sets the target other then the preset defaults.
   --gitlab-ci      : Simulate CI server by setting CI_SERVER environment variable (disables colors i.e.).
   Where <sub-dir> is the directory used as build root for the CMakeLists.txt in it.
   This is usually the current directory '.'.
@@ -236,6 +235,8 @@ FLAG_INFO=false
 CMAKE_CONFIG=("cmake")
 # Initialize the cmake build command as an array.
 CMAKE_BUILD=("cmake" "--build")
+# When empty the target is not overridden.
+TARGET_NAME=""
 
 # Create file for exploring in Chrome using URL "chrome://tracing/".
 #CMAKE_CONFIG+=("--profiling-output=perf.json" "--profiling-format=google-trace")
@@ -253,8 +254,8 @@ function join_by {
 }
 
 # Parse options.
-temp=$(getopt -o 'dhiscfCbtmr' --long \
-	'toolset:,help,info,submodule,debug,required,wipe,fresh,clean,make,build,test,studio,gitlab-ci' \
+temp=$(getopt -o 'n:dhiscfCbtmr' --long \
+	'target:,help,info,submodule,debug,required,wipe,fresh,clean,make,build,test,studio,gitlab-ci' \
 	-n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 # No arguments at show help and bailout.
@@ -266,17 +267,6 @@ eval set -- "${temp}"
 unset temp
 while true; do
 	case $1 in
-
-		--toolset)
-			TOOLSET="$2"
-			if [[ "${TOOLSET}" =~ [^(clion|qt|studio)$] ]]; then
-				WriteLog "Toolset selection '${TOOLSET}' invalid!"
-				ShowHelp
-				exit 1
-			fi
-			shift 2
-			continue
-			;;
 
 		--gitlab-ci)
 			export CI_SERVER="yes"
@@ -290,7 +280,7 @@ while true; do
 			;;
 
 		-i | --info)
-			WriteLog "# Information on targets"
+			WriteLog "# Information on presets"
 			# Set the flag to wipe the build directory first.
 			FLAG_INFO=true
 			shift 1
@@ -311,7 +301,7 @@ while true; do
 			;;
 
 		-C | --wipe)
-			WriteLog "# Wipe clean targeted build directory commenced"
+			WriteLog "# Wipe clean build directory commenced"
 			# Set the flag to wipe the build directory first.
 			FLAG_WIPE=true
 			shift 1
@@ -362,6 +352,13 @@ while true; do
 			WriteLog "# Running tests enabled"
 			FLAG_TEST=true
 			shift 1
+			continue
+			;;
+
+		-n | --target)
+			WriteLog "# Setting different target then default."
+			TARGET_NAME="${2}"
+			shift 2
 			continue
 			;;
 
@@ -466,6 +463,9 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			# Build when flag is set.
 			if ${FLAG_BUILD}; then
 				CMAKE_BUILD+=("--preset ${cfg_preset}")
+				if [[ -n "${TARGET_NAME}" ]] ; then
+					CMAKE_BUILD+=("--target ${TARGET_NAME}")
+				fi
 				if ${FLAG_DEBUG}; then
 					WriteLog "$(join_by " " "${CMAKE_BUILD[@]}")"
 				else
