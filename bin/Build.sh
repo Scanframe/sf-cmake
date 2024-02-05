@@ -4,7 +4,6 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
-<<<<<<< Updated upstream
 # When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
@@ -12,7 +11,7 @@ if [[ -z "${SCRIPT_DIR}" ]]; then
 fi
 
 # Check if the needed commands are installed.1+
-COMMANDS=("git" "jq" "cmake" "ctest", "ninja")
+COMMANDS=("git" "jq" "cmake" "ctest" "ninja")
 # Add interactive commands when running interactively.
 if [[ "${CI}" != "true" ]]; then
 	COMMANDS+=("dialog")
@@ -24,8 +23,6 @@ for COMMAND in "${COMMANDS[@]}"; do
 	fi
 done
 
-=======
->>>>>>> Stashed changes
 # Get the include directory which is this script's directory.
 INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the WriteLog function.
@@ -55,8 +52,9 @@ function ShowHelp() {
   -C, --wipe       : Wipe clean build tree directory.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
   -b, --build      : Build target only.
-  -t, --test       : Runs the ctest application directory.
-  -n, --target     : Overrides the targets set in the preset by a single target.
+  -t, --test       : Runs the ctest application using a test-preset.
+  -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
+  -n, --target     : Overrides the build targets set in the preset by a single target.
   -r, --regex      : Regular expression on which test names are to be executed.
   --gitlab-ci      : Simulate CI server by setting CI_SERVER environment variable (disables colors i.e.).
   Where <sub-dir> is the directory used as build root for the CMakeLists.txt in it.
@@ -67,6 +65,13 @@ function ShowHelp() {
   Examples:
     Make/Build project: ${0} -b my-preset
 	"
+}
+
+function PrependAndEscape()
+{
+	while read -r line; do
+		WriteLog -e "${1}${line}";
+	done;
 }
 
 # Amount of CPU cores to use for compiling when make build is used.
@@ -195,7 +200,8 @@ function SelectTestPreset {
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${file_presets}")"
 		if [[ "${2}" == "info" ]]; then
 			WriteLog "Test: ${preset} '${test_name}' ${test_desc}"
-			WriteLog -e "\tConfiguration: ${cfg_preset} '${cfg_name}' ${cfg_desc}\n"
+			WriteLog -e "\tConfiguration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
+			ctest --preset "${preset}" --show-only | tail -n +2 | head -n -1 | PrependAndEscape "\t\t"
 		fi
 		presets+=("${test_name} (${cfg_name}) ${test_desc}")
 		preset_names+=("${preset}")
@@ -289,6 +295,7 @@ FLAG_BUILD=false
 FLAG_TEST=false
 FLAG_WIPE=false
 FLAG_INFO=false
+FLAG_LIST=false
 # Initialize the cmake configure command as an array.
 CMAKE_CONFIG=("cmake")
 # Initialize the cmake build command as an array.
@@ -315,8 +322,8 @@ function join_by {
 }
 
 # Parse options.
-temp=$(getopt -o 'n:hisdpfCcmbtr:' --long \
-	'target:,help,info,submodule,debug,packages,fresh,wipe,clean,make,build,test,regex:,gitlab-ci' \
+temp=$(getopt -o 'n:hisdpfCcmbtlr:' --long \
+	'target:,help,info,submodule,debug,packages,fresh,wipe,clean,make,build,test,list,regex:,gitlab-ci' \
 	-n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 # No arguments at show help and bailout.
@@ -403,14 +410,14 @@ while true; do
 			;;
 
 		-b | --build)
-			WriteLog "# Build the given preset"
+			WriteLog "# Build the given preset."
 			FLAG_BUILD=true
 			shift 1
 			continue
 			;;
 
 		-t | --test)
-			WriteLog "# Running tests enabled"
+			WriteLog "# Running tests enabled."
 			FLAG_TEST=true
 			shift 1
 			continue
@@ -420,6 +427,13 @@ while true; do
 			WriteLog "# Setting different target then default."
 			TARGET_NAME="${2}"
 			shift 2
+			continue
+			;;
+
+		-l | --list-only)
+			WriteLog "# Listing is enabled"
+			FLAG_LIST=true
+			shift 1
 			continue
 			;;
 
@@ -475,7 +489,7 @@ fi
 # First argument is mandatory.
 if [[ "${#argument[@]}" -eq 0 ]]; then
 	# Assign an argument.
-	if ${FLAG_BUILD}; then
+	if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 		preset="$(SelectBuildPreset "${file_presets}")"
 	elif ${FLAG_TEST}; then
 		preset="$(SelectTestPreset "${file_presets}")"
@@ -579,6 +593,10 @@ if ${FLAG_TEST}; then
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			CTEST_BUILD+=("--preset ${preset}")
+			# Add flag to list tests.
+			if [[ -n "${FLAG_LIST}" ]]; then
+				CTEST_BUILD+=("--show-only")
+			fi
 			# Add regular expression for test when given.
 			if [[ -n "${TEST_REGEX}" ]]; then
 				CTEST_BUILD+=("--tests-regex ${TEST_REGEX}")
