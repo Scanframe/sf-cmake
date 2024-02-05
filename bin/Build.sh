@@ -4,14 +4,15 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
+<<<<<<< Updated upstream
 # When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
 	exit 1
 fi
 
-# Check if the needed commands are installed.
-COMMANDS=("git" "jq" "cmake" "ctest")
+# Check if the needed commands are installed.1+
+COMMANDS=("git" "jq" "cmake" "ctest", "ninja")
 # Add interactive commands when running interactively.
 if [[ "${CI}" != "true" ]]; then
 	COMMANDS+=("dialog")
@@ -23,10 +24,17 @@ for COMMAND in "${COMMANDS[@]}"; do
 	fi
 done
 
+=======
+>>>>>>> Stashed changes
 # Get the include directory which is this script's directory.
 INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the WriteLog function.
 source "${INCLUDE_DIR}/inc/WriteLog.sh"
+
+# When the script directory is not set then use the this scripts directory.
+if [[ -z "${SCRIPT_DIR}" ]]; then
+	SCRIPT_DIR="${INCLUDE_DIR}"
+fi
 
 # Change to the scripts directory to operated from when script is called from a different location.
 if ! cd "${SCRIPT_DIR}"; then
@@ -74,13 +82,14 @@ SF_TARGET_OS="$(uname -o)"
 function InstallPackages() {
 	WriteLog "About to install required packages for ($1)..."
 	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
-		if ! sudo apt-get --yes install make cmake gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev \
-			libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre; then
+		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
+		  libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt-get --yes install mingw-w64 make cmake doxygen graphviz wine winbind exiftool default-jre; then
+		if ! sudo apt install  mingw-w64 make cmake doxygen graphviz wine winbind exiftool \
+			default-jre-headless "${CROSS_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi

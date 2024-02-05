@@ -16,12 +16,8 @@ fi
 if [[ -f "${SCRIPT_DIR}/QtLibDir.sh" ]]; then
 	# Get the Qt installed directory.
 	QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
-	# Qt version on Linux.
-	QT_VER="$(basename "${QT_VER_DIR}")"
-	# Qt lib sub directory build by certain compiler version.
-	QT_LIB_SUB="mingw_64"
 	# Location of Qt DLLs.
-	DIR_QT_DLL="$(realpath "${HOME}/lib/QtWin/${QT_VER}/${QT_LIB_SUB}/bin")"
+	DIR_QT_DLL="$(realpath "${QT_VER_DIR}/mingw_64/bin")"
 else
 	WriteLog "File not found: ${SCRIPT_DIR}/QtLibDir.sh"
 	DIR_QT_DLL=""
