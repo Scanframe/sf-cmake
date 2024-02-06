@@ -51,7 +51,8 @@ function ShowHelp() {
   -f, --fresh      : Configure a fresh build tree, removing any existing cache file.
   -C, --wipe       : Wipe clean build tree directory.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
-  -b, --build      : Build target only.
+  -b, --build      : Build target and make config when it does not exist.
+  -B, --build-only : Build target only and fail when the configuration does note exist.
   -t, --test       : Runs the ctest application using a test-preset.
   -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
   -n, --target     : Overrides the build targets set in the preset by a single target.
@@ -67,11 +68,10 @@ function ShowHelp() {
 	"
 }
 
-function PrependAndEscape()
-{
+function PrependAndEscape() {
 	while read -r line; do
-		WriteLog -e "${1}${line}";
-	done;
+		WriteLog -e "${1}${line}"
+	done
 }
 
 # Amount of CPU cores to use for compiling when make build is used.
@@ -88,12 +88,12 @@ function InstallPackages() {
 	WriteLog "About to install required packages for ($1)..."
 	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
 		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
-		  libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
+			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install  mingw-w64 make cmake doxygen graphviz wine winbind exiftool \
+		if ! sudo apt install mingw-w64 make cmake doxygen graphviz wine winbind exiftool \
 			default-jre-headless "${CROSS_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
@@ -111,10 +111,15 @@ function InstallPackages() {
 
 ##
 # Returns the version number of the git version tag.
+# Expected tag format is 'vM.N.P' where:
+#   M: Major version number.
+#   N: Minor version number.
+#   P: Patch version number.
 #
 function GetGitTagVersion() {
 	local tag
-	tag="$(git describe --tags --dirty --match "v*")"
+	git describe --tags --dirty --match 'v*' 2>/dev/null
+	# Match on vx.x.x version tag.
 	if [[ $? && ! "${tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]).* ]]; then
 		echo "0.0.0"
 	else
@@ -292,6 +297,7 @@ fi
 FLAG_DEBUG=false
 FLAG_CONFIG=false
 FLAG_BUILD=false
+FLAG_BUILD_ONLY=false
 FLAG_TEST=false
 FLAG_WIPE=false
 FLAG_INFO=false
@@ -322,8 +328,8 @@ function join_by {
 }
 
 # Parse options.
-temp=$(getopt -o 'n:hisdpfCcmbtlr:' --long \
-	'target:,help,info,submodule,debug,packages,fresh,wipe,clean,make,build,test,list,regex:,gitlab-ci' \
+temp=$(getopt -o 'n:hisdpfCcmbBtlr:' --long \
+	'target:,help,info,submodule,debug,packages,fresh,wipe,clean,make,build,-B,build-only,test,list,regex:,gitlab-ci' \
 	-n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 # No arguments at show help and bailout.
@@ -391,13 +397,6 @@ while true; do
 			continue
 			;;
 
-		-m | --make)
-			WriteLog "# Create build directory and makefiles only"
-			FLAG_CONFIG=true
-			shift 1
-			continue
-			;;
-
 		-s | --submodule)
 			WriteLog "# Information on Git-submodules."
 			shift 1
@@ -409,9 +408,24 @@ while true; do
 			exit 0
 			;;
 
+		-m | --make)
+			WriteLog "# Create build directory and makefile(s) only"
+			FLAG_CONFIG=true
+			shift 1
+			continue
+			;;
+
 		-b | --build)
-			WriteLog "# Build the given preset."
+			WriteLog "# Build the given presets and make the configuration when not present."
 			FLAG_BUILD=true
+			shift 1
+			continue
+			;;
+
+		-B | --build-only)
+			WriteLog "# Build the given presets only and fail when the configuration has not been made."
+			FLAG_BUILD=true
+			FLAG_BUILD_ONLY=true
 			shift 1
 			continue
 			;;
@@ -544,7 +558,7 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 				fi
 			fi
 			# When the binary directory does not exists or configure is required.
-			if [[ ! -d "${binary_dir}" ]] || ${FLAG_CONFIG}; then
+			if [[ ! -d "${binary_dir}" ]] || ${FLAG_CONFIG} && ! ${FLAG_BUILD_ONLY}; then
 				CMAKE_CONFIG+=("--preset ${cfg_preset}")
 				if ${FLAG_DEBUG}; then
 					WriteLog "$(join_by ' ' "${CMAKE_CONFIG[@]}")"
@@ -619,7 +633,10 @@ if ${FLAG_TEST}; then
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
 					8) WriteLog "CTest no tests matched '${TEST_REGEX}'." ;;
-					*) WriteLog "CTest failed [${exitcode}]!"; exit 1 ;;
+					*)
+						WriteLog "CTest failed [${exitcode}]!"
+						exit 1
+						;;
 				esac
 			fi
 		fi
