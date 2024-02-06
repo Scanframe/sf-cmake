@@ -557,8 +557,14 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			# Build when flag is set.
 			if ${FLAG_BUILD}; then
 				CMAKE_BUILD+=("--preset ${cfg_preset}")
-				if [[ -n "${TARGET_NAME}" ]]; then
-					CMAKE_BUILD+=("--target ${TARGET_NAME}")
+				# Add flag to list targets.
+				if ${FLAG_LIST}; then
+					CMAKE_BUILD+=("--target help")
+				# Otherwise just set the given target when it was set.
+				else
+					if [[ -n "${TARGET_NAME}" ]]; then
+						CMAKE_BUILD+=("--target ${TARGET_NAME}")
+					fi
 				fi
 				WriteLog "$(join_by " " "${CMAKE_BUILD[@]}")"
 				if ! ${FLAG_DEBUG}; then
@@ -594,7 +600,7 @@ if ${FLAG_TEST}; then
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			CTEST_BUILD+=("--preset ${preset}")
 			# Add flag to list tests.
-			if [[ -n "${FLAG_LIST}" ]]; then
+			if ${FLAG_LIST}; then
 				CTEST_BUILD+=("--show-only")
 			fi
 			# Add regular expression for test when given.
