@@ -632,7 +632,13 @@ if ${FLAG_TEST}; then
 				exitcode="$?"
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
-					8) WriteLog "CTest no tests matched '${TEST_REGEX}'." ;;
+
+					8)
+						# When the regex is empty the test failed.
+						if [[ -z "${TEST_REGEX}" ]]; then exit 1; else
+							WriteLog "CTest no tests matched '${TEST_REGEX}'."
+						fi
+						;;
 					*)
 						WriteLog "CTest failed [${exitcode}]!"
 						exit 1
