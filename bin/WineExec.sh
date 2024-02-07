@@ -59,8 +59,8 @@ for DIR_NAME in "${DIR_BIN_WIN}" "${DIR_MINGW_DLL}" "${DIR_MINGW_DLL2}" "${DIR_Q
 	fi
 done
 
-# Path to executable and its DLL's.
-WDIR_EXE_DLL="$(winepath -w "${DIR_BIN_WIN}")"
+# Path to executable and its DLL's in the lib subdirectory.
+WDIR_EXE_DLL="$(winepath -w "${DIR_BIN_WIN}/lib")"
 # Path to mingw runtime DLL's
 WDIR_MINGW_DLL="$(winepath -w "${DIR_MINGW_DLL}")"
 # Path to mingw runtime DLL's second path.
