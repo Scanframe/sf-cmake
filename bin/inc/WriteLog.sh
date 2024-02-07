@@ -40,10 +40,10 @@ function WriteLog()
 			COLOR="${col_fg_magenta}"
 			;;
 		"~")
-			COLOR="${col_fg_yellow}"
+			COLOR="${col_fg_blue}"
 			;;
 		"#")
-			COLOR="${col_fg_blue}"
+			COLOR="${col_fg_yellow}"
 			;;
 		"=")
 			COLOR="${col_fg_green}"

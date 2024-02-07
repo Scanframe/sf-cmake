@@ -48,9 +48,9 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 		# When the file inside is found Set the output directories and break the loop.
 		if (EXISTS "${_Dir}/__output__")
 			set(_Sep "/")
-			if ("$ENV{CI_SERVER}" STREQUAL "yes")
-				set(_Sep "-")
-			endif()
+#			if ("$ENV{CI_SERVER}" STREQUAL "yes")
+#				set(_Sep "-")
+#			endif()
 			# Make a distinction based on targeted system.
 			if (WIN32)
 				set(${_OutputDir} "${_Dir}${_Sep}win64" PARENT_SCOPE)

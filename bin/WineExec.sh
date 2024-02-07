@@ -1,46 +1,41 @@
 #!/usr/bin/env bash
-#set -x
 
-# When not defined get the current one.
-if [[ -z "${SCRIPT_DIR}" ]] ; then
-	# Get this script's directory.
-	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# Get this script's directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
+# Include WriteLog function.
+source "${SCRIPT_DIR}/inc/WriteLog.sh"
+
+# Check if the executable directory has been set.
+if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
+	WriteLog "Environment variable 'EXECUTABLE_DIR' does not exist or has not been set!"
+	exit 1
 fi
 
-# Writes to stderr.
-#
-function WriteLog()
-{
-	echo "$@" 1>&2;
-}
-
 # Only when it could find the script.
-if [[ -f "${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh" ]] ; then
+if [[ -f "${SCRIPT_DIR}/QtLibDir.sh" ]]; then
 	# Get the Qt installed directory.
-	QT_VER_DIR="$(bash "${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
-	# Qt version on Linux.
-	QT_VER="$(basename "${QT_VER_DIR}")"
-	# Qt lib sub directory build by certain compiler version.
-	QT_LIB_SUB="mingw_64"
+	QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
 	# Location of Qt DLLs.
-	DIR_QT_DLL="$(realpath "${HOME}/lib/QtWin/${QT_VER}/${QT_LIB_SUB}/bin")"
+	DIR_QT_DLL="$(realpath "${QT_VER_DIR}/mingw_64/bin")"
 else
-	WriteLog "File not found: ${SCRIPT_DIR}/../cmake/lib/bin/QtLibDir.sh"
+	WriteLog "File not found: ${SCRIPT_DIR}/QtLibDir.sh"
 	DIR_QT_DLL=""
 fi
 # Form the binary target directory for cross Windows builds.
-DIR_BIN_WIN="$(realpath "${SCRIPT_DIR}/win64")"
+#DIR_BIN_WIN="$(realpath "${EXECUTABLE_DIR}")"
+DIR_BIN_WIN="${EXECUTABLE_DIR}"
 # Location of MinGW DLLs.
 DIR_MINGW_DLL="/usr/x86_64-w64-mingw32/lib"
 # Location of MinGW posix DLLs 2.
-DIR_MINGW_DLL2="$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*-posix | sort -V | tail -n 1)"
+DIR_MINGW_DLL2="$(find /usr/lib/gcc/x86_64-w64-mingw32 -name "*-posix" | sort -V | tail -n 1)"
 # Wine command.
 WINE_BIN="wine64"
 
 # When nothing is passed show help and wine version.
 if [[ -z "$1" ]]; then
 	WriteLog \
-	"Executes a cross-compiled Windows binary from the target directory.
+		"Executes a cross-compiled Windows binary from the target directory.
 Usage: $0 <win-exe-in-binwin-dir> [[<options>]...]
 Wine Version: $("${WINE_BIN}" --version)
 
@@ -51,13 +46,13 @@ $(cd "${DIR_BIN_WIN}" && ls *.exe)
 fi
 
 # Check if the command is available/installed.
-if ! command -v "${WINE_BIN}" > /dev/null ; then
+if ! command -v "${WINE_BIN}" >/dev/null; then
 	WriteLog "Missing '${WINE_BIN}', probably not installed."
 	exit 1
 fi
 
 # Check if all directories exist.
-for DIR_NAME in  "${DIR_BIN_WIN}" "${DIR_MINGW_DLL}" "${DIR_MINGW_DLL2}" "${DIR_QT_DLL}" ; do
+for DIR_NAME in "${DIR_BIN_WIN}" "${DIR_MINGW_DLL}" "${DIR_MINGW_DLL2}" "${DIR_QT_DLL}"; do
 	if [[ ! -z "${DIR_NAME}" && ! -d "${DIR_NAME}" ]]; then
 		WriteLog "Missing directory '${DIR_NAME}', probably something is not installed."
 		exit 1
