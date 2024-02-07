@@ -48,7 +48,9 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			OUTPUT_VARIABLE _Version
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
-			OUTPUT_STRIP_TRAILING_WHITESPACE)
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET
+		)
 	else ()
 		execute_process(COMMAND "${_GitExe}" describe --tags --dirty --match "v*"
 			# Use the current project directory to find.
@@ -56,7 +58,9 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			OUTPUT_VARIABLE _Version
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
-			OUTPUT_STRIP_TRAILING_WHITESPACE)
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET
+		)
 	endif ()
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)

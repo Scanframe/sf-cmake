@@ -22,8 +22,8 @@ function GetLocalQtDir()
 		WriteLog "Qt install directory or symbolic link '${LOCAL_QT_ROOT}' was not found!"
 		exit 1
 	fi
-	# Find the newest Qt library installed.
-	LocalQtDir="$(find "${LOCAL_QT_ROOT}/" -maxdepth 1 -type d -regex ".*\/Qt\/[0-9]\\.[0-9]+\\.[0-9]+$" | sort --reverse --version-sort | head -n 1)"
+	# Find the newest Qt library installed also following symlinks.
+	LocalQtDir="$(find -L "${LOCAL_QT_ROOT}/" -maxdepth 1 -type d -regex ".*\/[0-9]\\.[0-9]+\\.[0-9]+$" | sort --reverse --version-sort | head -n 1)"
 	if [[ -z "${LocalQtDir}" ]] ; then
 		WriteLog "Could not find local installed Qt directory."
 		exit 1
