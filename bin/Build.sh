@@ -3,7 +3,6 @@
 set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
-
 # When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
@@ -206,7 +205,8 @@ function SelectTestPreset {
 		if [[ "${2}" == "info" ]]; then
 			WriteLog "Test: ${preset} '${test_name}' ${test_desc}"
 			WriteLog -e "\tConfiguration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
-			ctest --preset "${preset}" --show-only | tail -n +2 | head -n -1 | PrependAndEscape "\t\t"
+			# List the test names only.
+			ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t"
 		fi
 		presets+=("${test_name} (${cfg_name}) ${test_desc}")
 		preset_names+=("${preset}")
@@ -487,10 +487,14 @@ if [[ -d "${file_presets}" ]]; then
 fi
 
 if ${FLAG_INFO}; then
+	# Set tabs distance 2 spaces.
+  tabs 2
 	WriteLog "# Build preset information:"
 	SelectBuildPreset "${file_presets}" "info"
 	WriteLog "# Test preset information:"
 	SelectTestPreset "${file_presets}" "info"
+	# Reset the tab distance.
+	tabs
 	exit 0
 fi
 
