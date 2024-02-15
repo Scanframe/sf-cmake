@@ -133,41 +133,43 @@ function GetGitTagVersion() {
 # @param: Select '' for info only value 'info'.
 #
 function SelectBuildPreset {
-	local file_presets build_preset build_name build_desc build_presets build_preset_names dlg_options idx selection binary_dir
-	# Assign argument to named variable.
-	file_presets="${1}"
+	local action preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection binary_dir
+	# Action is the first argument.
+	action="${1}"
+	# Remove the first argument from the list.
+	shift 1
 	# Initialize the array.
-	build_presets=("None")
-	build_preset_names=("")
+	presets=("None")
+	preset_names=("")
 	# shellcheck disable=SC2034
-	while read -r build_preset config; do
-		build_preset="${build_preset//\"/}"
-		build_name="$(jq -r ".buildPresets[]|select(.name==\"${build_preset}\").displayName" "${file_presets}")"
+	while read -r preset config; do
+		preset="${preset//\"/}"
+		name="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").displayName" "${@}")"
 		# Ignore entries with display names starting with '#'.
-		[[ "${build_name:0:1}" == "#" && "${2}" != "info" ]] && continue
-		build_desc="$(jq -r ".buildPresets[]|select(.name==\"${build_preset}\").description" "${file_presets}")"
-		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${build_preset}\").configurePreset" "${file_presets}")"
-		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${file_presets}")"
-		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${file_presets}")"
-		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets}")"
+		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
+		desc="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").configurePreset" "${@}")"
+		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
+		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
+		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
 		# Remove the sourceDir variable from the value.
 		binary_dir="${binary_dir//\$\{sourceDir\}\//}"
 		# Set variable for expansion by eval command.
 		#eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
-		if [[ "${2}" == "info" ]]; then
-			WriteLog "Build: ${build_preset} '${build_name}' ${build_desc}"
+		if [[ "${action}" == "info" ]]; then
+			WriteLog "Build: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
 		fi
 		#  Using Directory: ${binary_dir}"
-		build_presets+=("${build_name} (${cfg_name}) ${build_desc}")
-		build_preset_names+=("${build_preset}")
+		presets+=("${name} (${cfg_name}) ${desc}")
+		preset_names+=("${preset}")
 	done < <(cmake --list-presets build | tail -n +3)
-	if [[ "${2}" != "info" ]]; then
+	if [[ "${action}" != "info" ]]; then
 		# Form the dialog options from the build presets.
 		dlg_options=()
-		for idx in "${!build_presets[@]}"; do
+		for idx in "${!presets[@]}"; do
 			dlg_options+=("${idx}")
-			dlg_options+=("${build_presets[$idx]} ")
+			dlg_options+=("${presets[$idx]} ")
 		done
 		# Check if the 'dialog' command exists.
 		if ! command -v "dialog" >/dev/null; then
@@ -177,7 +179,7 @@ function SelectBuildPreset {
 		# Create a dialog returning a selection index.
 		selection=$(dialog --backtitle "Build Selection" --menu "Select a preset to build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
 		# Return by echoing the value.
-		echo "${build_preset_names[$selection]}"
+		echo "${preset_names[$selection]}"
 	fi
 }
 
@@ -187,23 +189,25 @@ function SelectBuildPreset {
 # @param: Select '' for info only value 'info'.
 #
 function SelectTestPreset {
-	local preset name desc file_presets presets preset_names dlg_options idx selection
-	# Assign argument to named variable.
-	file_presets="${1}"
+	local preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection
+	# Action is the first argument.
+	action="${1}"
+	# Remove the first argument from the list.
+	shift 1
 	# Initialize the array.
 	presets=("None")
 	preset_names=("")
 	# shellcheck disable=SC2034
 	while read -r preset config; do
 		preset="${preset//\"/}"
-		name="$(jq -r ".testPresets[]|select(.name==\"${preset}\").displayName" "${file_presets}")"
+		name="$(jq -r ".testPresets[]|select(.name==\"${preset}\").displayName" "${@}")"
 		# Ignore entries with display names starting with '#'.
-		[[ "${name:0:1}" == "#" && "${2}" != "info" ]] && continue
-		desc="$(jq -r ".testPresets[]|select(.name==\"${preset}\").description" "${file_presets}")"
-		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets}")"
-		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${file_presets}")"
-		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${file_presets}")"
-		if [[ "${2}" == "info" ]]; then
+		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
+		desc="$(jq -r ".testPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${@}")"
+		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
+		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
+		if [[ "${action}" == "info" ]]; then
 			WriteLog "Test: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
 			# List the test names only.
@@ -212,7 +216,7 @@ function SelectTestPreset {
 		presets+=("${name} (${cfg_name}) ${desc}")
 		preset_names+=("${preset}")
 	done < <(cmake --list-presets test | tail -n +3)
-	if [[ "${2}" != "info" ]]; then
+	if [[ "${action}" != "info" ]]; then
 		# Form the dialog options from the build presets.
 		dlg_options=()
 		for idx in "${!presets[@]}"; do
@@ -237,30 +241,32 @@ function SelectTestPreset {
 # @param: Select '' for info only value 'info'.
 #
 function SelectPackagePreset {
-	local preset name desc file_presets presets preset_names dlg_options idx selection
-	# Assign argument to named variable.
-	file_presets="${1}"
+	local preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection
+	# Action is the first argument.
+	action="${1}"
+	# Remove the first argument from the list.
+	shift 1
 	# Initialize the array.
 	presets=("None")
 	preset_names=("")
 	# shellcheck disable=SC2034
 	while read -r preset config; do
 		preset="${preset//\"/}"
-		name="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").displayName" "${file_presets}")"
+		name="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").displayName" "${@}")"
 		# Ignore entries with display names starting with '#'.
-		[[ "${name:0:1}" == "#" && "${2}" != "info" ]] && continue
-		desc="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").description" "${file_presets}")"
-		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets}")"
-		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${file_presets}")"
-		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${file_presets}")"
-		if [[ "${2}" == "info" ]]; then
+		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
+		desc="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").description" "${@}")"
+		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${@}")"
+		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
+		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
+		if [[ "${action}" == "info" ]]; then
 			WriteLog "Package: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
 		fi
 		presets+=("${name} (${cfg_name}) ${desc}")
 		preset_names+=("${preset}")
 	done < <(cmake --list-presets package | tail -n +3)
-	if [[ "${2}" != "info" ]]; then
+	if [[ "${action}" != "info" ]]; then
 		# Form the dialog options from the build presets.
 		dlg_options=()
 		for idx in "${!presets[@]}"; do
@@ -273,7 +279,7 @@ function SelectPackagePreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for testing" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -370,7 +376,6 @@ TEST_REGEX=""
 # Joins an array with glue.
 # Arg1: The glue which can be a multi character string.
 # Arg2+n: The array as separate arguments like "${myarray[@]}"
-
 function join_by {
 	local d=${1-} f=${2-}
 	if shift 2; then
@@ -536,23 +541,28 @@ while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
 done
 
 # Form the presets file location.
-file_presets="${SCRIPT_DIR}/CMakePresets.json"
+file_presets=("${SCRIPT_DIR}/CMakePresets.json")
 
 # Check if the presets file is present.
-if [[ -d "${file_presets}" ]]; then
-	WriteLog "File '${SCRIPT_DIR}/CMakePresets.json' is missing!"
+if [[ ! -f "${file_presets[0]}" ]]; then
+	WriteLog "File '${file_presets[0]}' is missing!"
 	exit 1
+fi
+
+# Add user presets to the list.
+if [[ -f "${SCRIPT_DIR}/CMakeUserPresets.json" ]]; then
+	file_presets+=("${SCRIPT_DIR}/CMakeUserPresets.json")
 fi
 
 if ${FLAG_INFO}; then
 	# Set tabs distance 2 spaces.
   tabs 2
 	WriteLog "# Build preset information:"
-	SelectBuildPreset "${file_presets}" "info"
+	SelectBuildPreset "info" "${file_presets[@]}"
 	WriteLog "# Test preset information:"
-	SelectTestPreset "${file_presets}" "info"
+	SelectTestPreset "info" "${file_presets[@]}"
 	WriteLog "# Package preset information:"
-	SelectPackagePreset "${file_presets}" "info"
+	SelectPackagePreset "info" "${file_presets[@]}"
 	# Reset the tab distance.
 	tabs
 	exit 0
@@ -568,11 +578,11 @@ fi
 if [[ "${#argument[@]}" -eq 0 ]]; then
 	# Assign an argument.
 	if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
-		preset="$(SelectBuildPreset "${file_presets}")"
+		preset="$(SelectBuildPreset "select" "${file_presets[@]}")"
 	elif ${FLAG_TEST}; then
-		preset="$(SelectTestPreset "${file_presets}")"
+		preset="$(SelectTestPreset "select" "${file_presets[@]}")"
 	elif ${FLAG_PACKAGE}; then
-		preset="$(SelectPackagePreset "${file_presets}")"
+		preset="$(SelectPackagePreset "select" "${file_presets[@]}")"
 	fi
 	if [[ -z "${preset}" ]]; then
 		WriteLog "Preset not selected."
@@ -592,9 +602,9 @@ fi
 if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
-		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets}")"
+		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
-		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets}")"
+		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets[@]}")"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Build preset '${preset}' does not exist!"
@@ -665,9 +675,9 @@ fi
 if ${FLAG_TEST}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
-		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets}")"
+		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
-		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets}")"
+		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets[@]}")"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Configure or Test preset '${preset}' does not exist!"
@@ -719,14 +729,14 @@ fi
 if ${FLAG_PACKAGE}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
-		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets}")"
+		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
-		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets}")"
+		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets[@]}")"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Configure or Package preset '${preset}' does not exist!"
 			# Show the available presets.
-			cpackage --list-presets
+			cpack --list-presets
 		else
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
 			binary_dir="${binary_dir//\$env{/\${}"
