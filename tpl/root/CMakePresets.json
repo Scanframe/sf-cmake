@@ -82,7 +82,7 @@
 			"name": "Debug-GNU",
 			"hidden": false,
 			"displayName": "Debug build Linux GNU Compiler",
-			"description": "Debug build with GNU compiler on Linux",
+			"description": "Debug build with GNU compiler on Linux.",
 			"configurePreset": "Debug-GNU",
 			"inherits": ["build-tpl"]
 		},
@@ -90,7 +90,7 @@
 			"name": "Debug-GW",
 			"hidden": false,
 			"displayName": "Debug build Linux MinGW Compiler",
-			"description": "Debug build MinGW Windows cross compiler on Linux",
+			"description": "Debug build MinGW Windows cross compiler on Linux.",
 			"configurePreset": "Debug-GW",
 			"inherits": ["build-tpl"]
 		},
@@ -98,7 +98,7 @@
 			"name": "Debug-MinGW",
 			"hidden": false,
 			"displayName": "Debug build Windows MinGW Compiler",
-			"description": "Debug build for MinGW compiler on Windows",
+			"description": "Debug build for MinGW compiler on Windows.",
 			"configurePreset": "Debug-MinGW",
 			"inherits": ["build-tpl"]
 		},
@@ -106,7 +106,7 @@
 			"name": "Debug-MSVC",
 			"hidden": false,
 			"displayName": "Debug build Windows MSVC Compiler",
-			"description": "Debug build for MSVC compiler on Windows",
+			"description": "Debug build for MSVC compiler on Windows.",
 			"configurePreset": "Debug-MSVC",
 			"inherits": ["build-tpl"]
 		}

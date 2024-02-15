@@ -222,18 +222,19 @@ endfunction()
 # Get all added targets in all subdirectories.
 #  @param _result The list containing all found targets
 #  @param _dir Root directory to start looking from
+#  @param _inc_deps Include dependencies TRUE or FALSE.
 #
-function(Sf_GetAllTargets _result _dir)
+function(Sf_GetAllTargets _result _dir _inc_deps)
 	# Get the length of the name to skip.
 	string(LENGTH "${FETCHCONTENT_BASE_DIR}" _length)
 	get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
 	foreach (_subdir IN LISTS _subdirs)
 		string(SUBSTRING "${_subdir}" 0 ${_length} _tmp)
-		if (_tmp STREQUAL FETCHCONTENT_BASE_DIR)
-			#message(NOTICE "Skipping: ${_tmp}")
+		if (NOT _inc_deps AND _tmp STREQUAL FETCHCONTENT_BASE_DIR)
+			#message(NOTICE "Skipping: ${_subdir}")
 			continue()
 		endif ()
-		Sf_GetAllTargets(${_result} "${_subdir}")
+		Sf_GetAllTargets(${_result} "${_subdir}" ${_inc_deps})
 	endforeach ()
 	get_directory_property(_sub_targets DIRECTORY "${_dir}" BUILDSYSTEM_TARGETS)
 	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
