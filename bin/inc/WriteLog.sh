@@ -57,6 +57,9 @@ function WriteLog()
 		":")
 			COLOR="${col_fg_magenta}"
 			;;
+		"!")
+			COLOR="${col_fg_red}"
+			;;
 		*)
 			COLOR=""
 			;;
