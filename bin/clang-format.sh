@@ -133,7 +133,7 @@ DIRECTORIES=()
 for dir in "${argument[@]}"; do
 	if ! realpath --relative-to="$(pwd)" -e "${dir}" >/dev/null; then
 		WriteLog "Given directory '${dir}' is not relative to current working directory!"
-		exit 0
+		exit 1
 	else
 		DIRECTORIES+=("${dir}")
 	fi
