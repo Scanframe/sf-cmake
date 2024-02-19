@@ -556,7 +556,7 @@ fi
 
 if ${FLAG_INFO}; then
 	# Set tabs distance 2 spaces.
-  tabs 2
+	tabs -2
 	WriteLog "# Build preset information:"
 	SelectBuildPreset "info" "${file_presets[@]}"
 	WriteLog "# Test preset information:"
@@ -564,7 +564,7 @@ if ${FLAG_INFO}; then
 	WriteLog "# Package preset information:"
 	SelectPackagePreset "info" "${file_presets[@]}"
 	# Reset the tab distance.
-	tabs
+	tabs -8
 	exit 0
 fi
 
@@ -598,7 +598,7 @@ if [[ "${TARGET}" == @(help|install) && ${FLAG_WIPE} == true ]]; then
 	WriteLog "Wiping clean with target '${TARGET}' not possible!"
 fi
 
-# When building is requested.
+# When configure and/or build is requested.
 if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
@@ -611,8 +611,7 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			cmake --list-presets build
 		else
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			binary_dir="${binary_dir//\$env{/\${}"
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
+			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			# Notify the build of the preset.
 			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			# When the binary directory exists and the Wipe flag is set.
@@ -671,7 +670,7 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 	done
 fi
 
-# When building is requested.
+# When test is requested.
 if ${FLAG_TEST}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
@@ -685,8 +684,7 @@ if ${FLAG_TEST}; then
 			ctest --list-presets
 		else
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			binary_dir="${binary_dir//\$env{/\${}"
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
+			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			CTEST_BUILD+=("--preset ${preset}")
 			# Add flag to list tests.
@@ -708,7 +706,6 @@ if ${FLAG_TEST}; then
 				exitcode="$?"
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
-
 					8)
 						# When the regex is empty the test failed.
 						if [[ -z "${TEST_REGEX}" ]]; then exit 1; else
@@ -725,45 +722,38 @@ if ${FLAG_TEST}; then
 	done
 fi
 
-# When building is requested.
+# When package is requested.
 if ${FLAG_PACKAGE}; then
 	for preset in "${argument[@]}"; do
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
-		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets[@]}")"
+		package_dir="$(jq -r ".packagePresets[]|select(.name==\"${cfg_preset}\").packageDirectory" "${file_presets[@]}")"
+		# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
+		eval "sourceDir=\"${SCRIPT_DIR}\" package_dir=${package_dir//\$env{/\${}"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Configure or Package preset '${preset}' does not exist!"
 			# Show the available presets.
-			cpack --list-presets
+			cmake --list-presets configure
 		else
-			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			binary_dir="${binary_dir//\$env{/\${}"
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
-			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			CPACKAGE_BUILD+=("--preset ${preset}")
+			CPACKAGE_BUILD+=("--verbose")
 			WriteLog "$(join_by " " "${CPACKAGE_BUILD[@]}")"
 			if ! ${FLAG_DEBUG}; then
 				set +e
-				# Run the test preset.
+				# Run the package preset.
 				# shellcheck disable=SC2091
-				$(join_by " " "${CPACKAGE_BUILD[@]}")
-				exitcode="$?"
-				case "${exitcode}" in
-					0) WriteLog "CPack success." ;;
-
-					8)
-						# When the regex is empty the test failed.
-						if [[ -z "${TEST_REGEX}" ]]; then exit 1; else
-							WriteLog "CPackage no tests matched '${TEST_REGEX}'."
-						fi
-						;;
-					*)
-						WriteLog "CPackage failed [${exitcode}]!"
-						exit 1
-						;;
-				esac
+				$(join_by " " "${CPACKAGE_BUILD[@]}"); exitcode="$?"
+				# Check the exit code.
+				if [[ "${exitcode}" -ne 0 ]]; then
+					WriteLog "CPackage failed [${exitcode}]!"
+					# Only NSIS produces log files and report only lines containing 'err' or 'warn'.
+					# shellcheck disable=SC2038
+					find "${package_dir}" -type f -name "*.log" | xargs cat | grep --perl-regexp --ignore-case "(err|warn)"
+				else
+					WriteLog "CPack success."
+				fi
 			fi
 		fi
 	done
