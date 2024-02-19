@@ -52,7 +52,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			ERROR_QUIET
 		)
 	else ()
-		execute_process(COMMAND "${_GitExe}" describe --tags --dirty --match "v*"
+		execute_process(COMMAND "${_GitExe}" v0.0.
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
