@@ -75,18 +75,17 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
 	# Regular expression getting all elements.
-	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-rc\\.([0-9]+))?(-([0-9]+)?-([a-z0-9]+))?-dirty$")
+	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-rc\\.?([0-9]+))?(-([0-9]+)?-([a-z0-9]+))?(-dirty)?$")
 	#[[
 	Matching possible different results to match.
 	v1.2.3-rc.4-56-78abcdef-dirty
 	v0.0.1-42-g914edbb-dirty
 	v0.1.1-rc.9-dirty
 	v0.1.2-dirty
-
 	Group 1 > Version          : 1.2.3
 	Group 3 > Release Candidate: 4
 	Group 5 > Commits since tag: 56
-	Group 6 > Hash             : 78abcdef
+	Group 6 > Hash of some sort: 78abcdef
 	]]
 	string(REGEX MATCH "${_RegEx}" _Dummy_ "${_Version}")
 	if ("${CMAKE_MATCH_1}" STREQUAL "")
