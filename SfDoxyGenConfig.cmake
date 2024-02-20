@@ -54,7 +54,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	file(RELATIVE_PATH DG_OutputDir "${CMAKE_CURRENT_BINARY_DIR}" "${_OutDir}")
 	# Set the MarkDown main page for the manual.
 	file(RELATIVE_PATH DG_MainPage "${CMAKE_CURRENT_BINARY_DIR}" "${_BaseDir}/mainpage.md")
-	# Replace the list separator ';' with a space and a double quotes in the list to allow names wioth spaces in it.
+	# Replace the list separator ';' with a space and a double quotes in the list to allow names with spaces in it.
 	list(JOIN _SourceList "\" \"" DG_Source)
 	set(DG_Source "\"${DG_Source}\"")
 	# Enable when generating Zen styling output.
