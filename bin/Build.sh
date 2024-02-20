@@ -3,11 +3,40 @@
 set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
+
+##
+# Function reporting stack.
+function stacktrace {
+	local i=1 line file func
+	while read -r line func file < <(caller $i); do
+		echo >&2 "[$i] $file:$line $func(): $(sed -n ${line}p $file)"
+		((i++))
+	done
+}
+
+##
+# Function to trap script exit.
+function script_exit {
+	local exitcode="${?}"
+	# Show the stack in case of an error.
+	if [[ "${exitcode}" -ne 0 ]]; then
+		stacktrace
+		WriteLog "! Exitcode: ${exitcode}"
+	fi
+	# Report execution time.
+	WriteLog "- Executed in ${SECONDS}s."
+	# Propagate the exit code.
+	exit "${exitcode}"
+}
+
 # When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
 	exit 1
 fi
+
+## Trap script exit with function.
+trap 'script_exit "${BASH_COMMAND}"' EXIT
 
 # Check if the needed commands are installed.1+
 COMMANDS=("git" "jq" "cmake" "ctest" "ninja")
@@ -210,8 +239,8 @@ function SelectTestPreset {
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Test: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
-			# List the test names only.
-			ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-"
+			# List the test names only and ignore errors using '|| true'.
+			ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-" || true
 		fi
 		presets+=("${name} (${cfg_name}) ${desc}")
 		preset_names+=("${preset}")
@@ -568,12 +597,6 @@ if ${FLAG_INFO}; then
 	exit 0
 fi
 
-## Do not allow to test and build at the same time.
-#if ${FLAG_BUILD} && ${FLAG_TEST}; then
-#	WriteLog "Cannot build and test at the same time!"
-#	exit 1
-#fi
-
 # First argument is mandatory.
 if [[ "${#argument[@]}" -eq 0 ]]; then
 	# Assign an argument.
@@ -585,8 +608,8 @@ if [[ "${#argument[@]}" -eq 0 ]]; then
 		preset="$(SelectPackagePreset "select" "${file_presets[@]}")"
 	fi
 	if [[ -z "${preset}" ]]; then
-		WriteLog "Preset not selected."
-		exit 1
+		WriteLog "- Preset not selected."
+		exit 0
 	else
 		argument=("${preset}")
 	fi
@@ -744,7 +767,8 @@ if ${FLAG_PACKAGE}; then
 				set +e
 				# Run the package preset.
 				# shellcheck disable=SC2091
-				$(join_by " " "${CPACKAGE_BUILD[@]}"); exitcode="$?"
+				$(join_by " " "${CPACKAGE_BUILD[@]}")
+				exitcode="$?"
 				# Check the exit code.
 				if [[ "${exitcode}" -ne 0 ]]; then
 					WriteLog "CPackage failed [${exitcode}]!"
