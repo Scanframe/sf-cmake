@@ -1,4 +1,4 @@
-# FetchContent added in CMake 3.11, downloads during the configure step
+# FetchContent added in CMake 3.11, downloads during the configure step.
 include(FetchContent)
 # Import SingleInstance library.
 FetchContent_Declare(

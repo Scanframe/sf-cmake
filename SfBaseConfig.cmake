@@ -134,7 +134,11 @@ macro(Sf_AddExecutable _Target)
 	Sf_SetTargetVersion("${_Target}")
 endmacro()
 
-# Adds a dynamic library target and sets the version number on it as well.
+##!
+# Adds a dynamic library target and sets the version number.
+# For Windows builds the library output directory is set the
+# same as when build for Linux.
+#
 macro(Sf_AddSharedLibrary _Target)
 	# Add the library to create.
 	add_library("${_Target}" SHARED)

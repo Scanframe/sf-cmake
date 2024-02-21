@@ -1,9 +1,9 @@
 include(FetchContent)
 
+##!
 # Adds doxygen manual target to the project.
-#
-# _Sources info is obtained using a GLOB function like:
-#     file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../*.h" "../*.md")
+# _SourceList info is obtained using a GLOB function like:
+#  file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../*.h" "../*.md")
 #
 function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	# Get the actual output directory.
@@ -11,7 +11,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	# Check if the resulting directory exists.
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
-	endif()
+	endif ()
 	# Initialize plantuml version with empty string.
 	set(_PlantUmlVer "")
 	# Check if argument 4 which is the plantuml version is passed
@@ -28,7 +28,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 			URL "https://github.com/plantuml/plantuml/releases/download/${_PlantUmlVer}/plantuml.jar"
 			DOWNLOAD_NO_EXTRACT true
 			TLS_VERIFY true
-			)
+		)
 		# Download it.
 		FetchContent_MakeAvailable(PlantUmlJar)
 		# Set the variable used in the configuration template.
@@ -85,7 +85,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Generating documentation with Doxygen"
 		VERBATIM
-		)
+	)
 	# Only applicable when plantuml is available.
 	if (NOT "${DG_PlantUmlJar}" STREQUAL "")
 		# Remove plantuml cache file which prevent changes in the include file to propagate.
@@ -98,6 +98,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	endif ()
 endfunction()
 
+##!
 # Gets the include directories from all targets in the list.
 # When not found it returns "${_VarOut}-NOTFOUND"
 # _var: Variable receiving resulting list of include directories.

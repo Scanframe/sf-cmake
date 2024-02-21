@@ -1,3 +1,6 @@
+##!
+# Ensures that the current build directory is not within the source.
+#
 macro(Sf_EnsureOutOfSourceBuild MSG)
 	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" InSource)
 	get_filename_component(ParentDir ${CMAKE_SOURCE_DIR} PATH)

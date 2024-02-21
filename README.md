@@ -6,8 +6,8 @@
   * [Usage](#usage)
     * [Fetching the Repository in CMake itself](#fetching-the-repository-in-cmake-itself)
     * [Repository as Sub-Module](#repository-as-sub-module)
-  * [Project Structure](#project-structure)
-  * [Head Start](#head-start)
+  * [Project Directory Structure](#project-directory-structure)
+  * [Main Project Head Start](#main-project-head-start)
   * [DoxyGen Document](#doxygen-document)
 <!-- TOC -->
 
@@ -36,7 +36,7 @@ include(FetchContent)
 FetchContent_Declare(Sf_CMakeLibrary
 	GIT_REPOSITORY "https://github.com/Scanframe/sf-cmake.git"
 	GIT_TAG main # Or a version tag.
-	)
+)
 FetchContent_MakeAvailable(Sf_CMakeLibrary)
 # Add the source to the cmake file search path.
 list(APPEND CMAKE_PREFIX_PATH "${sf_cmakelibrary_SOURCE_DIR}")
@@ -47,7 +47,8 @@ list(APPEND CMAKE_PREFIX_PATH "${sf_cmakelibrary_SOURCE_DIR}")
 The preferred way is to create a Git submodule `lib` in the `<project-root>/cmake`
 
 ```bash
-  git submodule add -b main -- ssh://git@git.scanframe.com:8022/library/cmake-lib.git lib
+  git submodule add -b main -- https://github.com/Scanframe/sf-cmake.git lib
+  git submodule add -b main -- https://git.scanframe.com/library/cmake-lib.git lib
 ```
 
 ## Project Directory Structure
@@ -77,7 +78,7 @@ A project directory tree could look like this.
 The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
 output directory for subprojects. Reason for building only subprojects instead of all is to speed
 up debugging by compiling only the dynamic loaded library separately.
-When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.  
+When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.
 
 ## Main Project Head Start
 
@@ -86,14 +87,15 @@ give a head start getting a project going.
 
 ## DoxyGen Document
 
-For generating documentation from the code using [DoxyGen](https://www.doxygen.nl/) the `doc` subdirectory is to be added. 
+For generating documentation from the code using [DoxyGen](https://www.doxygen.nl/) the `doc` subdirectory is to be added.
 in the main `CMakeLists.txt`.
 
 ```cmake
 # Add Doxygen document project.
 add_subdirectory(doc)
 ```
-The `doc` directory `CMakeLists.txt` looks like this where header files are added to the config file. 
+
+The `doc` directory `CMakeLists.txt` looks like this where header files are added to the config file.
 
 ```cmake
 # Required first entry checking the cmake version.

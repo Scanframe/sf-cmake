@@ -1,4 +1,6 @@
-
+##!
+# Find the toolchain and creates a cmake toolchain file in the build directory.
+#
 function(Sf_SetToolChain)
 	# Assemble path to tool chain file.
 	set(_CmakeFile "${CMAKE_CURRENT_BINARY_DIR}/.sf/SfToolChain.cmake")
@@ -90,6 +92,3 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 	endif ()
 	set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
 endfunction()
-
-
-

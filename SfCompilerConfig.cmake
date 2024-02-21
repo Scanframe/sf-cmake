@@ -1,3 +1,7 @@
+##!
+# Reports information about the CMake and sets compiler general
+# options depending on the selected compiler.
+#
 if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
 	message(STATUS "CMake Version: ${CMAKE_VERSION}")
 	message(STATUS "CMake Generator: ${CMAKE_MAKE_PROGRAM}")

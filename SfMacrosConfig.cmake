@@ -1,9 +1,11 @@
 ##
-## This package cannot be used with find_package() before the first  project is set.
+## This package cannot be used with find_package() before the first project is set.
 ##
-
 find_package(SfBase CONFIG REQUIRED)
 
+##!
+# Used as a sub-macro to macro 'Sf_AddImportLibrary'.
+#
 macro(Sf_PopulateTargetProperties TargetName _Configuration _LibLocation _ImplibLocation)
 	# Seems a relative directory is not working using REALPATH.
 	get_filename_component(_imported_location "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_LibLocation}" REALPATH)
@@ -17,12 +19,16 @@ macro(Sf_PopulateTargetProperties TargetName _Configuration _LibLocation _Implib
 	endif ()
 endmacro()
 
+##!
+# Adds a named target as import library to the current project when the current
+# top project does not have this target configured and when is does it is ignored.
+#
 macro(Sf_AddImportLibrary TargetName)
 	# When the target exists ignore it.
 	if (TARGET ${TargetName})
-		#message(STATUS "Not adding (${PROJECT_NAME}) library ${TargetName} already part of build and ignored.")
+		message(VERBOSE "Not adding (${PROJECT_NAME}) library ${TargetName} already part of build and ignored.")
 	else ()
-		message(STATUS "Adding (${PROJECT_NAME}) library: ${TargetName}")
+		message(VERBOSE "Adding (${PROJECT_NAME}) library: ${TargetName}")
 		add_library(${TargetName} SHARED IMPORTED)
 		if (WIN32)
 			Sf_PopulateTargetProperties(${TargetName} DEBUG "lib${TargetName}.dll" "lib${TargetName}.dll.a")
@@ -32,10 +38,10 @@ macro(Sf_AddImportLibrary TargetName)
 	endif ()
 endmacro()
 
-##
-## Locates a top '_DirName' directory containing the file named '__output__'.
-## Sets the '_OutputDir' variable when found.
-##
+##!
+# Locates a top '_DirName' directory containing the file named '__output__'.
+# Sets the '_OutputDir' variable when found.
+#
 function(Sf_LocateOutputDir _DirName _OutputDir)
 	# InitializeBase return value variable.
 	set(${_OutputDir} "" PARENT_SCOPE)
@@ -48,9 +54,6 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 		# When the file inside is found Set the output directories and break the loop.
 		if (EXISTS "${_Dir}/__output__")
 			set(_Sep "/")
-#			if ("$ENV{CI_SERVER}" STREQUAL "yes")
-#				set(_Sep "-")
-#			endif()
 			# Make a distinction based on targeted system.
 			if (WIN32)
 				set(${_OutputDir} "${_Dir}${_Sep}win64" PARENT_SCOPE)
@@ -63,11 +66,11 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 	endforeach ()
 endfunction()
 
-##
-## Sets the 3 CMAKE_??????_OUTPUT_DIRECTORY variables when an output directory has been found.
-## Only when the top project is the current project.
-## Fatal error when not able to do so.
-##
+##!
+# Sets the 3 CMAKE_??????_OUTPUT_DIRECTORY variables when an output directory has been found.
+# Only when the top project is the current project.
+# Fatal error when not able to do so.
+#
 function(Sf_SetOutputDirs _DirName)
 	if (CMAKE_PROJECT_NAME STREQUAL "${PROJECT_NAME}")
 		Sf_LocateOutputDir("${_DirName}" _OutputDir)
@@ -87,9 +90,9 @@ function(Sf_SetOutputDirs _DirName)
 	endif ()
 endfunction()
 
-##
-## Sets the extension of the created shared library or executable.
-##
+##!
+# Sets the extension of the created shared library or executable.
+#
 function(Sf_SetTargetSuffix)
 	foreach (_Target IN LISTS ARGN)
 		get_target_property(_Type "${_Target}" TYPE)
@@ -109,9 +112,9 @@ function(Sf_SetTargetSuffix)
 	endforeach ()
 endfunction()
 
-##
-## Gets all sub directories which match the passed regex.
-##
+##!
+# Gets all sub directories which match the passed regex.
+#
 function(Sf_GetSubDirectories VarOut Directory MatchStr)
 	file(GLOB _Children RELATIVE "${Directory}" "${Directory}/*")
 	set(_List "")
@@ -125,6 +128,7 @@ function(Sf_GetSubDirectories VarOut Directory MatchStr)
 	set(${VarOut} ${_List} PARENT_SCOPE)
 endfunction()
 
+##!
 # Gets the Qt directory located a defined position for Linux and Windows.
 #
 function(Sf_GetQtVersionDirectory _VarOut)
@@ -157,6 +161,7 @@ function(Sf_GetQtVersionDirectory _VarOut)
 	set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
 endfunction()
 
+##!
 # Works around the cmake bug with sources and binary directory on a shared drive.
 #
 function(Sf_WorkAroundSmbShare)
