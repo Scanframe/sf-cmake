@@ -3,15 +3,20 @@
 # options depending on the selected compiler.
 #
 if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
-	message(STATUS "CMake Version: ${CMAKE_VERSION}")
-	message(STATUS "CMake Generator: ${CMAKE_MAKE_PROGRAM}")
-	message(STATUS "CMake System : ${CMAKE_SYSTEM}")
-	message(STATUS "CMake Host System: ${CMAKE_HOST_SYSTEM}")
-	message(STATUS "CMake System Info File: ${CMAKE_SYSTEM_INFO_FILE}")
-	message(STATUS "CMake System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
-	#
-	set(CMAKE_CXX_STANDARD 20)
+	list(APPEND CMAKE_MESSAGE_INDENT "CMake ")
+	message(STATUS "Version: ${CMAKE_VERSION}")
+	message(STATUS "Generator: ${CMAKE_MAKE_PROGRAM}")
+	message(STATUS "System : ${CMAKE_SYSTEM}")
+	message(STATUS "Host System: ${CMAKE_HOST_SYSTEM}")
+	message(STATUS "System Info File: ${CMAKE_SYSTEM_INFO_FILE}")
+	message(STATUS "System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
+	list(POP_BACK CMAKE_MESSAGE_INDENT)
+	# Make the target property 'CXX_STANDARD' a requirement.
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
+	# Report when the global C++ standard has not been set.
+	if ("${CMAKE_CXX_STANDARD}" STREQUAL "")
+		message(SEND_ERROR "Global C++ standard using 'CMAKE_CXX_STANDARD' has not been set!")
+	endif ()
 	# Do not export all by default in Linux.
 	if (NOT WIN32)
 		# Catch2 cannot handle compiler switch below when flag 'BUILD_SHARED_LIBS' is enabled presumably.
@@ -26,7 +31,6 @@ if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 		add_compile_options("-Zc:__cplusplus")
 	endif ()
-	#set_property(TARGET "${PROJECT_NAME}" PROPERTY CXX_STANDARD 20)
 	# When GNU compiler is used set some options.
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")

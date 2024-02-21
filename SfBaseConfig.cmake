@@ -31,15 +31,19 @@ endfunction()
 
 ##!
 # Gets the version from the Git repository using 'PROJECT_SOURCE_DIR' variable.
-# When not found it returns "${_VarOut}-NOTFOUND"
-#
+# Always returns a versions list where per index:
+# 1: Actual version
+# 2: Release-candidate number
+# 3: Diverted commits since the tag was created.
+# 3: A hash ???
+# When no tag is set it simulates finding 'v0.0.0-rc.0' as the version tag.
 function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	# Initialize return value.
-	set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
+	set(${_VarOut} "" PARENT_SCOPE)
 	# Get git binary location for execution.
 	find_program(_GitExe "git")
 	if (_Compiler STREQUAL "_GitExe-NOTFOUND")
-		message(FATAL_ERROR "Git program not found!")
+		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --tags --dirty --match \"v*\""
@@ -64,46 +68,87 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	endif ()
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)
-		message(STATUS "Repository '${_SrcDir}' not having a version tag like 'v0.0.0' ?!")
+		message(AUTHOR_WARNING "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
 		message(VERBOSE "${_GitExe} describe --tags --dirty --match v* ... Exited with (${_ExitCode}).")
 		message(VERBOSE "${_ErrorText}")
 		# Set an initial version to allow continuing.
-		set(_Version "v0.0.0")
+		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
-	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)")
+	# Regular expression getting all elements.
+	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-rc\\.?([0-9]+))?(-([0-9]+)?-([a-z0-9]+))?(-dirty)?$")
+	#[[
+	Matching possible different results to match.
+	v1.2.3-rc.4-56-78abcdef-dirty
+	v0.0.1-42-g914edbb-dirty
+	v0.1.1-rc.9-dirty
+	v0.1.2-dirty
+	Group 1 > Version          : 1.2.3
+	Group 3 > Release Candidate: 4
+	Group 5 > Commits since tag: 56
+	Group 6 > Hash of some sort: 78abcdef
+	]]
 	string(REGEX MATCH "${_RegEx}" _Dummy_ "${_Version}")
 	if ("${CMAKE_MATCH_1}" STREQUAL "")
-		message(FATAL_ERROR "Git returned tag '${_Version}' does not match regex '${_RegEx}' !")
+		message(SEND_ERROR "Git returned tag '${_Version}' does not match regex '${_RegEx}' !")
+		set(${_VarOut} "0;0;0;0" PARENT_SCOPE)
 	else ()
-		set(${_VarOut} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+		# Make a list of the versions.
+		set(${_VarOut} "${CMAKE_MATCH_1}" "${CMAKE_MATCH_3}" "${CMAKE_MATCH_5}" "${CMAKE_MATCH_6}" PARENT_SCOPE)
 	endif ()
 endfunction()
 
 ##!
-# Sets the passed target version properties according the version of the sub project
-# or by default use the tag in vN.N.N format
+# Sets the passed target version property when not set already.
+# The order in which the version is retrieved:
+# * Git version tag from source
+# * Sub-Project
+# * Main-Project
+# * Skipped when none of the above were set.
 #
 function(Sf_SetTargetVersion _Target)
 	# Get the type of the target.
 	get_target_property(_Type ${_Target} TYPE)
-	# Get version. from Git when possible.
-	Sf_GetGitTagVersion(_Version "${CMAKE_CURRENT_SOURCE_DIR}")
-	# Check if the git version was found.
+	# Only in Linux SOVERSION makes sense.
+	if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+		# Do not want symlink like SO-file.
+		if (_Type STREQUAL "EXECUTABLE")
+			get_target_property(_Version "${_Target}" SOVERSION)
+		else ()
+			get_target_property(_Version "${_Target}" VERSION)
+		endif ()
+	else ()
+		# Set the target version properties for Windows.
+		get_target_property(_Version "${_Target}" SOVERSION)
+	endif ()
 	if (NOT "${_Version}" STREQUAL "_Version-NOTFOUND")
-		message(VERBOSE "${CMAKE_CURRENT_FUNCTION}(${_Target}) using Git version (${_Version})")
-		# Check the target version is set.
-	elseif (NOT "${CMAKE_PROJECT_VERSION}" STREQUAL "")
-		set(_Version "${${_Target}_VERSION}")
-		message(VERBOSE "${CMAKE_CURRENT_FUNCTION}(${_Target}) using Sub-Project(${_Target}) version (${_Version})")
-		# Check the project version is set.
-	elseif (NOT "${CMAKE_PROJECT_VERSION}" STREQUAL "")
-		# Try using the main project version
+		message(VERBOSE "Target '${_Target}' skipping, version already set to (${_Version})")
+		return ()
+	endif ()
+	# Prepend a text to message function.
+	list(APPEND CMAKE_MESSAGE_INDENT "Target '${_Target}' version set from ")
+	# Get versions from Git when possible.
+	Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_SOURCE_DIR}")
+	list(GET _Versions 0 _Version)
+		# Check if the git version was found.
+	if (NOT "${_Version}" STREQUAL "0.0.0")
+		# Get only the sub directory to report where Git got its version from.
+		string(LENGTH "${CMAKE_SOURCE_DIR}/" _Length)
+		string(SUBSTRING "${CMAKE_CURRENT_SOURCE_DIR}" "${_Length}" -1 _SubDir)
+		message(VERBOSE "Git tag at '${_SubDir}' (${_Version})")
+		# Check the sub-project version has been set.
+	elseif (DEFINED PROJECT_VERSION AND NOT PROJECT_VERSION STREQUAL "")
+		set(_Version "${PROJECT_VERSION}")
+		message(VERBOSE "Sub-Project '${PROJECT_NAME}' (${_Version})")
+		# Check the main-project version is set.
+	elseif (DEFINED CMAKE_PROJECT_VERSION AND NOT "${CMAKE_PROJECT_VERSION}" STREQUAL "")
 		set(_Version "${CMAKE_PROJECT_VERSION}")
-		message(VERBOSE "${CMAKE_CURRENT_FUNCTION}(${_Target}) using Main-Project version (${_Version})")
+		message(VERBOSE "Main-Project '${CMAKE_PROJECT_NAME}' (${_Version})")
 	else ()
 		# Clear the version variable.
 		set(_Version "")
+		message(VERBOSE "None")
 	endif ()
+	list(POP_BACK CMAKE_MESSAGE_INDENT)
 	# When the version string was resolved apply the properties.
 	if (NOT "${_Version}" STREQUAL "")
 		# Only in Linux SOVERSION makes sense.
@@ -226,18 +271,19 @@ endfunction()
 # Get all added targets in all subdirectories.
 #  @param _result The list containing all found targets
 #  @param _dir Root directory to start looking from
+#  @param _inc_deps Include dependencies TRUE or FALSE.
 #
-function(Sf_GetAllTargets _result _dir)
+function(Sf_GetAllTargets _result _dir _inc_deps)
 	# Get the length of the name to skip.
 	string(LENGTH "${FETCHCONTENT_BASE_DIR}" _length)
 	get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
 	foreach (_subdir IN LISTS _subdirs)
 		string(SUBSTRING "${_subdir}" 0 ${_length} _tmp)
-		if (_tmp STREQUAL FETCHCONTENT_BASE_DIR)
-			#message(NOTICE "Skipping: ${_tmp}")
+		if (NOT _inc_deps AND _tmp STREQUAL FETCHCONTENT_BASE_DIR)
+			#message(NOTICE "Skipping: ${_subdir}")
 			continue()
 		endif ()
-		Sf_GetAllTargets(${_result} "${_subdir}")
+		Sf_GetAllTargets(${_result} "${_subdir}" ${_inc_deps})
 	endforeach ()
 	get_directory_property(_sub_targets DIRECTORY "${_dir}" BUILDSYSTEM_TARGETS)
 	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
@@ -325,7 +371,7 @@ endfunction()
 # Sets or appends the rpath for all compiled targets.
 # @param _Path A path string like "\${ORIGIN}:\${ORIGIN}/lib".
 #
-function (Sf_SetRPath _Path)
+function(Sf_SetRPath _Path)
 	# Is a Linux only thing.
 	if (WIN32)
 		# When building for Windows using GNU report warnings on MSVC incompatibilities.
@@ -339,14 +385,18 @@ function (Sf_SetRPath _Path)
 		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 		# Linker option -rpath is not working due to doubling of the '$' sign by CMAKE.
 		#    add_link_options(-Wl,-rpath-link "\${ORIGIN\}")
-		if (CMAKE_INSTALL_RPATH STREQUAL "")
+		if (NOT DEFINED CMAKE_INSTALL_RPATH OR CMAKE_INSTALL_RPATH STREQUAL "")
 			set(CMAKE_INSTALL_RPATH "${_Path}")
 		else ()
-			set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}:${_Path}")
+			# When appending the RPATH remove duplicates.
+			string(REPLACE ":" ";" _List "${CMAKE_INSTALL_RPATH}:${_Path}")
+			list(REMOVE_DUPLICATES _List)
+			list(JOIN _List ":" _List)
+			set(CMAKE_INSTALL_RPATH "${_List}")
 		endif ()
 		# Set the parent scope version.
 		set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}" PARENT_SCOPE)
 		# Report the resulting RPath.
-		message(STATUS "Install RPATH: ${CMAKE_INSTALL_RPATH}")
+		message(STATUS "Resulting RPATH: ${CMAKE_INSTALL_RPATH}")
 	endif ()
 endfunction()

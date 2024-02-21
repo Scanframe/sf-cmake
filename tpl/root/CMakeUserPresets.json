@@ -1,0 +1,33 @@
+{
+	"version": 6,
+	"configurePresets": [
+		{
+			"name": "gnu-user",
+			"inherits": [
+				".cfg"
+			],
+			"displayName": "User-GNU-Dbg",
+			"description": "User configuration Linux GNU debug build.",
+			"binaryDir": "$env{HOME}/tmp/cmake-build/gnu-user"
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "gnu-user",
+			"inherits": [
+				".build"
+			],
+			"displayName": "User-GNU-Dbg",
+			"description": "User GNU debug preset.",
+			"configurePreset": "gnu-user",
+			"targets": [
+				"hello-world",
+				"hello-world-qt",
+				"install"
+			]
+		}
+	],
+	"testPresets": [],
+	"packagePresets": [],
+	"workflowPresets": []
+}

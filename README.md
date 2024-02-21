@@ -61,6 +61,7 @@ A project directory tree could look like this.
     │   └── tests
     ├── bin
     │   ├── lnx64
+    │   ├── pkg
     │   ├── man
     │   └── win64
     ├── cmake
@@ -68,12 +69,16 @@ A project directory tree could look like this.
     └── doc
 ```
 
-| Path     | Description                            |
-|----------|----------------------------------------|
-| src      | Application source files.              |
-| src/test | Test application source files.         |
-| bin      | Root for compiled results from builds. |
-| doc      | DoxyGen document project.              |
+| Path      | Description                            |
+|-----------|----------------------------------------|
+| src       | Application source files.              |
+| src/test  | Test application source files.         |
+| bin       | Root for compiled results from builds. |
+| bin/lnx64 | Binaries from Linux 64-bit builds.     |
+| bin/lnx64 | Binaries from Linux 64-bit builds.     |
+| bin/pkg   | Packages from all builds.              |
+| bin/man   | Generated documentation builds.        |
+| doc       | DoxyGen document project.              |
 
 The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
 output directory for subprojects. Reason for building only subprojects instead of all is to speed
