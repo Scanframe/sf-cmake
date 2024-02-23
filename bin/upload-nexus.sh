@@ -9,9 +9,16 @@ source "${SCRIPT_DIR}/inc/WriteLog.sh"
 # Prints the help to stderr.
 #
 function ShowHelp() {
-	echo "Usage: ${0} <file-to-upload...>
+	echo "Usage: ${0} [options...] <files-to-upload...>
+
   Uploads files to a Sonatype Nexus repository depending on their extension to
   the correct repository for multiple files at once.
+
+  -h, --help     : Shows this help.
+  -d, --debug    : Debug: Show executed commands rather then executing them.
+  -a, --apt-repo : Sets or overrules variable 'NEXUS_APT_REPO' as the apt-repository name.
+  -r, --raw-repo : Sets or overrules variable 'NEXUS_RAW_REPO' as the raw-repository name.
+  -s, --raw-sub  : Sets or overrules variable 'NEXUS_RAW_SUBDIR' as the subdirectory.
 
   When the credentials are not passed as environment variables a file named
   '${CRED_FILE}'
@@ -19,8 +26,9 @@ function ShowHelp() {
     NEXUS_USER='uploader'
     NEXUS_PASSWORD='<uploader-password>'
     NEXUS_SERVER_URL='https://nexus.scanframe.com'
-    NEXUS_APT_REPO_NAME='apt-hosted'
-    NEXUS_RAW_REPO_NAME='shared'
+    NEXUS_APT_REPO='develop'
+    NEXUS_RAW_REPO='shared'
+    NEXUS_RAW_SUBDIR='dist/develop'
 
   These environment variables can be set in GitLab for a project for CI-pipeline
   or partially by the pipeline configuration when needed.
@@ -55,14 +63,94 @@ if [[ -z "${NEXUS_USER}" ]]; then
 	source "${SCRIPT_DIR}/.apt-repo-credentials"
 fi
 
-# Check if the credentials were set fully.
-if [[ -z "${NEXUS_USER}" || -z "${NEXUS_PASSWORD}" || -z "${NEXUS_SERVER_URL}" || -z "${NEXUS_APT_REPO_NAME}" || -z "${NEXUS_RAW_REPO_NAME}" ]]; then
-	WriteLog "Credentials or config variables are not fully set!"
+# When set this flag indicates a missing variable in the credentials file.
+FLAG_VAR=false
+
+# Parse options.
+temp=$(getopt -o 'hr:a:' \
+	--long 'help,raw-repo:apt-repo:' \
+	-n "$(basename "${0}")" -- "$@")
+# No arguments, show help and bailout.
+if [[ "${#}" -eq 0 ]]; then
+	ShowHelp
+	exit 1
+fi
+eval set -- "${temp}"
+unset temp
+while true; do
+	case $1 in
+
+		-h | --help)
+			ShowHelp
+			exit 0
+			;;
+
+		-r | --raw-repo)
+			WriteLog "# RAW repository set to '${2}'."
+			NEXUS_RAW_REPO="${2}"
+			shift 2
+			continue
+			exit 0
+			;;
+
+		-s | --raw-sub)
+			WriteLog "# RAW subdirectory set to '${2}'."
+			NEXUS_RAW_SUBDIR="${2}"
+			shift 2
+			continue
+			exit 0
+			;;
+
+		-a | --apt-repo)
+			WriteLog "# APT repository set to '${2}'."
+			NEXUS_APT_REPO="${2}"
+			shift 2
+			continue
+			;;
+
+		'--')
+			shift
+			break
+			;;
+
+		*)
+			echo "Internal error on argument (${1}) !" >&2
+			exit 1
+			;;
+	esac
+done
+
+# Harvest the arguments in an array.
+argument=()
+while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
+	argument=("${argument[@]}" "$1")
+	shift
+done
+
+# List of needed variables.
+NEXUS_VARS=(
+	NEXUS_USER
+	NEXUS_PASSWORD
+	NEXUS_SERVER_URL
+	NEXUS_APT_REPO
+	NEXUS_RAW_REPO
+	NEXUS_RAW_SUBDIR
+)
+# Iterate over the variable-names and check them.
+for var in "${NEXUS_VARS[@]}"; do
+	if [[ -z "${!var}" ]]; then
+		WriteLog "Required credentials/config variable '$var' is not set credentials file or environment!"
+		FLAG_VAR=true
+	fi
+done
+# Check all needed variables were present.
+if ${FLAG_VAR}; then
+	ShowHelp
 	exit 1
 fi
 
 # Iterate over all the command-line arguments.
-for UPLOAD_FILE in "$@"; do
+for UPLOAD_FILE in "${argument[@]}"; do
 	# Check if the file exists.
 	if [[ ! -f "${UPLOAD_FILE}" ]]; then
 		WriteLog "! File not found: ${UPLOAD_FILE}"
@@ -80,8 +168,8 @@ for UPLOAD_FILE in "$@"; do
 				--header 'Accept: application/json' \
 				--header 'Content-Type: multipart/form-data' \
 				--form "apt.asset=@${UPLOAD_FILE};type=application/vnd.debian.binary-package" \
-				"${NEXUS_SERVER_URL}/service/rest/v1/components?repository=${NEXUS_APT_REPO_NAME}" | \
-				tee >(cat | PrependAndEscape "- " 1>&2 ) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
+				"${NEXUS_SERVER_URL}/service/rest/v1/components?repository=${NEXUS_APT_REPO}" |
+				tee >(cat | PrependAndEscape "- " 1>&2) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
 			# Check the response code for failure.
 			if [[ "${response_code}" -lt 200 || "${response_code}" -ge 300 ]]; then
 				WriteLog "! Upload APT package failed (${response_code}) of file: ${UPLOAD_FILE}"
@@ -89,14 +177,14 @@ for UPLOAD_FILE in "$@"; do
 			fi
 			;;
 
-		zip|exe)
+		zip | exe)
 			WriteLog "- Uploading RAW repo file: ${UPLOAD_FILE}"
 			response_code="$(curl \
 				--silent --include \
 				--user "${NEXUS_USER}:${NEXUS_PASSWORD}" \
 				--upload-file "${UPLOAD_FILE}" \
-				"${NEXUS_SERVER_URL}/repository/${NEXUS_RAW_REPO_NAME}/apps/win/$(basename -- "${UPLOAD_FILE}")" | \
-				tee >(cat | PrependAndEscape "- " 1>&2 ) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
+				"${NEXUS_SERVER_URL}/repository/${NEXUS_RAW_REPO}/$NEXUS_RAW_SUBDIR}/$(basename -- "${UPLOAD_FILE}")" |
+				tee >(cat | PrependAndEscape "- " 1>&2) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
 			# Check the response code for failure.
 			if [[ "${response_code}" -lt 200 || "${response_code}" -ge 300 ]]; then
 				WriteLog "! Upload RAW package failed (${response_code}) of file: ${UPLOAD_FILE}"

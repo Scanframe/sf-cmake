@@ -71,6 +71,7 @@ fi
 #
 function ShowHelp() {
 	echo "Usage: ${0} [<options>] [<presets> ...]
+  -h, --help       : Shows this help.
   -d, --debug      : Debug: Show executed commands rather then executing them.
   -i, --info       : Return information on all available build, test and package presets.
   -s, --submodule  : Return branch information on all Git submodules of last commit.
@@ -413,12 +414,10 @@ function join_by {
 }
 
 # Parse options.
-temp=$(getopt -o 'n:hisdpfCcmbBtlr:' --long \
-	'target:,help,info,submodule,required,debug,fresh,wipe,clean,make,build,-B,build-only,test,package,list,regex:,gitlab-ci' \
+temp=$(getopt -o 'n:hisdpfCcmbBtlr:' \
+	--long 'target:,help,info,submodule,required,debug,fresh,wipe,clean,make,build,-B,build-only,test,package,list,regex:,gitlab-ci' \
 	-n "$(basename "${0}")" -- "$@")
-# shellcheck disable=SC2181
-# No arguments at show help and bailout.
-if [[ $# == 0 ]]; then
+if [[ "${#}" -eq 0 ]]; then
 	ShowHelp
 	exit 1
 fi
