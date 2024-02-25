@@ -77,7 +77,7 @@ stages:
 
 # Script to mount source root on a fixed directory path for cmake.
 .script-bind: &bind-script
-  - mkdir -p "${SF_DIR_MOUNT}" && ! mountpoint "${SF_DIR_MOUNT}" && bindfs "${PWD}" "${SF_DIR_MOUNT}" || exit 1
+  - mkdir -p "${SF_DIR_MOUNT}" && ! mountpoint "${SF_DIR_MOUNT}" && bindfs "${CI_PROJECT_DIR}" "${SF_DIR_MOUNT}" || exit 1
 
 # Template to unmount source root on a fixed directory path for cmake.
 .script-unbind: &unbind-script
