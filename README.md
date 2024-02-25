@@ -1,6 +1,7 @@
 # CMake Library
 
 <!-- TOC -->
+
 * [CMake Library](#cmake-library)
 * [Introduction](#introduction)
   * [Usage](#usage)
@@ -9,6 +10,11 @@
   * [Project Directory Structure](#project-directory-structure)
   * [Main Project Head Start](#main-project-head-start)
   * [DoxyGen Document](#doxygen-document)
+  * [Git Versioning](#git-versioning)
+    * [Tagging](#tagging)
+  * [GitLab-CI Pipeline](#gitlab-ci-pipeline)
+    * [Debian Package Upload Scheme](#debian-package-upload-scheme)
+
 <!-- TOC -->
 
 # Introduction
@@ -124,3 +130,80 @@ if (SfDoxyGen_FOUND)
 endif ()
 ```
 
+## Git Versioning
+
+### Tagging
+
+To create a version tag with this library there are 2 options.  
+Create a release tag like `v1.2.3` or a release candidate tag like `1.2.3-rc.4`.
+
+The CMake coding picks this up using function [Sf_GetGitTagVersion](SfBaseConfig.cmake "Link to file.") returns the
+version depending on the result of the next Git-command.
+
+```shell 
+git describe --tags --dirty --match "v*.*.*"
+```
+
+Possible results from this command are:
+
+```
+v1.2.3
+v1.2.3-dirty
+v1.2.3-rc.4-dirty
+v1.2.3-rc.4
+v1.2.3-45-g914edbb-dirty
+v1.2.3-rc.4-56-g914edbb-dirty
+```
+
+The CMake function `Sf_GetGitTagVersion` creates a versions list from the result.
+
+```cmake
+Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_LIST_DIR}")
+list(GET _Versions 0 SF_GIT_TAG_VERSION)
+list(GET _Versions 1 SF_GIT_TAG_RC)
+list(GET _Versions 2 SF_GIT_TAG_COMMITS)
+```
+
+For example when the result is `v1.2.3-rc.4-56-g914edbb-dirty`.
+
+| Index | Description                       | Value |
+|------:|-----------------------------------|------:|
+|     0 | Main version number               | 1.2.3 |
+|     1 | Optional release candidate number |     4 |
+|     2 | Commit count since the tag        |    56 |
+
+Index positions 1 and 2 are empty when not applicable.
+
+## GitLab-CI Pipeline
+
+### Debian Package Upload Scheme
+
+There are 3 Nexus apt-repositories which can be described to:
+
+| Name      | Usage                    |
+|-----------|--------------------------|
+| `stable`  | Actual releases.         |
+| `staging` | Release candidates.      |
+| `develop` | Development and testing. |
+
+In order to have the latest release subscribe only to `stable`.
+To have update when a release candidate (RC) becomes available subscribe additionally to `staging`.
+When developing and testing debian packages subscribe additionally to `develop`.
+
+Debian packages are deployed/uploaded to the appropriate apt-repository depending on if it:
+
+* **MR**: Originates from a merge-request.
+* **PRB**: Originates from a push to the release branch which is mainly `main`.
+* **RC**: Is a Release Candidate.
+* **CMT**: Has commits since tag was create.
+
+| MR  | RC  | PRB | CMT | Destination |
+|:---:|:---:|:---:|:---:|:-----------:|
+| No  | No  | Yes | No  | `stable`    |
+| No  | No  | Yes | Yes | `staging`   |
+| No  | No  | No  |  *  | n/a         |
+| No  | Yes | Yes |  *  | `staging`   |
+| No  | Yes | No  |  *  | `develop`   |
+| Yes |  *  |  *  |  *  | `develop`   |
+
+> Windows ZIP and installer EXE files are uploaded to a `dist/<destination>` directory. 

@@ -46,7 +46,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --tags --dirty --match \"v*\""
+		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --tags --dirty --match \"v*.*.*\""
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
@@ -56,7 +56,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			ERROR_QUIET
 		)
 	else ()
-		execute_process(COMMAND "${_GitExe}" describe --tags --dirty --match "v*"
+		execute_process(COMMAND "${_GitExe}" describe --tags --dirty --match "v*.*.*"
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
@@ -82,6 +82,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	v0.0.1-42-g914edbb-dirty
 	v0.1.1-rc.9-dirty
 	v0.1.2-dirty
+	v0.1.1
 	Group 1 > Version          : 1.2.3
 	Group 3 > Release Candidate: 4
 	Group 5 > Commits since tag: 56
