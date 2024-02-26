@@ -99,6 +99,26 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 endfunction()
 
 ##!
+# Reports the version retrieved with Sf_GetGitTagVersion().
+#
+function (Sf_ReportGitTagVersion _Versions)
+	# Split the list into separate values.
+	list(GET _Versions 0 _Version)
+	list(GET _Versions 1 _ReleaseCandidate)
+	list(GET _Versions 2 _CommitOffset)
+	set(_List "Git Tag;Version: ${_Version}")
+	if (NOT _ReleaseCandidate STREQUAL "")
+		list(APPEND _List "Release-Candidate: ${_ReleaseCandidate}")
+	endif ()
+	if (NOT _CommitOffset STREQUAL "")
+		list(APPEND _List "Commit-Offset: ${_CommitOffset}")
+	endif ()
+	list(JOIN _List "\n\t" _List)
+	message(STATUS "${_List}")
+endfunction()
+
+
+##!
 # Sets the passed target version property when not set already.
 # The order in which the version is retrieved:
 # * Git version tag from source

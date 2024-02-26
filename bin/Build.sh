@@ -84,6 +84,7 @@ function ShowHelp() {
   -b, --build      : Build target and make config when it does not exist.
   -B, --build-only : Build target only and fail when the configuration does note exist.
   -t, --test       : Runs the ctest application using a test-preset.
+  -w, --workflow   : Runs the passed work flow presets.
   -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
   -n, --target     : Overrides the build targets set in the preset by a single target.
   -r, --regex      : Regular expression on which test names are to be executed.
@@ -159,8 +160,8 @@ function GetGitTagVersion() {
 
 ##
 # Selects a build preset from the passed CMakePreset.json file.
-# @param: Json file.
 # @param: Select '' for info only value 'info'.
+# @param: Json file.
 #
 function SelectBuildPreset {
 	local action preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection binary_dir
@@ -215,8 +216,8 @@ function SelectBuildPreset {
 
 ##
 # Selects a test preset from the passed CMakePreset.json file.
-# @param: Json file.
 # @param: Select '' for info only value 'info'.
+# @param: Json file.
 #
 function SelectTestPreset {
 	local preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection
@@ -267,8 +268,8 @@ function SelectTestPreset {
 
 ##
 # Selects a package preset from the passed CMakePreset.json file.
-# @param: Json file.
 # @param: Select '' for info only value 'info'.
+# @param: Json file.
 #
 function SelectPackagePreset {
 	local preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection
@@ -296,6 +297,53 @@ function SelectPackagePreset {
 		presets+=("${name} (${cfg_name}) ${desc}")
 		preset_names+=("${preset}")
 	done < <(cmake --list-presets package | tail -n +3)
+	if [[ "${action}" != "info" ]]; then
+		# Form the dialog options from the build presets.
+		dlg_options=()
+		for idx in "${!presets[@]}"; do
+			dlg_options+=("${idx}")
+			dlg_options+=("${presets[$idx]} ")
+		done
+		# Check if the 'dialog' command exists.
+		if ! command -v "dialog" >/dev/null; then
+			WriteLog "Missing command 'dialog', use a package preset on the command line instead!"
+			exit 1
+		fi
+		# Create a dialog returning a selection index.
+		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		# Return by echoing the value.
+		echo "${preset_names[$selection]}"
+	fi
+}
+
+##
+# Selects a workflow preset from the passed CMakePreset.json file.
+# @param: Select '' for info only value 'info'.
+# @param: Json file.
+#
+function SelectWorkflowPreset {
+	local preset name desc presets preset_names dlg_options idx selection
+	# Action is the first argument.
+	action="${1}"
+	# Remove the first argument from the list.
+	shift 1
+	# Initialize the array.
+	presets=("None")
+	preset_names=("")
+	# shellcheck disable=SC2034
+	while read -r preset config; do
+		preset="${preset//\"/}"
+		name="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").displayName" "${@}")"
+		# Ignore entries with display names starting with '#'.
+		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
+		desc="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		if [[ "${action}" == "info" ]]; then
+			WriteLog "Workflow: ${preset} '${name}' ${desc}"
+			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| \"Type(\" + .type + \") Preset(\"  + .name + \")\")" "${@}" | PrependAndEscape "\t-Step: " || true
+		fi
+		presets+=("${name} > ${desc}")
+		preset_names+=("${preset}")
+	done < <(cmake --list-presets workflow | tail -n +3)
 	if [[ "${action}" != "info" ]]; then
 		# Form the dialog options from the build presets.
 		dlg_options=()
@@ -385,6 +433,7 @@ FLAG_BUILD=false
 FLAG_BUILD_ONLY=false
 FLAG_TEST=false
 FLAG_PACKAGE=false
+FLAG_WORKFLOW=false
 FLAG_WIPE=false
 FLAG_INFO=false
 FLAG_LIST=false
@@ -414,8 +463,8 @@ function join_by {
 }
 
 # Parse options.
-temp=$(getopt -o 'n:hisdpfCcmbBtlr:' \
-	--long 'target:,help,info,submodule,required,debug,fresh,wipe,clean,make,build,-B,build-only,test,package,list,regex:,gitlab-ci' \
+temp=$(getopt -o 'n:hisdpfCcmbwBtlr:' \
+	--long 'target:,help,info,submodule,required,debug,fresh,wipe,clean,make,build,workflow,-B,build-only,test,package,list,regex:,gitlab-ci' \
 	-n "$(basename "${0}")" -- "$@")
 if [[ "${#}" -eq 0 ]]; then
 	ShowHelp
@@ -515,8 +564,15 @@ while true; do
 			;;
 
 		-t | --test)
-			WriteLog "# Running tests enabled."
+			WriteLog "# Run enabled tests."
 			FLAG_TEST=true
+			shift 1
+			continue
+			;;
+
+		-w | --workflow)
+			WriteLog "# Run workflow presets."
+			FLAG_WORKFLOW=true
 			shift 1
 			continue
 			;;
@@ -591,6 +647,8 @@ if ${FLAG_INFO}; then
 	SelectTestPreset "info" "${file_presets[@]}"
 	WriteLog "# Package preset information:"
 	SelectPackagePreset "info" "${file_presets[@]}"
+	WriteLog "# Package workflow information:"
+	SelectWorkflowPreset "info" "${file_presets[@]}"
 	# Reset the tab distance.
 	tabs -8
 	exit 0
@@ -598,8 +656,11 @@ fi
 
 # First argument is mandatory.
 if [[ "${#argument[@]}" -eq 0 ]]; then
+
+	if ${FLAG_WORKFLOW}; then
+		preset="$(SelectWorkflowPreset "select" "${file_presets[@]}")"
 	# Assign an argument.
-	if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
+	elif ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 		preset="$(SelectBuildPreset "select" "${file_presets[@]}")"
 	elif ${FLAG_TEST}; then
 		preset="$(SelectTestPreset "select" "${file_presets[@]}")"
@@ -612,6 +673,15 @@ if [[ "${#argument[@]}" -eq 0 ]]; then
 	else
 		argument=("${preset}")
 	fi
+fi
+
+# When workflow is requested.
+if ${FLAG_WORKFLOW}; then
+	for preset in "${argument[@]}"; do
+		cmake --workflow --preset "${preset}"
+	done
+	# Work flow is already a combination.
+	exit 0
 fi
 
 # Check if wiping can be performed.
