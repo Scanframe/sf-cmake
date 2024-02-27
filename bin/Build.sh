@@ -448,7 +448,9 @@ FLAG_LIST=false
 CMAKE_CONFIG=("cmake")
 # Initialize the cmake build command as an array.
 CMAKE_BUILD=("cmake" "--build")
+# Initialize the ctest command as an array.
 CTEST_BUILD=("ctest")
+# Initialize the cpack command as an array.
 CPACKAGE_BUILD=("cpack")
 # When empty the target is not overridden.
 TARGET_NAME=""
@@ -663,7 +665,6 @@ fi
 
 # First argument is mandatory.
 if [[ "${#argument[@]}" -eq 0 ]]; then
-
 	if ${FLAG_WORKFLOW}; then
 		preset="$(SelectWorkflowPreset "select" "${file_presets[@]}")"
 	# Assign an argument.
@@ -699,7 +700,10 @@ fi
 
 # When configure and/or build is requested.
 if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
+	#  Make a copy of the array.
+	SAVED_CMAKE_CONFIG=("${CMAKE_CONFIG[@]}")
 	for preset in "${argument[@]}"; do
+		CMAKE_CONFIG=("${SAVED_CMAKE_CONFIG[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
@@ -771,7 +775,9 @@ fi
 
 # When test is requested.
 if ${FLAG_TEST}; then
+	SAVED_CTEST_BUILD=("${CTEST_BUILD[@]}")
 	for preset in "${argument[@]}"; do
+		CTEST_BUILD=("${SAVED_CTEST_BUILD[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
@@ -823,7 +829,9 @@ fi
 
 # When package is requested.
 if ${FLAG_PACKAGE}; then
+	SAVED_CPACKAGE_BUILD=("${CPACKAGE_BUILD[@]}")
 	for preset in "${argument[@]}"; do
+		CPACKAGE_BUILD=("${SAVED_CPACKAGE_BUILD[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
