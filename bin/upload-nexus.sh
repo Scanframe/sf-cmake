@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRED_FILE="${SCRIPT_DIR}/.apt-repo-credentials"
 
@@ -149,6 +148,15 @@ if ${FLAG_VAR}; then
 	exit 1
 fi
 
+# Check if the needed commands are installed.1+
+COMMANDS=("curl")
+for COMMAND in "${COMMANDS[@]}"; do
+	if ! command -v "${COMMAND}" >/dev/null; then
+		WriteLog "Missing command '${COMMAND}' for this script!"
+		exit 1
+	fi
+done
+
 # Iterate over all the command-line arguments.
 for UPLOAD_FILE in "${argument[@]}"; do
 	# Check if the file exists.
@@ -183,7 +191,7 @@ for UPLOAD_FILE in "${argument[@]}"; do
 				--silent --include \
 				--user "${NEXUS_USER}:${NEXUS_PASSWORD}" \
 				--upload-file "${UPLOAD_FILE}" \
-				"${NEXUS_SERVER_URL}/repository/${NEXUS_RAW_REPO}/$NEXUS_RAW_SUBDIR}/$(basename -- "${UPLOAD_FILE}")" |
+				"${NEXUS_SERVER_URL}/repository/${NEXUS_RAW_REPO}/${NEXUS_RAW_SUBDIR}/$(basename -- "${UPLOAD_FILE}")" |
 				tee >(cat | PrependAndEscape "- " 1>&2) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
 			# Check the response code for failure.
 			if [[ "${response_code}" -lt 200 || "${response_code}" -ge 300 ]]; then
