@@ -99,9 +99,16 @@ function ShowHelp() {
 	"
 }
 
+##
+# Prepends each line read from the input.
+# Allows a line counter "\${counter}" to be expanded.
+#
 function PrependAndEscape() {
+	local counter
+	counter=0
 	while read -r line; do
-		WriteLog -e "${1}${line}"
+		(( counter++ ))
+		eval "WriteLog -e \"${1}${line}\""
 	done
 }
 
@@ -339,7 +346,7 @@ function SelectWorkflowPreset {
 		desc="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").description" "${@}")"
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Workflow: ${preset} '${name}' ${desc}"
-			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| \"Type(\" + .type + \") Preset(\"  + .name + \")\")" "${@}" | PrependAndEscape "\t-Step: " || true
+			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| .type + \"(\"  + .name + \")\")" "${@}" | PrependAndEscape "\t-Step #\${counter}: " || true
 		fi
 		presets+=("${name} > ${desc}")
 		preset_names+=("${preset}")
@@ -647,7 +654,7 @@ if ${FLAG_INFO}; then
 	SelectTestPreset "info" "${file_presets[@]}"
 	WriteLog "# Package preset information:"
 	SelectPackagePreset "info" "${file_presets[@]}"
-	WriteLog "# Package workflow information:"
+	WriteLog "# Workflow preset information:"
 	SelectWorkflowPreset "info" "${file_presets[@]}"
 	# Reset the tab distance.
 	tabs -8
