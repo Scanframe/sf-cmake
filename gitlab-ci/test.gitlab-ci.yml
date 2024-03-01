@@ -41,7 +41,8 @@ stages:
   - git config --global --add safe.directory '*'
   - git fetch --tags --force && git submodule foreach --recursive git fetch --tags  --force
   - git tag --list && git submodule foreach --recursive git tag --list
-  - git describe --tags --dirty || echo "Could not git describe current repo hash."
+  # Only annotated tags so no '--tags' option.
+  - git describe --dirty || echo "Could not git describe current repo hash."
 
 .report-before: &before_script
   - 'echo "Working Directory=$(pwd)"'

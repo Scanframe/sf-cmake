@@ -4,42 +4,22 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
-##
-# Function reporting stack.
-function stacktrace {
-	local i=1 line file func
-	while read -r line func file < <(caller $i); do
-		echo >&2 "[$i] $file:$line $func(): $(sed -n ${line}p $file)"
-		((i++))
-	done
-}
+# Get the include directory which is this script's directory.
+INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Include the Miscellaneous functions.
+source "${INCLUDE_DIR}/inc/Miscellaneous.sh"
 
-##
-# Function to trap script exit.
-function script_exit {
-	local exitcode="${?}"
-	# Show the stack in case of an error.
-	if [[ "${exitcode}" -ne 0 ]]; then
-		stacktrace
-		WriteLog "! Exitcode: ${exitcode}"
-	fi
-	# Report execution time.
-	WriteLog "- Executed in ${SECONDS}s."
-	# Propagate the exit code.
-	exit "${exitcode}"
-}
+## Trap script exit with function.
+trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
-# When the script directory is not set then
+	# When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
 	exit 1
 fi
 
-## Trap script exit with function.
-trap 'script_exit "${BASH_COMMAND}"' EXIT
-
 # Check if the needed commands are installed.1+
-COMMANDS=("git" "jq" "cmake" "ctest" "ninja")
+COMMANDS=("git" "jq" "cmake" "ctest" "cpack" "ninja")
 # Add interactive commands when running interactively.
 if [[ "${CI}" != "true" ]]; then
 	COMMANDS+=("dialog")
@@ -50,11 +30,6 @@ for COMMAND in "${COMMANDS[@]}"; do
 		exit 1
 	fi
 done
-
-# Get the include directory which is this script's directory.
-INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Include the WriteLog function.
-source "${INCLUDE_DIR}/inc/WriteLog.sh"
 
 # When the script directory is not set then use the this scripts directory.
 if [[ -z "${SCRIPT_DIR}" ]]; then
@@ -69,8 +44,11 @@ fi
 
 # Prints the help to stderr.
 #
-function ShowHelp() {
-	echo "Usage: ${0} [<options>] [<presets> ...]
+function ShowHelp {
+	echo "Executes CMake commands using the 'CMakePresets.json' and 'CMakeUserPresets.json' files
+of which the first is mandatory to exist.
+
+Usage: ${0} [<options>] [<presets> ...]
   -h, --help       : Shows this help.
   -d, --debug      : Debug: Show executed commands rather then executing them.
   -i, --info       : Return information on all available build, test and package presets.
@@ -88,28 +66,17 @@ function ShowHelp() {
   -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
   -n, --target     : Overrides the build targets set in the preset by a single target.
   -r, --regex      : Regular expression on which test names are to be executed.
-  --gitlab-ci      : Simulate CI server by setting CI_SERVER environment variable (disables colors i.e.).
   Where <sub-dir> is the directory used as build root for the CMakeLists.txt in it.
   This is usually the current directory '.'.
   When the <target> argument is omitted it defaults to 'all'.
   The <sub-dir> is also the directory where cmake will create its 'cmake-build-???' directory.
 
   Examples:
-    Make/Build project: ${0} -b my-preset
+    Get all project presets info: ${0} -i
+    Make/Build project: ${0} -b my-build-preset1 my-build-preset2
+    Test project: ${0} -t my-test-preset1 my-test-preset2
+    Make/Build/Test/Pack project: ${0} -w my-workflow-preset
 	"
-}
-
-##
-# Prepends each line read from the input.
-# Allows a line counter "\${counter}" to be expanded.
-#
-function PrependAndEscape() {
-	local counter
-	counter=0
-	while read -r line; do
-		(( counter++ ))
-		eval "WriteLog -e \"${1}${line}\""
-	done
 }
 
 # Amount of CPU cores to use for compiling when make build is used.
@@ -148,24 +115,6 @@ function InstallPackages() {
 }
 
 ##
-# Returns the version number of the git version tag.
-# Expected tag format is 'vM.N.P' where:
-#   M: Major version number.
-#   N: Minor version number.
-#   P: Patch version number.
-#
-function GetGitTagVersion() {
-	local tag
-	git describe --tags --dirty --match 'v*' 2>/dev/null
-	# Match on vx.x.x version tag.
-	if [[ $? && ! "${tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]).* ]]; then
-		echo "0.0.0"
-	else
-		echo "${BASH_REMATCH[1]}"
-	fi
-}
-
-##
 # Selects a build preset from the passed CMakePreset.json file.
 # @param: Select '' for info only value 'info'.
 # @param: Json file.
@@ -190,10 +139,9 @@ function SelectBuildPreset {
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
 		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
-		# Remove the sourceDir variable from the value.
-		binary_dir="${binary_dir//\$\{sourceDir\}\//}"
-		# Set variable for expansion by eval command.
-		#eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir}"
+		# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
+		eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Build: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
@@ -245,11 +193,21 @@ function SelectTestPreset {
 		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${@}")"
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
+		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Test: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
-			# List the test names only and ignore errors using '|| true'.
-			ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-" || true
+			# List the test names only and fail when 'grep' does not match.
+			if ! ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-"; then
+				# Get the binary directory from the configuration.
+				binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
+				# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
+				eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+				# Check if the configuration step has been performed.
+				if [[ ! -f "${binary_dir}/CMakeCache.txt" ]]; then
+					WriteLog -e "\t\t:Need cmake configuration step for this information."
+				fi
+			fi
 		fi
 		presets+=("${name} (${cfg_name}) ${desc}")
 		preset_names+=("${preset}")
@@ -297,6 +255,7 @@ function SelectPackagePreset {
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${@}")"
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
+		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Package: ${preset} '${name}' ${desc}"
 			WriteLog -e "\t-Configuration: ${cfg_preset} '${cfg_name}' ${cfg_desc}"
@@ -344,6 +303,7 @@ function SelectWorkflowPreset {
 		# Ignore entries with display names starting with '#'.
 		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
 		desc="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Workflow: ${preset} '${name}' ${desc}"
 			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| .type + \"(\"  + .name + \")\")" "${@}" | PrependAndEscape "\t-Step #\${counter}: " || true
@@ -417,7 +377,7 @@ fi
 # No arguments at show help and bailout.
 if [[ $# == 0 ]]; then
 	ShowHelp
-	exit 1
+	exit 0
 fi
 
 # When in windows determine which cmake to use and where to get it including ninja and the compiler.
@@ -446,6 +406,8 @@ FLAG_INFO=false
 FLAG_LIST=false
 # Initialize the cmake configure command as an array.
 CMAKE_CONFIG=("cmake")
+# Create file for exploring in Chrome using URL "chrome://tracing/".
+#CMAKE_CONFIG+=("--profiling-output=perf.json" "--profiling-format=google-trace")
 # Initialize the cmake build command as an array.
 CMAKE_BUILD=("cmake" "--build")
 # Initialize the ctest command as an array.
@@ -456,20 +418,6 @@ CPACKAGE_BUILD=("cpack")
 TARGET_NAME=""
 # When empty the regex is not applied to test names.
 TEST_REGEX=""
-
-# Create file for exploring in Chrome using URL "chrome://tracing/".
-#CMAKE_CONFIG+=("--profiling-output=perf.json" "--profiling-format=google-trace")
-
-##
-# Joins an array with glue.
-# Arg1: The glue which can be a multi character string.
-# Arg2+n: The array as separate arguments like "${myarray[@]}"
-function join_by {
-	local d=${1-} f=${2-}
-	if shift 2; then
-		printf %s "$f" "${@/#/$d}"
-	fi
-}
 
 # Parse options.
 temp=$(getopt -o 'n:hisdpfCcmbwBtlr:' \
@@ -483,12 +431,6 @@ eval set -- "${temp}"
 unset temp
 while true; do
 	case $1 in
-
-		--gitlab-ci)
-			export CI_SERVER="yes"
-			shift 1
-			continue
-			;;
 
 		-h | --help)
 			ShowHelp
@@ -647,6 +589,7 @@ if [[ -f "${SCRIPT_DIR}/CMakeUserPresets.json" ]]; then
 	file_presets+=("${SCRIPT_DIR}/CMakeUserPresets.json")
 fi
 
+# Check if information is to be shown only.
 if ${FLAG_INFO}; then
 	# Set tabs distance 2 spaces.
 	tabs -2
@@ -739,11 +682,11 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			if [[ ! -d "${binary_dir}" ]] || ${FLAG_CONFIG} && ! ${FLAG_BUILD_ONLY}; then
 				CMAKE_CONFIG+=("--preset ${cfg_preset}")
 				if ${FLAG_DEBUG}; then
-					WriteLog "$(join_by ' ' "${CMAKE_CONFIG[@]}")"
+					WriteLog "$(JoinBy ' ' "${CMAKE_CONFIG[@]}")"
 				else
-					WriteLog "# $(join_by ' ' "${CMAKE_CONFIG[@]}")"
+					WriteLog "# $(JoinBy ' ' "${CMAKE_CONFIG[@]}")"
 					# shellcheck disable=SC2091
-					$(join_by " " "${CMAKE_CONFIG[@]}")
+					$(JoinBy " " "${CMAKE_CONFIG[@]}")
 				fi
 			fi
 			# Build when flag is set.
@@ -758,12 +701,12 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 						CMAKE_BUILD+=("--target ${TARGET_NAME}")
 					fi
 				fi
-				WriteLog "$(join_by " " "${CMAKE_BUILD[@]}")"
+				WriteLog "$(JoinBy " " "${CMAKE_BUILD[@]}")"
 				if ! ${FLAG_DEBUG}; then
-					WriteLog "# $(join_by " " "${CMAKE_BUILD[@]}")"
+					WriteLog "# $(JoinBy " " "${CMAKE_BUILD[@]}")"
 					# Run the build preset.
 					# shellcheck disable=SC2091
-					if ! eval "$(join_by " " "${CMAKE_BUILD[@]}")"; then
+					if ! eval "$(JoinBy " " "${CMAKE_BUILD[@]}")"; then
 						WriteLog "CMake failed!"
 						exit 1
 					fi
@@ -802,12 +745,12 @@ if ${FLAG_TEST}; then
 				# Regard no tests found as no error and ignore it (exit code is 0 otherwise 8).
 				#CTEST_BUILD+=("--no-tests=ignore")
 			fi
-			WriteLog "$(join_by " " "${CTEST_BUILD[@]}")"
+			WriteLog "$(JoinBy " " "${CTEST_BUILD[@]}")"
 			if ! ${FLAG_DEBUG}; then
 				set +e
 				# Run the test preset.
 				# shellcheck disable=SC2091
-				$(join_by " " "${CTEST_BUILD[@]}")
+				$(JoinBy " " "${CTEST_BUILD[@]}")
 				exitcode="$?"
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
@@ -846,12 +789,12 @@ if ${FLAG_PACKAGE}; then
 		else
 			CPACKAGE_BUILD+=("--preset ${preset}")
 			CPACKAGE_BUILD+=("--verbose")
-			WriteLog "$(join_by " " "${CPACKAGE_BUILD[@]}")"
+			WriteLog "$(JoinBy " " "${CPACKAGE_BUILD[@]}")"
 			if ! ${FLAG_DEBUG}; then
 				set +e
 				# Run the package preset.
 				# shellcheck disable=SC2091
-				$(join_by " " "${CPACKAGE_BUILD[@]}")
+				$(JoinBy " " "${CPACKAGE_BUILD[@]}")
 				exitcode="$?"
 				# Check the exit code.
 				if [[ "${exitcode}" -ne 0 ]]; then

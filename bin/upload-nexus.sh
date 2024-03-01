@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
+# Exit immediately if a command exits with a non-zero status. (is the same as '-o errexit')
+set -e
+# Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
+set -o pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRED_FILE="${SCRIPT_DIR}/.apt-repo-credentials"
+CRED_FILE=".nexus-upload-credentials"
 
 # Include the WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
 
 # Prints the help to stderr.
 #
@@ -19,9 +24,8 @@ function ShowHelp() {
   -r, --raw-repo : Sets or overrules variable 'NEXUS_RAW_REPO' as the raw-repository name.
   -s, --raw-sub  : Sets or overrules variable 'NEXUS_RAW_SUBDIR' as the subdirectory.
 
-  When the credentials are not passed as environment variables a file named
-  '${CRED_FILE}'
-  is sourced containing the following variables e.g.:
+  When the credentials are not passed as environment variables a bash include file named
+  '${CRED_FILE}' is sourced containing the following variables e.g.:
     NEXUS_USER='uploader'
     NEXUS_PASSWORD='<uploader-password>'
     NEXUS_SERVER_URL='https://nexus.scanframe.com'
@@ -32,16 +36,9 @@ function ShowHelp() {
   These environment variables can be set in GitLab for a project for CI-pipeline
   or partially by the pipeline configuration when needed.
 
-  When a NEXUS_USER variable is not provided the credentials file named
-  '${CRED_FILE}'
-  is looked for when e.g. there is need for testing outside the CI-pipeline.
+  When a NEXUS_USER variable is not provided the credentials file named '${CRED_FILE}'
+  is looked for when e.g. there is a need for testing outside the CI-pipeline.
 "
-}
-
-function PrependAndEscape() {
-	while read -r line; do
-		WriteLog -e "${1}${line}"
-	done
 }
 
 # When no arguments are passed show help.
@@ -55,11 +52,9 @@ fi
 # Check if the user was configured and if not try to read the credentials file.
 if [[ -z "${NEXUS_USER}" ]]; then
 	WriteLog "# Reading credentials file: ${CRED_FILE}"
-	if [[ ! -f "${CRED_FILE}" ]]; then
-		WriteLog "Credential file not found: ${CRED_FILE} !"
-		exit 1
-	fi
-	source "${SCRIPT_DIR}/.apt-repo-credentials"
+	# Try finding the credential file up the directories.
+	# shellcheck disable=SC1090
+	source "$(FindUp --type f .nexus-upload-credentials)"
 fi
 
 # When set this flag indicates a missing variable in the credentials file.
@@ -121,8 +116,8 @@ done
 
 # Harvest the arguments in an array.
 argument=()
-while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
-	argument=("${argument[@]}" "$1")
+while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
+	argument+=("${1}")
 	shift
 done
 
