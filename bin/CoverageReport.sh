@@ -107,11 +107,11 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 done
 
 #if "${flag_verbose}"; then
-	WriteLog "- Source directory: ${source_dir}"
-	WriteLog "- Target directory: ${target_dir}"
-	WriteLog "- Command gcovr   : ${gcovr_bin}"
-	WriteLog "- Command gcov    : ${gcov_bin:-'Default'}"
-	WriteLog "- Filters(${#argument[@]}): ${argument[*]}"
+WriteLog "- Source directory: ${source_dir}"
+WriteLog "- Target directory: ${target_dir}"
+WriteLog "- Command gcovr   : ${gcovr_bin}"
+WriteLog "- Command gcov    : ${gcov_bin:-'Default'}"
+WriteLog "- Filters(${#argument[@]}): ${argument[*]}"
 #fi
 
 # Validate the source directory.
@@ -164,9 +164,13 @@ gcovr_mcd=("${gcovr_bin}")
 if [[ -n "${gcov_bin}" ]]; then
 	gcovr_mcd+=(--gcov-executable "${gcov_bin}")
 fi
-# Generate the HTML report and the summary json-file.
-gcovr_mcd+=(--json-summary-pretty --json-summary "${target_dir}/${filename}.json")
-gcovr_mcd+=(--html-self-contained --html-details "${target_dir}/${filename}.html")
+# Generate the HTML report and the summary json-file when not executed from a pipeline.
+if [[ "${CI}" != "true" ]]; then
+	gcovr_mcd+=(--json-summary-pretty --json-summary "${target_dir}/${filename}.json")
+	gcovr_mcd+=(--html-self-contained --html-details "${target_dir}/${filename}.html")
+fi
+# Generate Cobertura coverage report which GitLab can handle/process.
+gcovr_mcd+=(--xml-pretty --exclude-unreachable-branches --print-summary --output "${target_dir}/${filename}.xml")
 gcovr_mcd+=("${files[@]}")
 gcovr_mcd+=("${filters[@]}")
 
