@@ -155,7 +155,7 @@ if ${flag_verbose}; then
 fi
 
 # Remove existing files named as the given filename.
-find "${target_dir}" -type f \( -name "${filename}*.html" -o -name "${filename}*.css" -o -name "${filename}*.json" \) -exec rm {} \;
+find "${target_dir}" -type f \( -name "${filename}*.html" -o -name "${filename}*.css" -o -name "${filename}*.json" -o -name "${filename}*.txt" \) -exec rm {} \;
 
 # Assemble the call to gcovr.
 gcovr_mcd=("${gcovr_bin}")
@@ -205,7 +205,7 @@ fi
 gcovr_mcd+=("${filters[@]}")
 
 # Make the call to generate.
-if "${gcovr_mcd[@]}"; then
+if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 	#xdg-open "${target_dir}/index.html"
 	# Create in the log a clickable entry to open in the browser.
 	WriteLog "Report at: file://${target_dir}/${filename}.html"
