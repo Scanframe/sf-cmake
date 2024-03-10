@@ -22,7 +22,7 @@ fi
 COMMANDS=("git" "jq" "cmake" "ctest" "cpack" "ninja")
 # Add interactive commands when running interactively.
 if [[ "${CI}" != "true" ]]; then
-	COMMANDS+=("dialog")
+	COMMANDS+=(dialog)
 fi
 for COMMAND in "${COMMANDS[@]}"; do
 	if ! command -v "${COMMAND}" >/dev/null; then
@@ -734,14 +734,15 @@ if ${FLAG_TEST}; then
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
-			CTEST_BUILD+=("--preset ${preset}")
+			CTEST_BUILD+=(--preset "${preset}")
+			CTEST_BUILD+=(--verbose)
 			# Add flag to list tests.
 			if ${FLAG_LIST}; then
-				CTEST_BUILD+=("--show-only")
+				CTEST_BUILD+=(--show-only)
 			fi
 			# Add regular expression for test when given.
 			if [[ -n "${TEST_REGEX}" ]]; then
-				CTEST_BUILD+=("--tests-regex ${TEST_REGEX}")
+				CTEST_BUILD+=(--tests-regex "${TEST_REGEX}")
 				# Regard no tests found as no error and ignore it (exit code is 0 otherwise 8).
 				#CTEST_BUILD+=("--no-tests=ignore")
 			fi
@@ -750,7 +751,7 @@ if ${FLAG_TEST}; then
 				set +e
 				# Run the test preset.
 				# shellcheck disable=SC2091
-				$(JoinBy " " "${CTEST_BUILD[@]}")
+				"${CTEST_BUILD[@]}"
 				exitcode="$?"
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
@@ -787,14 +788,14 @@ if ${FLAG_PACKAGE}; then
 			# Show the available presets.
 			cmake --list-presets configure
 		else
-			CPACKAGE_BUILD+=("--preset ${preset}")
-			CPACKAGE_BUILD+=("--verbose")
+			CPACKAGE_BUILD+=(--preset "${preset}")
+			CPACKAGE_BUILD+=(--verbose)
 			WriteLog "$(JoinBy " " "${CPACKAGE_BUILD[@]}")"
 			if ! ${FLAG_DEBUG}; then
 				set +e
 				# Run the package preset.
 				# shellcheck disable=SC2091
-				$(JoinBy " " "${CPACKAGE_BUILD[@]}")
+				"${CPACKAGE_BUILD[@]}"
 				exitcode="$?"
 				# Check the exit code.
 				if [[ "${exitcode}" -ne 0 ]]; then
