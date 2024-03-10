@@ -31,6 +31,14 @@ source_dir=""
 target_dir=""
 flag_cleanup=false
 flag_verbose=false
+flag_search_path=true
+flag_report_json=true
+flag_report_html=true
+# When CI-pipline is involved do not generate html or json files.
+if [[ "${CI}" == "true" ]]; then
+	flag_report_json=false
+	flag_report_html=false
+fi
 
 # Parse options.
 temp=$(getopt -o 'hs:t:n:' \
@@ -106,7 +114,7 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 	shift
 done
 
-#if "${flag_verbose}"; then
+#if ${flag_verbose}; then
 WriteLog "- Source directory: ${source_dir}"
 WriteLog "- Target directory: ${target_dir}"
 WriteLog "- Command gcovr   : ${gcovr_bin}"
@@ -139,24 +147,15 @@ for dir in "${argument[@]}"; do
 	filters+=("--filter" "${dir}")
 done
 
-# Collect all the "*.gcda" files.
-while IFS='' read -r -d $'\n'; do
-	#[[ "${REPLY}" =~ \.dir/test- ]] && continue
-	if "${flag_verbose}"; then
-		WriteLog "- File: ${REPLY}"
-	fi
-	files+=("${source_dir}/${REPLY}")
-done < <(find "${source_dir}" -type f -name "*.gcda" -printf "%P\n")
-
 # Create directory when it does not exist.
 mkdir --parents "${target_dir}"
 
-if "${flag_verbose}"; then
+if ${flag_verbose}; then
 	WriteLog "- Removing all existing files named like '${filename}'."
 fi
 
 # Remove existing files named as the given filename.
-find "${target_dir}" -type f \( -name "${filename}*.html" -o -name "${filename}*.json" \) -exec rm {} \;
+find "${target_dir}" -type f \( -name "${filename}*.html" -o -name "${filename}*.css" -o -name "${filename}*.json" \) -exec rm {} \;
 
 # Assemble the call to gcovr.
 gcovr_mcd=("${gcovr_bin}")
@@ -164,14 +163,45 @@ gcovr_mcd=("${gcovr_bin}")
 if [[ -n "${gcov_bin}" ]]; then
 	gcovr_mcd+=(--gcov-executable "${gcov_bin}")
 fi
-# Generate the HTML report and the summary json-file when not executed from a pipeline.
-if [[ "${CI}" != "true" ]]; then
+# General options.
+gcovr_mcd+=(--exclude-unreachable-branches --print-summary)
+# Generate the HTML report.
+if ${flag_report_html}; then
 	gcovr_mcd+=(--json-summary-pretty --json-summary "${target_dir}/${filename}.json")
-	gcovr_mcd+=(--html-self-contained --html-details "${target_dir}/${filename}.html")
+fi
+# Generate summary json-file,
+if ${flag_report_json}; then
+	gcovr_mcd+=(--html-tab-size 2)
+	# Select the theme for HTML output to be green,blue,github.blue,github.green,github.dark-green,github.dark-blue.
+	gcovr_mcd+=(--html-theme github.green)
+	#gcovr_mcd+=(--html-self-contained)
+	gcovr_mcd+=(--html-nested "${target_dir}/${filename}.html")
+	#gcovr_mcd+=(--html-details "${target_dir}/${filename}.html")
 fi
 # Generate Cobertura coverage report which GitLab can handle/process.
-gcovr_mcd+=(--xml-pretty --exclude-unreachable-branches --print-summary --output "${target_dir}/${filename}.xml")
-gcovr_mcd+=("${files[@]}")
+gcovr_mcd+=(--xml-pretty --output "${target_dir}/${filename}.xml")
+# Sort on: filename,uncovered-number,uncovered-percent
+gcovr_mcd+=(--sort uncovered-percent)
+# Output also additional values/columns.
+gcovr_mcd+=(--decisions --calls)
+# Remove lines containing only an accolade.
+#gcovr_mcd+=( --exclude-lines-by-pattern '^\s*\}\s*$')
+# Add the gcda-files using file or search path(s).
+if ${flag_search_path}; then
+	gcovr_mcd+=("${source_dir}")
+else
+	# Collect all the "*.gcda" files from the passed source directory.
+	while IFS='' read -r -d $'\n'; do
+		#[[ "${REPLY}" =~ \.dir/test- ]] && continue
+		if ${flag_verbose}; then
+			WriteLog "- File: ${REPLY}"
+		fi
+		files+=("${source_dir}/${REPLY}")
+	done < <(find "${source_dir}" -type f -name "*.gcda" -printf "%P\n")
+	# Alternative to search paths, add the gcda-files ourself.
+	gcovr_mcd+=("${files[@]}")
+fi
+# Add the directory filters on the found files.
 gcovr_mcd+=("${filters[@]}")
 
 # Make the call to generate.
@@ -181,11 +211,11 @@ if "${gcovr_mcd[@]}"; then
 	WriteLog "Report at: file://${target_dir}/${filename}.html"
 	WriteLog "Summary at: ${target_dir}/${filename}.json"
 	# Delete all arc files when successful.
-	if "${flag_cleanup}"; then
+	if ${flag_cleanup}; then
 		# Remove all the "*.gcda" files after.
 		while IFS='' read -r -d $'\n'; do
 			#[[ "${REPLY}" =~ \.dir/test- ]] && continue
-			if "${flag_verbose}"; then
+			if ${flag_verbose}; then
 				WriteLog "- Removing: ${REPLY}"
 			fi
 			rm "${REPLY}"
