@@ -181,7 +181,7 @@ function UploadFiles {
 		fi
 		WriteLog "- Uploading file ($(numfmt --format %6f --to=iec-i --suffix=B "$(stat --printf="%s" "${fn}")")): ${fn}"
 		curl_cmd_add=(--upload-file "${fn}")
-		curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_EXCHANGE_REPO}")/$(UrlEncode "${remote_dir}")/$(basename -- "${fn}")")
+		curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_EXCHANGE_REPO}")/${remote_dir}/$(basename -- "${fn}")")
 		# Show command when debugging.
 		"${flag_debug}" && echo "${curl_cmd[@]}" "${curl_cmd_add[@]}"
 		# Perform curl and retrieve the HTTP response_code.
