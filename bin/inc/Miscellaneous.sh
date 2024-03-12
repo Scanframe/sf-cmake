@@ -289,3 +289,49 @@ EscapeMarkdown() {
 	#	escaped_string="${escaped_string//!/&#33;}"   # Exclamation mark (!)
 	echo "$escaped_string"
 }
+
+##
+# Decodes the passed URL string.
+#
+UrlDecode() {
+	# urldecode <string>
+	local url_encoded="${1//+/ }"
+	printf '%b' "${url_encoded//%/\\x}"
+}
+
+##
+# Encodes the passed URL string.
+#
+UrlEncode() {
+	old_lc_collate=$LC_COLLATE
+	LC_COLLATE=C
+	local length="${#1}"
+	for ((i = 0; i < length; i++)); do
+		local c="${1:i:1}"
+		case $c in
+			[a-zA-Z0-9.~_-]) printf "$c" ;;
+			*) printf '%%%02X' "'$c" ;;
+		esac
+	done
+	LC_COLLATE=$old_lc_collate
+}
+
+##
+# Encodes the passed URL string.
+# Arg1: Value to look for.
+# ArgN+1: Array values.
+#
+InArray() {
+	# Local scope for the variable
+	local value element
+	value="${1}"
+	# Remove first function argument.
+	shift
+	# Loop through the array and compare elements directly
+	for element in "${@}"; do
+		# Element found, return success
+		[[ "${element}" == "${value}" ]] && return 0
+	done
+	# Element not found, return failure
+	return 1
+}

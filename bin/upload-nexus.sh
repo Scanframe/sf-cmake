@@ -5,7 +5,7 @@ set -e
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRED_FILE=".nexus-upload-credentials"
+cred_file=".nexus-upload-credentials"
 
 # Include the WriteLog function.
 source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
@@ -19,13 +19,13 @@ function ShowHelp() {
   the correct repository for multiple files at once.
 
   -h, --help     : Shows this help.
-  -d, --debug    : Debug: Show executed commands rather then executing them.
+  -d, --debug    : Show debugging information and enables verbosity on curl.
   -a, --apt-repo : Sets or overrules variable 'NEXUS_APT_REPO' as the apt-repository name.
   -r, --raw-repo : Sets or overrules variable 'NEXUS_RAW_REPO' as the raw-repository name.
   -s, --raw-sub  : Sets or overrules variable 'NEXUS_RAW_SUBDIR' as the subdirectory.
 
   When the credentials are not passed as environment variables a bash include file named
-  '${CRED_FILE}' is sourced containing the following variables e.g.:
+  '${cred_file}' is sourced containing the following variables e.g.:
     NEXUS_USER='uploader'
     NEXUS_PASSWORD='<uploader-password>'
     NEXUS_SERVER_URL='https://nexus.scanframe.com'
@@ -36,7 +36,7 @@ function ShowHelp() {
   These environment variables can be set in GitLab for a project for CI-pipeline
   or partially by the pipeline configuration when needed.
 
-  When a NEXUS_USER variable is not provided the credentials file named '${CRED_FILE}'
+  When a NEXUS_USER variable is not provided the credentials file named '${cred_file}'
   is looked for when e.g. there is a need for testing outside the CI-pipeline.
 "
 }
@@ -51,18 +51,20 @@ fi
 
 # Check if the user was configured and if not try to read the credentials file.
 if [[ -z "${NEXUS_USER}" ]]; then
-	WriteLog "# Reading credentials file: ${CRED_FILE}"
+	WriteLog "# Reading credentials file: ${cred_file}"
 	# Try finding the credential file up the directories.
 	# shellcheck disable=SC1090
 	source "$(FindUp --type f .nexus-upload-credentials)"
 fi
 
 # When set this flag indicates a missing variable in the credentials file.
-FLAG_VAR=false
+flag_var=false
+# Show command en verbose curl output.
+flag_debug=false
 
 # Parse options.
-temp=$(getopt -o 'hr:a:' \
-	--long 'help,raw-repo:apt-repo:' \
+temp=$(getopt -o 'hdr:a:s:' \
+	--long 'help,debug,raw-repo:apt-repo:,raw-sub:' \
 	-n "$(basename "${0}")" -- "$@")
 # No arguments, show help and bailout.
 if [[ "${#}" -eq 0 ]]; then
@@ -79,12 +81,18 @@ while true; do
 			exit 0
 			;;
 
+		-d | --debug)
+			WriteLog "# Debug enabled."
+			flag_debug=true
+			shift 1
+			continue
+			;;
+
 		-r | --raw-repo)
 			WriteLog "# RAW repository set to '${2}'."
 			NEXUS_RAW_REPO="${2}"
 			shift 2
 			continue
-			exit 0
 			;;
 
 		-s | --raw-sub)
@@ -92,7 +100,6 @@ while true; do
 			NEXUS_RAW_SUBDIR="${2}"
 			shift 2
 			continue
-			exit 0
 			;;
 
 		-a | --apt-repo)
@@ -121,8 +128,8 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 	shift
 done
 
-# List of needed variables.
-NEXUS_VARS=(
+# List of needed credential variables.
+cred_vars=(
 	NEXUS_USER
 	NEXUS_PASSWORD
 	NEXUS_SERVER_URL
@@ -131,72 +138,81 @@ NEXUS_VARS=(
 	NEXUS_RAW_SUBDIR
 )
 # Iterate over the variable-names and check them.
-for var in "${NEXUS_VARS[@]}"; do
+for var in "${cred_vars[@]}"; do
 	if [[ -z "${!var}" ]]; then
 		WriteLog "Required credentials/config variable '$var' is not set credentials file or environment!"
-		FLAG_VAR=true
+		flag_var=true
 	fi
 done
 # Check all needed variables were present.
-if ${FLAG_VAR}; then
+if ${flag_var}; then
 	ShowHelp
 	exit 1
 fi
 
 # Check if the needed commands are installed.1+
-COMMANDS=("curl")
-for COMMAND in "${COMMANDS[@]}"; do
-	if ! command -v "${COMMAND}" >/dev/null; then
-		WriteLog "Missing command '${COMMAND}' for this script!"
+commands=("curl")
+for command in "${commands[@]}"; do
+	if ! command -v "${command}" >/dev/null; then
+		WriteLog "Missing command '${command}' for this script!"
 		exit 1
 	fi
 done
 
+# Curl command to execute basically.
+curl_cmd=(curl)
+curl_cmd+=(--silent)
+curl_cmd+=(--include)
+if "${flag_debug}"; then
+	curl_cmd+=(--verbose)
+fi
+curl_cmd+=(--user "${NEXUS_USER}:${NEXUS_PASSWORD}")
+
 # Iterate over all the command-line arguments.
-for UPLOAD_FILE in "${argument[@]}"; do
+for upload_file in "${argument[@]}"; do
 	# Check if the file exists.
-	if [[ ! -f "${UPLOAD_FILE}" ]]; then
-		WriteLog "! File not found: ${UPLOAD_FILE}"
+	if [[ ! -f "${upload_file}" ]]; then
+		WriteLog "! File not found: ${upload_file}"
 		exit 1
 	fi
 	# Depending on the file extension the upload destination and method is selected.
-	case "${UPLOAD_FILE##*.}" in
+	case "${upload_file##*.}" in
 		deb)
-			WriteLog "- Uploading APT repo file: ${UPLOAD_FILE}"
-			# Perform curl and retrieve the HTTP response_code.
-			response_code="$(curl \
-				--silent --include \
-				--request 'POST' \
-				--user "${NEXUS_USER}:${NEXUS_PASSWORD}" \
-				--header 'Accept: application/json' \
-				--header 'Content-Type: multipart/form-data' \
-				--form "apt.asset=@${UPLOAD_FILE};type=application/vnd.debian.binary-package" \
-				"${NEXUS_SERVER_URL}/service/rest/v1/components?repository=${NEXUS_APT_REPO}" |
+			WriteLog "- Uploading APT repo file: ${upload_file}"
+			curl_cmd+=(--request 'POST')
+			curl_cmd_add=(--header 'Accept: application/json')
+			curl_cmd_add+=(--header 'Content-Type: multipart/form-data')
+			curl_cmd_add+=(--form "apt.asset=@${upload_file};type=application/vnd.debian.binary-package")
+			curl_cmd_add+=("${NEXUS_SERVER_URL}/service/rest/v1/components?repository=$(UrlEncode "${NEXUS_APT_REPO}")")
+			# Show command when debugging.
+			"${flag_debug}" && echo "${curl_cmd[@]}" "${curl_cmd_add[@]}"
+			response_code="$("${curl_cmd[@]}" "${curl_cmd_add[@]}" |
 				tee >(cat | PrependAndEscape "- " 1>&2) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
 			# Check the response code for failure.
 			if [[ "${response_code}" -lt 200 || "${response_code}" -ge 300 ]]; then
-				WriteLog "! Upload APT package failed (${response_code}) of file: ${UPLOAD_FILE}"
+				WriteLog "! Upload APT package failed (${response_code}) of file: ${upload_file}"
 				exit 1
 			fi
 			;;
 
 		zip | exe)
-			WriteLog "- Uploading RAW repo file: ${UPLOAD_FILE}"
-			response_code="$(curl \
-				--silent --include \
-				--user "${NEXUS_USER}:${NEXUS_PASSWORD}" \
-				--upload-file "${UPLOAD_FILE}" \
-				"${NEXUS_SERVER_URL}/repository/${NEXUS_RAW_REPO}/${NEXUS_RAW_SUBDIR}/$(basename -- "${UPLOAD_FILE}")" |
+			WriteLog "- Uploading RAW repo file: ${upload_file}"
+			curl_cmd_add=(--upload-file "${upload_file}")
+			curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_RAW_REPO}")/$(UrlEncode "${NEXUS_RAW_SUBDIR}")/$(basename -- "${upload_file}")")
+			# Show command when debugging.
+			"${flag_debug}" && echo "${curl_cmd[@]}" "${curl_cmd_add[@]}"
+			# Perform curl and retrieve the HTTP response_code.
+			response_code="$("${curl_cmd[@]}" "${curl_cmd_add[@]}" |
 				tee >(cat | PrependAndEscape "- " 1>&2) | grep -P "^HTTP/" | tail -n 1 | cut -d$' ' -f2)"
 			# Check the response code for failure.
 			if [[ "${response_code}" -lt 200 || "${response_code}" -ge 300 ]]; then
-				WriteLog "! Upload RAW package failed (${response_code}) of file: ${UPLOAD_FILE}"
+				WriteLog "! Upload RAW package failed (${response_code}) of file: ${upload_file}"
 				exit 1
 			fi
 			;;
 
 		*)
-			WriteLog "! No upload method for extension '${UPLOAD_FILE##*.}' file: ${UPLOAD_FILE}"
+			WriteLog "! No upload method for extension '${upload_file##*.}' file: ${upload_file}"
 			;;
 
 	esac
