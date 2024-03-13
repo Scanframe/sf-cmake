@@ -4,7 +4,10 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
+# This scripts directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Credential file for testing
 cred_file=".nexus-upload-credentials"
 
 # Include the WriteLog function.
@@ -54,7 +57,7 @@ if [[ -z "${NEXUS_USER}" ]]; then
 	WriteLog "# Reading credentials file: ${cred_file}"
 	# Try finding the credential file up the directories.
 	# shellcheck disable=SC1090
-	source "$(FindUp --type f .nexus-upload-credentials)"
+	source "$(FindUp --type f "${cred_file}")"
 fi
 
 # When set this flag indicates a missing variable in the credentials file.
@@ -140,7 +143,7 @@ cred_vars=(
 # Iterate over the variable-names and check them.
 for var in "${cred_vars[@]}"; do
 	if [[ -z "${!var}" ]]; then
-		WriteLog "Required credentials/config variable '$var' is not set credentials file or environment!"
+		WriteLog "Required credentials/config variable '$var' is not set by credentials file or by parent environment!"
 		flag_var=true
 	fi
 done

@@ -345,8 +345,8 @@ The tools for this are `gcov` and `gcovr` of
 
 The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfBaseConfig.cmake).
 
-| Function                 | Description                                                                                        |
-|--------------------------|----------------------------------------------------------------------------------------------------|
-| Sf_AddTargetForCoverage  | Sets compiler and linker options for the target depending on the target type.                      |
-| Sf_AddAsCoverageTest     | Adds a test to the list which is used as a dependency for the test generating the report.          |
-| Sf_AddTestCoverageReport | Adds the test generating the report calling the script [CoverageReport.sh](bin/CoverageReport.sh). |
+| Function                 | Description                                                                                          |
+|--------------------------|------------------------------------------------------------------------------------------------------|
+| Sf_AddTargetForCoverage  | Sets compiler and linker options for the target depending on the target type.                        |
+| Sf_AddAsCoverageTest     | Adds a test to the list which is used as a dependency for the test generating the report.            |
+| Sf_AddTestCoverageReport | Adds the test generating the report calling the script [coverage-report.sh](bin/coverage-report.sh). |

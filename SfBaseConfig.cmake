@@ -499,7 +499,7 @@ function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
 	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
 		# Add a test to generate the report.
 		add_test(NAME "${_Test}"
-			COMMAND "${SfBase_DIR}/bin/CoverageReport.sh"
+			COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
 			# Cleanup arc transition counting files after the report is generated.
 			--cleanup
 			# Set the coverage command of the tool chain.

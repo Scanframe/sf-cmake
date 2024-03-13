@@ -34,11 +34,11 @@ flag_verbose=false
 flag_search_path=true
 flag_report_json=true
 flag_report_html=true
-# When CI-pipline is involved do not generate html or json files.
-if [[ "${CI}" == "true" ]]; then
-	flag_report_json=false
-	flag_report_html=false
-fi
+## When CI-pipline is involved do not generate html or json files.
+#if [[ "${CI}" == "true" ]]; then
+#	flag_report_json=false
+#	flag_report_html=false
+#fi
 
 # Parse options.
 temp=$(getopt -o 'hs:t:n:' \

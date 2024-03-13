@@ -15,8 +15,8 @@ trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
 # When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
-	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
-	exit 1
+	SCRIPT_DIR="${PWD}"
+	WriteLog "Environment variable 'SCRIPT_DIR' not set using current working directory."
 fi
 
 # Prints the help to stderr.

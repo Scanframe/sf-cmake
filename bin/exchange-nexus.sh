@@ -4,8 +4,11 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
+# This scripts directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRED_FILE=".nexus-upload-credentials"
+
+# Credential file for testing
+cred_file=".nexus-upload-credentials"
 
 # Include the WriteLog function.
 source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
@@ -26,7 +29,7 @@ function ShowHelp() {
   -l, --local  : Download the passed files from the remote where non given means all of them.
 
   When the credentials are not passed as environment variables a bash include file named
-  '${CRED_FILE}' is sourced containing the following variables e.g.:
+  '${cred_file}' is sourced containing the following variables e.g.:
     NEXUS_USER='<uploader-user>'
     NEXUS_PASSWORD='<uploader-password>'
     NEXUS_SERVER_URL='https://nexus.scanframe.com'
@@ -35,7 +38,7 @@ function ShowHelp() {
   These environment variables can be set in GitLab for a project for CI-pipeline
   or partially by the pipeline configuration when needed.
 
-  When a NEXUS_USER variable is not provided the credentials file named '${CRED_FILE}'
+  When a NEXUS_USER variable is not provided the credentials file named '${cred_file}'
   is looked for when e.g. there is a need for testing outside the CI-pipeline.
 "
 }
@@ -50,7 +53,7 @@ fi
 
 # Check if the user was configured and if not try to read the credentials file.
 if [[ -z "${NEXUS_USER}" ]]; then
-	WriteLog "# Reading credentials file: ${CRED_FILE}"
+	WriteLog "# Reading credentials file: ${cred_file}"
 	# Try finding the credential file up the directories.
 	# shellcheck disable=SC1090
 	source "$(FindUp --type f .nexus-upload-credentials)"
@@ -143,7 +146,7 @@ cred_vars=(
 # Iterate over the variable-names and check them.
 for var in "${cred_vars[@]}"; do
 	if [[ -z "${!var}" ]]; then
-		WriteLog "Required credentials/config variable '$var' is not set credentials file or environment!"
+		WriteLog "Required credentials/config variable '$var' is not set by credentials file or by parent environment!"
 		flag_var=true
 	fi
 done
