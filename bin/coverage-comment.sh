@@ -21,7 +21,7 @@ function ShowHelp {
 
   For testing credentials are not passed as environment variables a bash include
   file named '${cred_file}' is sourced containing the following variables e.g.:
-    CI_JOB_TOKEN='<valid-gitlab-token>'
+    SF_PROJECT_TOKEN='<project-api-access-token>'
     CI_API_V4_URL='https://git.scanframe.com/api/v4'
     CI_SERVER_URL='https://git.scanframe.com'
     CI_PROJECT_PATH='trial/devops'
@@ -40,7 +40,7 @@ if [[ "${1}" -eq 0 ]]; then
 fi
 
 # Check if the user was configured and if not try to read the credentials file.
-if [[ -z "${CI_JOB_TOKEN}" ]]; then
+if [[ -z "${SF_PROJECT_TOKEN}" ]]; then
 	WriteLog "# Reading credentials file: ${cred_file}"
 	# Try finding the credential file up the directories.
 	# shellcheck disable=SC1090
@@ -51,7 +51,7 @@ fi
 flag_var=false
 # List of needed variables.
 cred_vars=(
-	CI_JOB_TOKEN
+	SF_PROJECT_TOKEN
 	CI_API_V4_URL
 	CI_SERVER_URL
 	CI_PROJECT_PATH
@@ -89,7 +89,7 @@ EOF
 # Form the curl command.
 curl_mcd=(curl)
 curl_mcd+=(--fail --silent)
-curl_mcd+=(--header "PRIVATE-TOKEN: ${CI_JOB_TOKEN}")
+curl_mcd+=(--header "PRIVATE-TOKEN: ${SF_PROJECT_TOKEN}")
 curl_mcd+=(--header "Content-Type: application/json")
 curl_mcd+=(--request POST)
 curl_mcd+=(--no-buffer)
