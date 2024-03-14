@@ -251,6 +251,17 @@ macro(Sf_AddExifTarget _Target)
 				VERBATIM
 			)
 		else ()
+			if (WIN32)
+				add_custom_target("exif-${_Target}" ALL
+					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
+					# Report the linked shared libraries.
+					COMMAND "objdump" -p "$<TARGET_FILE:${_Target}>" | grep -i "DLL Name: " | sed --regexp-extended "s/\\s*DLL Name: /Shared Library: /"
+					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+					DEPENDS "$<TARGET_FILE:${_Target}>"
+					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+					VERBATIM
+				)
+			else ()
 			add_custom_target("exif-${_Target}" ALL
 				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
 				# Report the runpath and the linked shared libraries.
@@ -260,6 +271,7 @@ macro(Sf_AddExifTarget _Target)
 				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
 			)
+			endif ()
 		endif ()
 		add_dependencies("exif" "exif-${_Target}")
 	endif ()
