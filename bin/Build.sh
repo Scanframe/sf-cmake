@@ -92,14 +92,31 @@ SF_TARGET_OS="$(uname -o)"
 function InstallPackages() {
 	WriteLog "About to install required packages for ($1)..."
 	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
+	#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then
+		# Install packages needed for installing other packages.
+		sudo apt-get update
+		sudo apt-get --yes upgrade
+		sudo apt --yes install wget curl gpg lsb-release software-properties-common
+		# Check if the package repository has been added.
+		if ! apt-add-repository --list | grep "llvm-toolchain">/dev/null; then
+			wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
+			sudo apt-add-repository --yes --no-update "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc) main"
+		fi
+		# Check if the package repository has been added.
+		if ! apt-add-repository --list | grep "apt.kitware.com/ubuntu" >/dev/null; then
+			wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+			sudo apt-add-repository --yes --no-update "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+		fi
+		# Update after repositories were added.
+		sudo apt-get update
+		sudo apt-get --yes upgrade
 		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
 			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install mingw-w64 make cmake doxygen graphviz wine winbind exiftool \
-			default-jre-headless "${CROSS_PACKAGES[@]}"; then
+		if ! sudo apt install mingw-w64 make cmake doxygen graphviz wine winbind exiftool default-jre-headless ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi

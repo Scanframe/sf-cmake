@@ -4,7 +4,11 @@ set -e
 # Get the script directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
+
+## Trap script exit with function.
+trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
+
 # Prints the help.
 #
 function ShowHelp {
@@ -159,6 +163,8 @@ find "${target_dir}" -type f \( -name "${filename}*.html" -o -name "${filename}*
 
 # Assemble the call to gcovr.
 gcovr_mcd=("${gcovr_bin}")
+# Needed to process windows cross compiled test results coming from wine.
+gcovr_mcd+=(--gcov-ignore-errors=no_working_dir_found)
 # Add when a other then default gcov binary is given.
 if [[ -n "${gcov_bin}" ]]; then
 	gcovr_mcd+=(--gcov-executable "${gcov_bin}")
