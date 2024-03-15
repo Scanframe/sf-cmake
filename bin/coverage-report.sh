@@ -189,7 +189,7 @@ gcovr_mcd+=(--xml-pretty --output "${target_dir}/${filename}.xml")
 # Sort on: filename,uncovered-number,uncovered-percent
 gcovr_mcd+=(--sort uncovered-percent)
 # Output also additional values/columns.
-gcovr_mcd+=(--decisions --calls)
+#gcovr_mcd+=(--decisions --calls)
 # Remove lines containing only an accolade.
 #gcovr_mcd+=( --exclude-lines-by-pattern '^\s*\}\s*$')
 # Add the gcda-files using file or search path(s).
@@ -216,6 +216,8 @@ if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 	# Create in the log a clickable entry to open in the browser.
 	WriteLog "Report at: file://${target_dir}/${filename}.html"
 	WriteLog "Summary at: ${target_dir}/${filename}.json"
+	# It seems '--html-tab-size 2' is not working, so add it to the stylesheet.
+	echo ".w {tab-size: 4;}" >> "${target_dir}/${filename}.css"
 	# Delete all arc files when successful.
 	if ${flag_cleanup}; then
 		# Remove all the "*.gcda" files after.

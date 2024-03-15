@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.27)
 
 # Make it so our own packages are found and also the ones in the sub-module library.
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" "${CMAKE_CURRENT_LIST_DIR}/cmake/lib")
@@ -11,14 +11,20 @@ find_package(SfToolChain CONFIG REQUIRED)
 # Install tool chain for Linux or Windows.
 Sf_SetToolChain()
 
-# Get the Git version number from the repository of this files directory.
-Sf_GetGitTagVersion(SF_VERSION "${CMAKE_CURRENT_LIST_DIR}")
+# Get the Git versions from the repository of this files directory.
+Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_LIST_DIR}")
+# Report the found Git tag found version.
+Sf_ReportGitTagVersion("${_Versions}")
+# Split the list into separate values.
+list(GET _Versions 0 SF_GIT_TAG_VERSION)
+list(GET _Versions 1 SF_GIT_TAG_RC)
+list(GET _Versions 2 SF_GIT_TAG_COMMITS)
 
 # Set the global project name.
-project("My-Project"
-	VERSION "${SF_VERSION}"
-	DESCRIPTION "My Project Description"
-	HOMEPAGE_URL "https://git.scanframe.com/example/my-project.git"
+project("devops-trial"
+	VERSION "${SF_GIT_TAG_VERSION}"
+	DESCRIPTION "Scanframe DevOps Trial App"
+	HOMEPAGE_URL "https://git.scanframe.com/trial/devops.git"
 	LANGUAGES C CXX
 )
 
@@ -59,6 +65,11 @@ else ()
 	Sf_SetRPath("\${ORIGIN}:\${ORIGIN}/lib")
 endif ()
 
+# Satisfy cmake to prevent warning.
+if (CMAKE_VERBOSE_MAKEFILE)
+	message(STATUS "Verbosity enabled.")
+endif ()
+
 if (SF_BUILD_TESTING)
 	# Prevents Catch2 from adding targets.
 	set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
@@ -68,13 +79,25 @@ if (SF_BUILD_TESTING)
 	include(CTest)
 endif ()
 
+# Clear the tests from previous by passing an empty string.
+Sf_AddAsCoverageTest("")
+
 # Add Sub Projects in the right order of dependencies.
 add_subdirectory(src)
 # Add Doxygen document project.
-if (EXISTS doc)
+if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/doc")
 	add_subdirectory(doc)
 endif ()
-# Add package build config.
-if (EXISTS cpack/CPackConfig.cmake)
-	include(cpack/CPackConfig.cmake)
+
+# Coverage report generator in the form af a test is added.
+# Only when testing is enabled and the build type is 'Coverage'.
+# This must be the last test added since it relies on previous the calls
+# to 'Sf_AddAsCoverageTest()'.
+Sf_AddTestCoverageReport("coverage-report" "src" "${CMAKE_CURRENT_LIST_DIR}/bin/gcov")
+
+# Add package build config when not building coverage.
+if (NOT CMAKE_BUILD_TYPE STREQUAL "Coverage")
+	if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/cpack/CPackConfig.cmake")
+		include(cpack/CPackConfig.cmake)
+	endif ()
 endif ()

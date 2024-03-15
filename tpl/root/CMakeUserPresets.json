@@ -2,32 +2,118 @@
 	"version": 6,
 	"configurePresets": [
 		{
-			"name": "gnu-user",
+			"name": "gw-user",
+			"hidden": false,
+			"displayName": "GW Dbg Compiler",
+			"description": "GW Debug config for cross Windows GW compiler on Linux.",
 			"inherits": [
-				".cfg"
+				".cfg-win"
 			],
-			"displayName": "User-GNU-Dbg",
-			"description": "User configuration Linux GNU debug build.",
-			"binaryDir": "$env{HOME}/tmp/cmake-build/gnu-user"
+			"binaryDir": "${sourceDir}/cmake-build/gw-user"
+		},
+		{
+			"name": "gnu-user",
+			"hidden": false,
+			"displayName": "GNU Dbg Compiler",
+			"description": "GNU Debug config for Linux.",
+			"inherits": [
+				".cfg-lnx"
+			],
+			"binaryDir": "${sourceDir}/cmake-build/gnu-user"
 		}
 	],
 	"buildPresets": [
 		{
-			"name": "gnu-user",
+			"name": "gw-user",
+			"hidden": false,
 			"inherits": [
 				".build"
 			],
-			"displayName": "User-GNU-Dbg",
-			"description": "User GNU debug preset.",
+			"displayName": "GW User Dbg",
+			"description": "GW User debug build preset.",
+			"configurePreset": "gw-user",
+			"targets": [
+				"devops-trial-test"
+			]
+		},
+		{
+			"name": "gnu-user",
+			"hidden": false,
+			"inherits": [
+				".build"
+			],
+			"displayName": "*GNU User Dbg",
+			"description": "GNU User debug build preset.",
 			"configurePreset": "gnu-user",
 			"targets": [
-				"hello-world",
-				"hello-world-qt",
-				"install"
+				"devops-trial-test"
 			]
 		}
 	],
-	"testPresets": [],
-	"packagePresets": [],
-	"workflowPresets": []
+	"testPresets": [
+		{
+			"name": "gw-user",
+			"hidden": false,
+			"displayName": "GW User Dbg",
+			"description": "GW user test debug Windows cross compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gw-user"
+		},
+		{
+			"name": "gnu-user",
+			"hidden": false,
+			"displayName": "GNU User Dbg",
+			"description": "GNU user test debug Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-user"
+		}
+	],
+	"packagePresets": [
+	],
+	"workflowPresets": [
+		{
+			"name": "gw-user",
+			"displayName": "GW User Build & Test",
+			"description": "GW User build & test only.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gw-user"
+				},
+				{
+					"type": "build",
+					"name": "gw-user"
+				},
+				{
+					"type": "test",
+					"name": "gw-user"
+				}
+			]
+		},
+		{
+			"name": "gnu-user",
+			"displayName": "GNU User Build & Test",
+			"description": "GNU User build & test only.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gnu-user"
+				},
+				{
+					"type": "build",
+					"name": "gnu-user"
+				},
+				{
+					"type": "test",
+					"name": "gnu-user"
+				}
+			]
+		}
+	]
 }
