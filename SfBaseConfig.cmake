@@ -22,14 +22,6 @@ macro(Sf_CheckFileExists _File)
 endmacro()
 
 ##!
-# Works around for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden)
-#
-function(Sf_SetTargetDefaultCompileOptions _Target)
-	#message(STATUS "Setting target '${_Target}' compiler option -fvisibility=hidden")
-	target_compile_options("${_Target}" PRIVATE "-fvisibility=hidden")
-endfunction()
-
-##!
 # Gets the version from the Git repository using 'PROJECT_SOURCE_DIR' variable.
 # Always returns a versions list where per index:
 # 1: Actual version
@@ -46,7 +38,8 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --tags --dirty --match \"v*\""
+		# Only annotated tags so no '--tags' option.
+		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --dirty --match \"v*.*.*\""
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
@@ -56,7 +49,8 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			ERROR_QUIET
 		)
 	else ()
-		execute_process(COMMAND "${_GitExe}" describe --tags --dirty --match "v*"
+		# Only annotated tags so no '--tags' option.
+		execute_process(COMMAND "${_GitExe}" describe --dirty --match "v*.*.*"
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
@@ -69,23 +63,25 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)
 		message(AUTHOR_WARNING "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
-		message(VERBOSE "${_GitExe} describe --tags --dirty --match v* ... Exited with (${_ExitCode}).")
+		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}).")
 		message(VERBOSE "${_ErrorText}")
 		# Set an initial version to allow continuing.
 		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
 	# Regular expression getting all elements.
-	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-rc\\.?([0-9]+))?(-([0-9]+)?-([a-z0-9]+))?(-dirty)?$")
+	set(_RegEx "^v([0-9]+\\.[0-9]+\\.[0-9]+)(-rc\\.?([0-9]+))?(-([0-9]+)?(-([a-z0-9]+))?)?(-dirty)?$")
 	#[[
 	Matching possible different results to match.
 	v1.2.3-rc.4-56-78abcdef-dirty
 	v0.0.1-42-g914edbb-dirty
 	v0.1.1-rc.9-dirty
+	v0.1.1-rc.9-12
 	v0.1.2-dirty
+	v0.1.1
 	Group 1 > Version          : 1.2.3
 	Group 3 > Release Candidate: 4
 	Group 5 > Commits since tag: 56
-	Group 6 > Hash of some sort: 78abcdef
+	Group 7 > Hash of some sort: 78abcdef
 	]]
 	string(REGEX MATCH "${_RegEx}" _Dummy_ "${_Version}")
 	if ("${CMAKE_MATCH_1}" STREQUAL "")
@@ -93,7 +89,48 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		set(${_VarOut} "0;0;0;0" PARENT_SCOPE)
 	else ()
 		# Make a list of the versions.
-		set(${_VarOut} "${CMAKE_MATCH_1}" "${CMAKE_MATCH_3}" "${CMAKE_MATCH_5}" "${CMAKE_MATCH_6}" PARENT_SCOPE)
+		set(${_VarOut} "${CMAKE_MATCH_1}" "${CMAKE_MATCH_3}" "${CMAKE_MATCH_5}" "${CMAKE_MATCH_7}" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
+# Reports the version retrieved with Sf_GetGitTagVersion().
+#
+function(Sf_ReportGitTagVersion _Versions)
+	# Split the list into separate values.
+	list(GET _Versions 0 _Version)
+	list(GET _Versions 1 _ReleaseCandidate)
+	list(GET _Versions 2 _CommitOffset)
+	set(_List "Git Tag;Version: ${_Version}")
+	if (NOT _ReleaseCandidate STREQUAL "")
+		list(APPEND _List "Release-Candidate: ${_ReleaseCandidate}")
+	endif ()
+	if (NOT _CommitOffset STREQUAL "")
+		list(APPEND _List "Commit-Offset: ${_CommitOffset}")
+	endif ()
+	list(JOIN _List "\n\t" _List)
+	message(STATUS "${_List}")
+endfunction()
+
+##!
+# Set the target linker and compile options depending on the compiler ID and 'CMAKE_BUILD_TYPE' variable.
+#
+function(Sf_SetTargetDefaultOptions _Target)
+	# When the GNU compiler is involved.
+	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+		# Workaround for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden) globally.
+		target_compile_options("${_Target}" PRIVATE "-fvisibility=hidden")
+		# Set options depending on the build type.
+		if (CMAKE_BUILD_TYPE STREQUAL "Release")
+			# This bellow could also be the default already.
+			target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
+		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+			# Nothing specific yet.
+		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+			# Nothing specific yet.
+		else ()
+			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered!")
+		endif ()
 	endif ()
 endfunction()
 
@@ -122,14 +159,14 @@ function(Sf_SetTargetVersion _Target)
 	endif ()
 	if (NOT "${_Version}" STREQUAL "_Version-NOTFOUND")
 		message(VERBOSE "Target '${_Target}' skipping, version already set to (${_Version})")
-		return ()
+		return()
 	endif ()
 	# Prepend a text to message function.
 	list(APPEND CMAKE_MESSAGE_INDENT "Target '${_Target}' version set from ")
 	# Get versions from Git when possible.
 	Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_SOURCE_DIR}")
 	list(GET _Versions 0 _Version)
-		# Check if the git version was found.
+	# Check if the git version was found.
 	if (NOT "${_Version}" STREQUAL "0.0.0")
 		# Get only the sub directory to report where Git got its version from.
 		string(LENGTH "${CMAKE_SOURCE_DIR}/" _Length)
@@ -174,7 +211,7 @@ macro(Sf_AddExecutable _Target)
 	# Add the executable.
 	add_executable("${_Target}")
 	# Set the default compiler options for our own code only.
-	Sf_SetTargetDefaultCompileOptions("${_Target}")
+	Sf_SetTargetDefaultOptions("${_Target}")
 	# Set the version of this target.
 	Sf_SetTargetVersion("${_Target}")
 endmacro()
@@ -188,7 +225,7 @@ macro(Sf_AddSharedLibrary _Target)
 	# Add the library to create.
 	add_library("${_Target}" SHARED)
 	# Set the default compiler options for our own code only.
-	Sf_SetTargetDefaultCompileOptions("${_Target}")
+	Sf_SetTargetDefaultOptions("${_Target}")
 	# Set the version of this target.
 	Sf_SetTargetVersion("${_Target}")
 	# In Windows builds the output directory for libraries is ignored and the runtime is used and is now corrected.
@@ -214,13 +251,27 @@ macro(Sf_AddExifTarget _Target)
 				VERBATIM
 			)
 		else ()
+			if (WIN32)
+				add_custom_target("exif-${_Target}" ALL
+					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
+					# Report the linked shared libraries.
+					COMMAND "objdump" -p "$<TARGET_FILE:${_Target}>" | grep -i "DLL Name: " | sed --regexp-extended "s/\\s*DLL Name: /Shared Library: /"
+					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+					DEPENDS "$<TARGET_FILE:${_Target}>"
+					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+					VERBATIM
+				)
+			else ()
 			add_custom_target("exif-${_Target}" ALL
 				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
+				# Report the runpath and the linked shared libraries.
+				COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
 				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
 				DEPENDS "$<TARGET_FILE:${_Target}>"
 				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
 				VERBATIM
 			)
+			endif ()
 		endif ()
 		add_dependencies("exif" "exif-${_Target}")
 	endif ()
@@ -368,7 +419,7 @@ function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
 endfunction()
 
 ##!
-# Sets or appends the rpath for all compiled targets.
+# Sets or appends the rpath property 'INSTALL_RPATH' for all compiled targets.
 # @param _Path A path string like "\${ORIGIN}:\${ORIGIN}/lib".
 #
 function(Sf_SetRPath _Path)
@@ -380,9 +431,9 @@ function(Sf_SetRPath _Path)
 		#add_link_options(-Wno-inconsistent-dllimport)
 	else ()
 		# Using Cmake's way of RPATH.
-		set(CMAKE_SKIP_BUILD_RPATH FALSE)
-		set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+		set(CMAKE_SKIP_BUILD_RPATH FALSE PARENT_SCOPE)
+		set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE PARENT_SCOPE)
+		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE PARENT_SCOPE)
 		# Linker option -rpath is not working due to doubling of the '$' sign by CMAKE.
 		#    add_link_options(-Wl,-rpath-link "\${ORIGIN\}")
 		if (NOT DEFINED CMAKE_INSTALL_RPATH OR CMAKE_INSTALL_RPATH STREQUAL "")
@@ -398,5 +449,82 @@ function(Sf_SetRPath _Path)
 		set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}" PARENT_SCOPE)
 		# Report the resulting RPath.
 		message(STATUS "Resulting RPATH: ${CMAKE_INSTALL_RPATH}")
+	endif ()
+endfunction()
+
+##!
+# Adds the passed target for coverage only when the build type is 'Coverage'.
+#
+function(Sf_AddTargetForCoverage _Target)
+	# Set options only when the build type
+	if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+		# Get the type of the target.
+		get_target_property(_Type "${_Target}" TYPE)
+		# When the GNU compiler is involved.
+		if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+			message(STATUS "Target '${_Target}' added for coverage.")
+			# No optimization when compiling for coverage.
+			target_compile_options("${_Target}" BEFORE PRIVATE -g -O0 -coverage -fprofile-arcs -ftest-coverage)
+			# Only add linking options for target types that are linked.
+			if (_Type STREQUAL "EXECUTABLE" OR _Type STREQUAL "SHARED_LIBRARY")
+				target_link_options("${_Target}" BEFORE PRIVATE -coverage)
+				# Probably superfluous since it is probably linked already using the option.
+				target_link_libraries("${_Target}" PRIVATE gcov)
+			endif ()
+		endif ()
+	else ()
+	endif ()
+endfunction()
+
+##!
+# Adds a test to the list of tests producing coverage information in order to make
+# the added test using 'Sf_AddTestCoverageReport()' be executed last using it as a dependency.
+# Uses cache variable with force to store this information between project namespaces.
+# _Test: The test name when empty will clear the cache entry.
+#
+function(Sf_AddAsCoverageTest _Test)
+	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
+		if (_Test STREQUAL "")
+			set(SF_COVERAGE_TESTS "")
+		else ()
+			list(APPEND SF_COVERAGE_TESTS "${_Test}")
+		endif ()
+		# Over write the cache value using FORCE.
+		set(SF_COVERAGE_TESTS "${SF_COVERAGE_TESTS}" CACHE STRING "List of tests producing coverage information." FORCE)
+	endif ()
+endfunction()
+
+##!
+# Adds coverage target to the project when the build type is Coverage.
+# _TestName      : The target name for the report.
+# _SourceDirList : List of relative directories to be included in the coverage report
+#                  relative to the 'PROJECT_SOURCE_DIR'.
+# _OutDir        : Output directory for the coverage report.
+#
+function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
+	# Get the actual output directory.
+	get_filename_component(_OutDir "${_OutDir}" REALPATH)
+	# Check if the resulting directory exists.
+	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
+	endif ()
+	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
+		# Add a test to generate the report.
+		add_test(NAME "${_Test}"
+			COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
+			# Cleanup arc transition counting files after the report is generated.
+			--cleanup
+			# Set the coverage command of the tool chain.
+			--gcov "${COVERAGE_COMMAND}"
+			--source "${CMAKE_CURRENT_BINARY_DIR}"
+			--target "${_OutDir}"
+			# Show some information while executing te script.
+			#--verbose
+			${_SourceDirList}
+			WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+			COMMAND_EXPAND_LISTS
+		)
+		# Ensure this test is run after the ones adding coverage information.
+		set_property(TEST "${_Test}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
 	endif ()
 endfunction()

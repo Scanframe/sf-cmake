@@ -155,7 +155,7 @@ for START_DIR in "${DIRECTORIES[@]}"; do
 			fi
 		else
 			# Increment the fail counter.
-			FILE_FAIL_COUNT="$((FILE_FAIL_COUNT + 1))"
+			((FILE_FAIL_COUNT+=1))
 			WriteLog "! ${FILE}"
 			# Show differences when flag is set.
 			if ${FLAG_SHOW_DIFF}; then

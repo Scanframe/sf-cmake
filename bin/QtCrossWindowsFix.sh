@@ -90,7 +90,7 @@ done
 #
 pushd "${DIR_TO}" > /dev/null || exit
 declare -a files
-while IFS=  read -r -d $'\n'; do
+while IFS='' read -r -d $'\n'; do
 	# Only file with a reverence to a '.exe' in it.
 	if grep -qli "\.exe\"" "${REPLY}" ; then
 		files+=("${REPLY}")
