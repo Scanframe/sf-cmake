@@ -22,6 +22,15 @@ else
 	WriteLog "File not found: ${SCRIPT_DIR}/QtLibDir.sh"
 	DIR_QT_DLL=""
 fi
+
+# Wine command to execute.
+WINE_BIN="wine64"
+# Check if wine command exists.
+if ! command -v "${WINE_BIN}" >/dev/null; then
+	WriteLog "Wine is not installed!"
+	exit 0
+fi
+
 # Form the binary target directory for cross Windows builds.
 #DIR_BIN_WIN="$(realpath "${EXECUTABLE_DIR}")"
 DIR_BIN_WIN="${EXECUTABLE_DIR}"
@@ -29,8 +38,6 @@ DIR_BIN_WIN="${EXECUTABLE_DIR}"
 DIR_MINGW_DLL="/usr/x86_64-w64-mingw32/lib"
 # Location of MinGW posix DLLs 2.
 DIR_MINGW_DLL2="$(find /usr/lib/gcc/x86_64-w64-mingw32 -name "*-posix" | sort -V | tail -n 1)"
-# Wine command.
-WINE_BIN="wine64"
 
 # When nothing is passed show help and wine version.
 if [[ -z "$1" ]]; then

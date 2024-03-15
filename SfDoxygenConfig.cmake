@@ -1,11 +1,11 @@
 include(FetchContent)
 
 ##!
-# Adds doxygen manual target to the project.
+# Adds Doxygen documentation manual target to the project.
 # _SourceList info is obtained using a GLOB function like:
 #  file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../*.h" "../*.md")
 #
-function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
+function(Sf_AddDoxygenDocumentation _Target _BaseDir _OutDir _SourceList)
 	# Get the actual output directory.
 	get_filename_component(_OutDir "${_OutDir}" REALPATH)
 	# Check if the resulting directory exists.
@@ -22,7 +22,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 		else ()
 			set(_PlantUmlVer "${ARGV4}")
 		endif ()
-		message(STATUS "DoxyGen > PlantUML version to download: '${_PlantUmlVer}'")
+		message(STATUS "Doxygen > PlantUML version to download: '${_PlantUmlVer}'")
 		# Check GitHub for latest releases at 'https://github.com/plantuml/plantuml/releases'.
 		FetchContent_Declare(PlantUmlJar
 			URL "https://github.com/plantuml/plantuml/releases/download/${_PlantUmlVer}/plantuml.jar"
@@ -59,20 +59,20 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	set(DG_Source "\"${DG_Source}\"")
 	# Enable when generating Zen styling output.
 	if (FALSE)
-		set(DG_HtmlHeader "${SfDoxyGen_DIR}/theme/zen/header.html")
-		set(DG_HtmlFooter "${SfDoxyGen_DIR}/theme/zen/footer.html")
-		set(DG_HtmlExtra "${SfDoxyGen_DIR}/theme/zen/stylesheet.css")
+		set(DG_HtmlHeader "${SfDoxygen_DIR}/theme/zen/header.html")
+		set(DG_HtmlFooter "${SfDoxygen_DIR}/theme/zen/footer.html")
+		set(DG_HtmlExtra "${SfDoxygen_DIR}/theme/zen/stylesheet.css")
 		set(DG_HtmlExtraStyleSheet "")
 	else ()
 		# Fixes source file viewing.
-		file(RELATIVE_PATH DG_HtmlExtraStyleSheet "${CMAKE_CURRENT_BINARY_DIR}" "${SfDoxyGen_DIR}/tpl/doxygen/custom.css")
+		file(RELATIVE_PATH DG_HtmlExtraStyleSheet "${CMAKE_CURRENT_BINARY_DIR}" "${SfDoxygen_DIR}/tpl/doxygen/custom.css")
 	endif ()
 	# Set the example path to this parent directory.
 	file(RELATIVE_PATH DG_ExamplePath "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 	# Set PlantUML the include path.
 	set(DG_PlantUmlIncPath "${_BaseDir}")
 	# Set input and output files for the generation of the actual config file.
-	set(_FileIn "${SfDoxyGen_DIR}/tpl/doxygen/doxyfile.conf")
+	set(_FileIn "${SfDoxygen_DIR}/tpl/doxygen/doxyfile.conf")
 	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/doxyfile.conf")
 	# Generate the configure the file for doxygen.
 	configure_file("${_FileIn}" "${_FileOut}" @ONLY)
@@ -80,7 +80,7 @@ function(Sf_AddManual _Target _BaseDir _OutDir _SourceList)
 	add_custom_target("${_Target}"
 		# Remove previous resulting 'html' directory.
 		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_OutDir}/html/"
-		# Execute DoxyGen and generate the document.
+		# Execute Doxygen and generate the document.
 		COMMAND ${DOXYGEN_EXECUTABLE} "${_FileOut}"
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Generating documentation with Doxygen"
