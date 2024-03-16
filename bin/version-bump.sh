@@ -134,12 +134,11 @@ flag_tag_found=true
 git_top_level="$(git rev-parse --show-toplevel)"
 # Get the current non release-candidate version.
 cur_ver_tag="$(git tag --list --format '%(tag)' | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+$' | head -n 1 || true)"
-if [[ -n "${cur_bver_tag}" ]];then
+# When no tag available set the flag.
+if [[ -n "${cur_ver_tag}" ]];then
 	flag_tag_found=false
 	cur_ver_tag="v0.0.0"
-else
-
-
+fi
 
 function ReportVersionTags {
 	local IFS REPLY
