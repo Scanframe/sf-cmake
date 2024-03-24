@@ -15,7 +15,7 @@ source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
 
 # Prints the help to stderr.
 #
-function ShowHelp() {
+function ShowHelp {
 	echo "Usage: ${0} [options...] <files-to-upload...>
 
   Uploads files to a Sonatype Nexus repository depending on their extension to

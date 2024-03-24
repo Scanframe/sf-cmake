@@ -89,7 +89,7 @@ SF_TARGET_OS="$(uname -o)"
 ##
 # Installs needed packages depending in the Windows(cygwin) or Linux environment it is called from.
 #
-function InstallPackages() {
+function InstallPackages {
 	WriteLog "About to install required packages for ($1)..."
 	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
 	#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then

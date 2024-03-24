@@ -21,7 +21,7 @@ fi
 
 # Prints the help to stderr.
 #
-function ShowHelp() {
+function ShowHelp {
 	echo "Usage: ${0} [options...]
 
   Bumps/predicts versions according conventional commits.
