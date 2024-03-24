@@ -98,7 +98,7 @@ while true; do
 			;;
 
 		--cleanup)
-			#flag_cleanup=true
+			flag_cleanup=true
 			shift 1
 			continue
 			;;
