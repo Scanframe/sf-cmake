@@ -128,11 +128,17 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 	shift
 done
 
+# Initialize the flag that a tag was found.
+flag_tag_found=true
 # Get the top level repository directory.
 git_top_level="$(git rev-parse --show-toplevel)"
 # Get the current non release-candidate version.
-#cur_ver_tag="$(git for-each-ref --format '%(tag)' refs/tags | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+$' | head -n 1)"
-cur_ver_tag="$(git tag --list --format '%(tag)' | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+$' | head -n 1)"
+cur_ver_tag="$(git tag --list --format '%(tag)' | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+$' | head -n 1 || true)"
+# When no tag available set the flag.
+if [[ -n "${cur_ver_tag}" ]];then
+	flag_tag_found=false
+	cur_ver_tag="v0.0.0"
+fi
 
 function ReportVersionTags {
 	local IFS REPLY
@@ -144,8 +150,12 @@ function ReportVersionTags {
 	{
 		echo -e "Package (Git)\t$(GitTagVersionString "$(GetGitTagVersion)")"
 		## Get the last version tag non-RC.
-		echo -e "Last non-rc\t${cur_ver_tag} \"$(git cat-file tag "${cur_ver_tag}" | sed '1,/^$/d')\""
+		echo -e "Last non-rc\t${cur_ver_tag} \"$(git cat-file tag "${cur_ver_tag}" 2>/dev/null | sed '1,/^$/d')\""
 	} | column --table --separator $'\t' --output-separator ' : '
+	# Check if the current version tag is the initial one.
+	if ! ${flag_tag_found}; then
+		WriteLog ": No current git version tag was found using '${cur_ver_tag}'."
+	fi
 
 	echo -e "\n# Annotated version-tags"
 	{
@@ -154,7 +164,7 @@ function ReportVersionTags {
 		while IFS= read -r -d $'\n'; do
 			echo -e "${REPLY%%:*}\t${REPLY#*:} "
 		done < <(git tag --list --format '%(tag):%(object)\t"%(subject)"' 2>/dev/null | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+(-rc\.\d+)?:')
-	} | column --table --separator $'\t' --output-separator ' | '
+	} | sed -e "s/\`/'/g" | column --table --separator $'\t' --output-separator ' | '
 
 	echo -e "\n# All merge commits"
 	{
@@ -165,9 +175,9 @@ function ReportVersionTags {
 			echo -e "$(git describe --exact-match "${REPLY}" 2>/dev/null || echo "...")\t${REPLY}\t$(GetCommitMessage "${REPLY}" |
 				head -n 1 | Highlight '^[a-z_\\-]+(\([a-z_\\-]+\\))?!?:' cyan)"
 		done < <(git log --merges --pretty=format:"%H" 2>/dev/null)
-	} | column --table --separator $'\t' --output-separator ' | '
+	} | sed -e "s/\`/'/g" | column --table --separator $'\t' --output-separator ' | '
 
-	echo -e "\n# Commits since version: ${cur_ver_tag} upto '${flags['commit']}'	"
+	echo -e "\n# Commits since version: ${cur_ver_tag} upto '${flags['commit']}'"
 	{
 		# Print the header.
 		echo -e "~Tag\tHash\tCommit heading"
@@ -177,14 +187,24 @@ function ReportVersionTags {
 				head -n 1 | Highlight '^[a-z_\\-]+(\([a-z_\\-]+\\))?!?:' cyan)"
 			#WriteLog "$(git show --format=%B "${REPLY}")"
 		done < <(
-			# When only merge commits are to be used.
-			if ${flags['merges']}; then
-				git log --merges --pretty=format:"%H" "${cur_ver_tag}^..${flags['commit']}" 2>/dev/null
+			# When the no tag found use all log entries from the start.
+			if ! ${flag_tag_found}; then
+				# When only merge commits are to be used.
+				if ${flags['merges']}; then
+					git log --merges --pretty=format:"%H" "${flags['commit']}" 2>/dev/null
+				else
+					git log --pretty=format:"%H" "${flags['commit']}" 2>/dev/null
+				fi
 			else
-				git log --pretty=format:"%H" "${cur_ver_tag}^..${flags['commit']}" 2>/dev/null
+				# When only merge commits are to be used.
+				if ${flags['merges']}; then
+					git log --merges --pretty=format:"%H" "${cur_ver_tag}^..${flags['commit']}" 2>/dev/null
+				else
+					git log --pretty=format:"%H" "${cur_ver_tag}^..${flags['commit']}" 2>/dev/null
+				fi
 			fi
 		)
-	} | column --table --separator $'\t' --output-separator ' | '
+	} | sed -e "s/\`/'/g" | column --table --separator $'\t' --output-separator ' | '
 }
 
 ##
@@ -295,8 +315,15 @@ function BumpVersion {
 	local md_file md_table md_changes counter
 	# Regular expression to match the message header to.
 	regex='^([a-z_\-]+)(\(([a-z_\-]+)\))?(!)?:\s(.*)$'
-	# Initialize the maximum effect for the next version.
-	effect_max="none"
+	# Check if the current version tag was found, if not the max_effect is set to 'minor' to start with.
+	if [[ "${cur_ver_tag}" == 'v0.0.0' ]]; then
+		# Get the highest version effect.
+		effect_max='minor'
+		WriteLog ": No current git version tag was found so max effect is set to '${effect_max}'."
+	else
+		# Initialize the maximum effect for the next version.
+		effect_max="none"
+	fi
 	counter=0
 	# When verbose is enabled.
 	if "${flags['verbose']}"; then
@@ -381,7 +408,7 @@ Version Effect\t${effect}
 	WriteLog -e "\n# Version Bump"
 	# Check if it results a newer version.
 	if [[ "${effect_max}" == "none" ]]; then
-		WriteLog ":Changes maximum effect (${effect_max}) do not bump the version."
+		WriteLog ": Changes maximum effect (${effect_max}) do not bump the version."
 	else
 		# Determine next version number using the effect.
 		next_ver_tag="v$(IncrementVersion "${cur_ver_tag:1}" "${effect_max}")"
