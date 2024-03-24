@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Exit at first error.
 set -e
 # Get the script directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,13 +18,14 @@ function ShowHelp {
   Needs to be executed in the project directory where the main CMakeLists.txt resides.
 
   Options:
-    -h, --help   : Show this help.
-    -s, --source : Source directory for gcda-files. Defaults to current working directory.
-    -t, --target : Target directory for report.
-    -n, --name   : Report basename whic defaults to 'report'.
-    --gcov       : Location of the 'gcov' when a different toolchain has been used.
-    --cleanup    : Remove the gcda files after the report was generated successfully.
-    --verbose    : Inform what is done.
+    -h, --help    : Show this help.
+    -s, --source  : Source directory for gcda-files. Defaults to current working directory.
+    -t, --target  : Target directory for report.
+    -w, --working : Work directory defaults to current working.
+    -n, --name    : Report basename which defaults to 'report'.
+    --gcov        : Location of the 'gcov' when a different toolchain has been used.
+    --cleanup     : Remove the gcda files after the report was generated successfully.
+    --verbose     : Inform what is done.
 "
 }
 
@@ -33,6 +35,7 @@ gcov_bin=""
 filename="report"
 source_dir=""
 target_dir=""
+working_dir="${PWD}"
 flag_cleanup=false
 flag_verbose=false
 flag_search_path=true
@@ -45,8 +48,8 @@ flag_report_html=true
 #fi
 
 # Parse options.
-temp=$(getopt -o 'hs:t:n:' \
-	--long 'help,source:,target:,name:,cleanup,verbose,gcov:' \
+temp=$(getopt -o 'hs:t:n:w:' \
+	--long 'help,source:,target:,working:,name:,cleanup,verbose,gcov:' \
 	-n "$(basename "${0}")" -- "$@")
 # No arguments, show help and bailout.
 if [[ "${#}" -eq 0 ]]; then
@@ -71,6 +74,12 @@ while true; do
 
 		-s | --source)
 			source_dir="${2}"
+			shift 2
+			continue
+			;;
+
+		-w | --working)
+			working_dir="${2}"
 			shift 2
 			continue
 			;;
@@ -119,10 +128,11 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 done
 
 #if ${flag_verbose}; then
-WriteLog "- Source directory: ${source_dir}"
-WriteLog "- Target directory: ${target_dir}"
 WriteLog "- Command gcovr   : ${gcovr_bin}"
 WriteLog "- Command gcov    : ${gcov_bin:-'Default'}"
+WriteLog "- Source directory: ${source_dir}"
+WriteLog "- Target directory: ${target_dir}"
+WriteLog "- Working directory: ${working_dir}"
 WriteLog "- Filters(${#argument[@]}): ${argument[*]}"
 #fi
 
@@ -135,6 +145,12 @@ fi
 # Validate the target directory.
 if [[ ! -d "${target_dir}" ]]; then
 	WriteLog "Need valid target directory!"
+	exit 1
+fi
+
+# Validate the working directory.
+if [[ ! -d "${working_dir}" ]]; then
+	WriteLog "Need valid working directory!"
 	exit 1
 fi
 
@@ -188,10 +204,12 @@ fi
 gcovr_mcd+=(--xml-pretty --output "${target_dir}/${filename}.xml")
 # Sort on: filename,uncovered-number,uncovered-percent
 gcovr_mcd+=(--sort uncovered-percent)
+
 # Output also additional values/columns.
-gcovr_mcd+=(--decisions --calls)
+#gcovr_mcd+=(--decisions --calls)
 # Remove lines containing only an accolade.
 #gcovr_mcd+=( --exclude-lines-by-pattern '^\s*\}\s*$')
+
 # Add the gcda-files using file or search path(s).
 if ${flag_search_path}; then
 	gcovr_mcd+=("${source_dir}")
@@ -207,8 +225,26 @@ else
 	# Alternative to search paths, add the gcda-files ourself.
 	gcovr_mcd+=("${files[@]}")
 fi
+
 # Add the directory filters on the found files.
 gcovr_mcd+=("${filters[@]}")
+
+# Try speeding up the report generation when the filter arguments are passed remove all files '*.gc??' files not intended for the report.
+if [[ "${#argument[@]}" -ne 0 ]]; then
+	echo "Remove files not in: " "${argument[@]}"
+	while IFS='' read -r -d $'\n'; do
+		# Remove the sub directory '/CMakeFiles/*/' from the path.
+		dir="$(dirname "${REPLY}" | sed --regexp-extended "s/^(.*)\/CMakeFiles\/[^\/]*(.*)$/\\1\\2/")"
+		# Now check the resulting path if it is part of the including filter paths.
+		if ! InArray "${dir}" "${argument[@]}"; then
+			# When not remove the file.
+			rm "${source_dir}/${REPLY}"
+		fi
+	done < <(find "${source_dir}" -type f -name "*.gc??" -printf "%P\n")
+fi
+
+# Move to the working directory before executing the command.
+pushd "${working_dir}" >/dev/null
 
 # Make the call to generate.
 if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
@@ -216,6 +252,8 @@ if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 	# Create in the log a clickable entry to open in the browser.
 	WriteLog "Report at: file://${target_dir}/${filename}.html"
 	WriteLog "Summary at: ${target_dir}/${filename}.json"
+	# It seems '--html-tab-size 2' is not working, so add it to the stylesheet.
+	echo ".w {tab-size: 4;}" >> "${target_dir}/${filename}.css"
 	# Delete all arc files when successful.
 	if ${flag_cleanup}; then
 		# Remove all the "*.gcda" files after.
@@ -228,3 +266,6 @@ if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 		done < <(find "${source_dir}" -type f -name "*.gcda")
 	fi
 fi
+
+# Restore the directory.
+popd >/dev/null
