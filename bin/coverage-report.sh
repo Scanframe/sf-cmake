@@ -41,11 +41,6 @@ flag_verbose=false
 flag_search_path=true
 flag_report_json=true
 flag_report_html=true
-## When CI-pipline is involved do not generate html or json files.
-#if [[ "${CI}" == "true" ]]; then
-#	flag_report_json=false
-#	flag_report_html=false
-#fi
 
 # Parse options.
 temp=$(getopt -o 'hs:t:n:w:' \
@@ -236,10 +231,11 @@ if [[ "${#argument[@]}" -ne 0 ]]; then
 		# Remove the sub directory '/CMakeFiles/*/' from the path.
 		dir="$(dirname "${REPLY}" | sed --regexp-extended "s/^(.*)\/CMakeFiles\/[^\/]*(.*)$/\\1\\2/")"
 		# Now check the resulting path if it is part of the including filter paths.
-		if ! InArray "${dir}" "${argument[@]}"; then
-			# When not remove the file.
+		for value in "${argument[@]}"; do
+			# When the directory of the file is a subdirectory of one of the filter values.
+			[[ "${dir}" == "${value}"/* ]] && continue;
 			rm "${source_dir}/${REPLY}"
-		fi
+		done
 	done < <(find "${source_dir}" -type f -name "*.gc??" -printf "%P\n")
 fi
 

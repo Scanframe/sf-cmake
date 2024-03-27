@@ -12,7 +12,7 @@ if [[ "${TERM}" == "dumb" || -n "${CI}" ]]; then
 	col_fg[cyan]=""
 	col_fg[white]=""
 	col_fg[reset]=""
-	function WriteLog() {
+	function WriteLog {
 		echo "${@}" 1>&2
 	}
 else
@@ -31,7 +31,7 @@ else
 	col_fg[reset]="$(tput sgr0)"
 	# Writes to stderr.
 	#
-	function WriteLog() {
+	function WriteLog {
 		# shellcheck disable=SC2124
 		local FIRST_CH LAST_ARG LAST_CH COLOR
 		LAST_ARG="${*: -1}"

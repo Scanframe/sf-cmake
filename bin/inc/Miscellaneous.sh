@@ -193,7 +193,7 @@ function FindUp {
 # Arg1: Version number to increment.
 # Arg2: How to increment 'none', 'patch', 'minor' and 'major'.
 #
-IncrementVersion() {
+function IncrementVersion {
 	# Check if version is provided
 	if [ -z "${1}" ]; then
 		WriteLog "Usage: ${FUNCNAME[0]} <version> <increment>"
@@ -267,7 +267,7 @@ function CompareIncrements {
 ##
 # Escapes the markdown passed string.
 #
-EscapeMarkdown() {
+function EscapeMarkdown {
 	local escaped_string string
 	string="$1"
 	# Characters to escape in Markdown: \ ` * _ { } [ ] ( ) # + - . !
@@ -293,7 +293,7 @@ EscapeMarkdown() {
 ##
 # Decodes the passed URL string.
 #
-UrlDecode() {
+function UrlDecode {
 	# urldecode <string>
 	local url_encoded="${1//+/ }"
 	printf '%b' "${url_encoded//%/\\x}"
@@ -302,7 +302,7 @@ UrlDecode() {
 ##
 # Encodes the passed URL string.
 #
-UrlEncode() {
+function UrlEncode {
 	old_lc_collate=$LC_COLLATE
 	LC_COLLATE=C
 	local length="${#1}"
@@ -321,7 +321,7 @@ UrlEncode() {
 # Arg1: Value to look for.
 # ArgN+1: Array values.
 #
-InArray() {
+function InArray {
 	# Local scope for the variable
 	local value element
 	value="${1}"
