@@ -17,7 +17,7 @@ trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
 # Prints the help to stderr.
 #
-function ShowHelp() {
+function ShowHelp {
 	echo "Usage: $(basename "${0}") [options...] <file...>
 
   Uploads files to a Sonatype Nexus repository exchange repository.

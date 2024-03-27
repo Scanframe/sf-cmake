@@ -15,7 +15,7 @@ source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
 
 # Prints the help to stderr.
 #
-function ShowHelp() {
+function ShowHelp {
 	echo "Usage: ${0} [options...] <files-to-upload...>
 
   Uploads files to a Sonatype Nexus repository depending on their extension to
@@ -201,7 +201,7 @@ for upload_file in "${argument[@]}"; do
 		zip | exe)
 			WriteLog "- Uploading RAW repo file: ${upload_file}"
 			curl_cmd_add=(--upload-file "${upload_file}")
-			curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_RAW_REPO}")/$(UrlEncode "${NEXUS_RAW_SUBDIR}")/$(basename -- "${upload_file}")")
+			curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_RAW_REPO}")/${NEXUS_RAW_SUBDIR}/$(basename -- "${upload_file}")")
 			# Show command when debugging.
 			"${flag_debug}" && echo "${curl_cmd[@]}" "${curl_cmd_add[@]}"
 			# Perform curl and retrieve the HTTP response_code.
