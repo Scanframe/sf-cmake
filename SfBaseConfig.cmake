@@ -34,7 +34,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	set(${_VarOut} "" PARENT_SCOPE)
 	# Get git binary location for execution.
 	find_program(_GitExe "git")
-	if (_Compiler STREQUAL "_GitExe-NOTFOUND")
+	if (_GitExe STREQUAL "_GitExe-NOTFOUND")
 		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
@@ -79,7 +79,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	v0.1.2-dirty
 	v0.1.1
 	Group 1 > Version          : 1.2.3
-	Group 3 > Release Candidate: 4
+	Group 3 > Release Candidate: 4f4d0976ac5eb0a07889f1913f38d66127f3b9abe
 	Group 5 > Commits since tag: 56
 	Group 7 > Hash of some sort: 78abcdef
 	]]

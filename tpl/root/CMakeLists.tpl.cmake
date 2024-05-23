@@ -55,7 +55,7 @@ find_package(SfCompiler CONFIG REQUIRED)
 Sf_SetOutputDirs("bin")
 
 # Configure the rpath.
-if (SF_BUILD_QT STREQUAL "ON")
+if (SF_BUILD_QT)
 	# When the Qt directory is available append it.
 	Sf_GetQtVersionDirectory(_QtVer)
 	if (NOT _QtVer STREQUAL "")
