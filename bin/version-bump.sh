@@ -6,9 +6,9 @@ set -e
 set -o pipefail
 
 # Get the include directory which is this script's directory.
-INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the Miscellaneous functions.
-source "${INCLUDE_DIR}/inc/Miscellaneous.sh"
+source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
@@ -40,7 +40,7 @@ function ShowHelp {
 # When no arguments are passed show help.
 if [[ $# -eq 0 ]]; then
 	ShowHelp
-	# Signal error when nothing to upload when called from CI-pipeline.
+	# No error just bailout.
 	exit 0
 fi
 
@@ -115,7 +115,7 @@ while true; do
 			;;
 
 		*)
-			echo "Internal error on argument (${1}) !" >&2
+			WriteLog "Internal error on argument (${1}) !"
 			exit 1
 			;;
 	esac

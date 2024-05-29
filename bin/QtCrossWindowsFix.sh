@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-##
-## This script is Qt version and directory locations specific.
-## Add links to applications and replaces cmake files referencing exe-files.
-## Replacing the cmake files using the Linux QT library.
-##
-
 #set -x
-
-# Writes to stderr.
-#
-function WriteLog()
-{
-	echo "$@" 1>&2;
-}
 
 ##
 ## Install only 64bit compilers.
@@ -22,10 +9,91 @@ function WriteLog()
 
 # Directory of this script.
 SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-# Root for the Windows Qt installed MinGW files.
-QT_WIN_DIR="${HOME}/lib/QtWin"
+# Include WriteLog function.
+source "${SCRIPT_DIR}/inc/WriteLog.sh"
+# Defaults to dry run.
+CMD_PF="echo"
+
+# Prints the help to stderr.
+#
+function ShowHelp {
+	echo "Usage: ${0} [options...] [<qt-dir>]
+
+  Fixes Windows Qt toolkit library to operate under besides the Linux Qt library/toolkit.
+  The script expects Linux and Windows libraries to be installed/downloaded in respectively
+  the ~/lib/Qt and ~/lib/QtWin directories (symlinks allowed).
+  This script creates relative symlinks to the needed toolkit applications needed for building targets.
+  It also changes or copies cmake-files to the Windows from the Linux one.
+
+  -h, --help    : Shows this help.
+  -r, --run     : Run the script for real.
+  -d, --dry-run : Dry run the script for testing.
+
+  qt-dir        : Linux installed Qt directory (defaults to '~/lib/Qt').
+"
+}
+
+# Parse options.
+temp=$(getopt -o 'hrd' \
+	--long 'help,run,dry-run' \
+	-n "$(basename "${0}")" -- "$@")
+# No arguments, show help and bailout.
+if [[ "${#}" -eq 0 ]]; then
+	ShowHelp
+	exit 1
+fi
+eval set -- "${temp}"
+unset temp
+while true; do
+	case $1 in
+
+		-h | --help)
+			ShowHelp
+			exit 0
+			;;
+
+		-r | --run)
+			WriteLog "# Running for real..."
+			CMD_PF='echo'
+			shift 1
+			continue
+			;;
+
+		-d | --dry-run)
+			WriteLog "# Running dry..."
+			CMD_PF='echo'
+			shift 1
+			continue
+			;;
+
+		'--')
+			shift
+			break
+			;;
+
+		*)
+			WriteLog "Internal error on argument (${1}) !"
+			exit 1
+			;;
+	esac
+done
+
+# Harvest the arguments in an array.
+argument=()
+while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
+	argument+=("${1}")
+	shift
+done
+
 # Get the Qt installed directory.
-QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh")"
+QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh" "${argument[0]}")"
+# When found
+QT_WIN_DIR="${QT_VER_DIR}/../../QtWin"
+if [[ -d "${QT_WIN_DIR}" ]]; then
+	QT_WIN_DIR="$(realpath -s "${QT_WIN_DIR}")"
+else
+	WriteLog "Associated Window Qt directory '${QT_WIN_DIR}' not found!"
+fi
 # Qt version on Linux.
 QT_VER="$(basename "${QT_VER_DIR}")"
 # Qt lib sub directory build by certain compiler version.
@@ -34,14 +102,14 @@ QT_LIB_SUB="mingw_64"
 DIR_FROM="${QT_VER_DIR}/gcc_64/lib/cmake"
 # Directory where the Windows Qt library cmake files are located.
 DIR_TO="${QT_WIN_DIR}/${QT_VER}/${QT_LIB_SUB}/lib/cmake"
-# To allow dry run.
-#CMD_PF="echo"
 
+# Check if source directory exists.
 if [[ ! -d "${DIR_FROM}" ]]; then
 	WriteLog "Directory '${DIR_FROM}' does not exist!"
 	exit 1
 fi
 
+# Check if destination directory exists.
 if [[ ! -d "${DIR_TO}" ]]; then
 	WriteLog "Directory '${DIR_TO}' does not exist!"
 	exit 1
@@ -50,7 +118,7 @@ fi
 # Set the tab size to 2.
 tabs -2
 # Show intent.
-WriteLog -e "Fixing Windows Qt for Cross-compiling: \n\tSource: '${DIR_FROM}'\n\tDestination: '${DIR_TO}'"
+WriteLog -e "Fixing Windows Qt version ${QT_VER} for Cross-compiling: \n\tSource: '${DIR_FROM}'\n\tDestination: '${DIR_TO}'"
 # Ask for permission
 read -rp "Continue [y/N]? " && if [[ $REPLY = [yY] ]]
 then
@@ -60,10 +128,45 @@ else
 fi
 
 ##
-## Create symlink in from ~/lib/Qt/6.2.0/gcc_64/libexec to ${QT_WIN_DIR}
+## Create symlinks to Linux 'libexec' files in Windows one.
 ##
-WriteLog "Create symlink to required '${QT_WIN_DIR}/${QT_VER}/${QT_LIB_SUB}/libexec'"
-${CMD_PF} ln -sf "${QT_VER_DIR}/gcc_64/libexec" "${QT_WIN_DIR}/${QT_VER}/${QT_LIB_SUB}/libexec"
+win_libexec="${QT_WIN_DIR}/${QT_VER}/${QT_LIB_SUB}/libexec"
+WriteLog "Create symlinks into required '${win_libexec}'."
+# Create the directory when it does not exist yet.
+if [[ ! -d "${win_libexec}" ]]; then
+	${CMD_PF} mkdir "${win_libexec}"
+fi
+# Create symlink from each file.
+while read -r file; do
+	case $(basename "${file}") in
+		rcc)
+			${CMD_PF} ln --symbolic --force --relative "${file}" "${win_libexec}/$(basename "${file}").bin"
+			WriteLog "Creating script for '${win_libexec}/$(basename "${file}")'"
+			# Check if dry running.
+			if [[ "${#CMD_PF}" -eq 0 ]] ; then
+			cat <<'EOD' >"${win_libexec}/rcc"
+#!/bin/bash
+# Get this script's directory.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# Check if the version number is above 6.6.2.
+if [[ "$(printf "$("${script_dir}/rcc.bin" --version | grep -o '[^ ]*$')\\n6.6.2\\n" | sort -r -V | head -n 1)" == "6.6.2" ]]; then
+	# Run rcc as is.
+	"${script_dir}/rcc.bin" "${@}"
+else
+	# Run rcc with option '--no-zstd' to use zlib where zstd is Linux default since least 6.6.3.
+	"${script_dir}/rcc.bin" --no-zstd "${@}"
+fi
+EOD
+			fi
+			${CMD_PF} chmod +x "${win_libexec}/rcc"
+			;;
+
+		*)
+			WriteLog "Symlinking file: ${file}"
+			${CMD_PF} ln --symbolic --force --relative "${file}" "${win_libexec}/$(basename "${file}")"
+			;;
+	esac
+done < <(ls "${QT_VER_DIR}/gcc_64/libexec/"*)
 
 ##
 ## Create symlinks or dummies for applications needed in the make files.
