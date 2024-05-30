@@ -305,7 +305,7 @@ function SelectPackagePreset {
 # @param: Json file.
 #
 function SelectWorkflowPreset {
-	local preset name desc presets preset_names dlg_options idx selection
+	local preset name desc presets preset_names dlg_options idx selection target_os
 	# Action is the first argument.
 	action="${1}"
 	# Remove the first argument from the list.
@@ -320,6 +320,12 @@ function SelectWorkflowPreset {
 		# Ignore entries with display names starting with '#'.
 		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
 		desc="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		# Get the custom create vendor flag 'target_os' to check if the work flow applies.
+		target_os="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").vendor.target_os" "${@}")"
+		# When not set allow the workflow and when set it must conform to the result of 'uname -o' command.
+		if [[ "${target_os}" != 'null' && "${target_os}" != "${SF_TARGET_OS}" ]]; then
+			continue
+		fi
 		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Workflow: ${preset} '${name}' ${desc}"

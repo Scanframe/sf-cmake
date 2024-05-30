@@ -19,7 +19,7 @@ FILETYPE VFT_APP
 			VALUE "FileVersion", "@RC_FileVersion@\000"
 			VALUE "InternalName", "@RC_InternalName@\000"
 			VALUE "LegalCopyright", "None\000"
-			VALUE "LegalTrademarks", "None\000"
+			VALUE "LegalTrademarks", "@RC_Compiler@\000"
 			VALUE "OriginalFilename", "@RC_OriginalFilename@\000"
 			VALUE "ProductName", "@RC_ProductName@\000"
 			VALUE "ProductVersion", "@RC_ProductVersion@\000"
