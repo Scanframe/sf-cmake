@@ -42,6 +42,9 @@ function(Sf_AddDoxygenDocumentation _Target _BaseDir _OutDir _SourceList)
 		message(NOTICE "${CMAKE_CURRENT_FUNCTION}(): Cannot Doxygen package is missing!")
 		return()
 	endif ()
+	# Just a copy of the current project version and description.
+	set(DG_ProjectVersion "${CMAKE_PROJECT_VERSION}")
+	set(DG_ProjectDescription "${CMAKE_PROJECT_DESCRIPTION}")
 	# For cygwin only relative path are working.
 	file(RELATIVE_PATH DG_LogoFile "${CMAKE_CURRENT_BINARY_DIR}" "${_BaseDir}/logo.png")
 	# Path to images adding the passed base directory. ()
