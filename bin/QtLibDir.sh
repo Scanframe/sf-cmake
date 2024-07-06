@@ -5,6 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
 source "${SCRIPT_DIR}/inc/WriteLog.sh"
 
+# When set in the environment do not look any further.
+if [[ -n "${QT_VER_DIR}" ]]; then
+	if [[ ! -d "${QT_VER_DIR}" ]]; then
+		WriteLog "Environment QT_VER_DIR set to non existing directory: ${QT_VER_DIR} !"
+		exit 1
+	fi
+	echo -n "${QT_VER_DIR}"
+	exit 0
+fi
+
 # Set the directory the local QT root expected.
 if [[ -z "$1" ]] ; then
 	LOCAL_QT_ROOT="${HOME}/lib/Qt"

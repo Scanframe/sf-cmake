@@ -6,7 +6,10 @@
 ##
 
 #sudo apt install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 gdb-mingw-w64
+# Command 'cp -p'  means 'cp --preserve=mode,ownership,timestamps'
 
+# Bailout on first error.
+set -e
 # Directory of this script.
 SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 # Include WriteLog function.
@@ -53,14 +56,12 @@ while true; do
 			;;
 
 		-r | --run)
-			WriteLog "# Running for real..."
-			CMD_PF='echo'
+			CMD_PF=
 			shift 1
 			continue
 			;;
 
 		-d | --dry-run)
-			WriteLog "# Running dry..."
 			CMD_PF='echo'
 			shift 1
 			continue
@@ -84,6 +85,8 @@ while [ "${#}" -gt 0 ] && ! [[ "${1}" =~ ^- ]]; do
 	argument+=("${1}")
 	shift
 done
+
+[[ -z "${CMD_PF}" ]] && WriteLog "# Running for real..." || WriteLog "# Running dry..."
 
 # Get the Qt installed directory.
 QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh" "${argument[0]}")"
