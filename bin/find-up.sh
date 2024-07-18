@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Get the script directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${script_dir}/inc/WriteLog.sh"
 # Prints the help.
 #
 function ShowHelp
@@ -19,14 +19,14 @@ function ShowHelp
 # Type 'd' for directory
 type=""
 # Parse options.
-TEMP=$(getopt -o 'ht:' --long 'help,type:' -n "$(basename "${0}")" -- "$@")
+temp=$(getopt -o 'ht:' --long 'help,type:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 if [[ $? -ne 0 ]]; then
 	ShowHelp
 	exit 1
 fi
-eval set -- "$TEMP"
-unset TEMP
+eval set -- "$temp"
+unset temp
 while true; do
 	case "$1" in
 

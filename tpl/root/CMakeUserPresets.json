@@ -42,7 +42,7 @@
 			"inherits": [
 				".build"
 			],
-			"displayName": "*GNU User Dbg",
+			"displayName": "GNU User Dbg",
 			"description": "GNU User debug build preset.",
 			"configurePreset": "gnu-user",
 			"targets": [

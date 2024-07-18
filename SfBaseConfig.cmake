@@ -499,7 +499,7 @@ function(Sf_AddAsCoverageTest _Test)
 		else ()
 			list(APPEND SF_COVERAGE_TESTS "${_Test}")
 		endif ()
-		# Over write the cache value using FORCE.
+		# Overwrite the cache value using FORCE.
 		set(SF_COVERAGE_TESTS "${SF_COVERAGE_TESTS}" CACHE STRING "List of tests producing coverage information." FORCE)
 	endif ()
 endfunction()

@@ -22,6 +22,8 @@ function ScriptExit {
 	local exitcode="${?}" idx line file func
 	# Show the stack in case of an error.
 	if [[ "${exitcode}" -ne 0 ]]; then
+		# Create 
+		WriteLog -e "\n--- Call Stack ---"
 		# Perform a stack trace.
 		idx=0
 		while read -r line func file < <(caller $idx); do
@@ -334,4 +336,31 @@ function InArray {
 	done
 	# Element not found, return failure
 	return 1
+}
+
+##
+# Compares the 2 passed version.
+# Arg1: Version string 1
+# Arg2: Version string 2
+# Return: 0 = equal, -1 = V1 < V2 and 1 = V1 > V2
+#
+function VersionCompare() {
+	# Split version strings into arrays
+	local v1 v2
+	IFS='.' read -r -a v1 <<<"$1"
+	IFS='.' read -r -a v2 <<<"$2"
+	# Pad shorter arrays with zeros
+	for ((i = ${#v1[@]}; i < ${#v2[@]}; i++)); do v2[i]=0; done
+	for ((i = ${#v2[@]}; i < ${#v1[@]}; i++)); do v1[i]=0; done
+	# Compare each segment
+	for ((i = 0; i < ${#v1[@]}; i++)); do
+		if ((v2[i] < v1[i])); then
+			echo "-1"
+			return
+		elif ((v2[i] > v1[i])); then
+			echo "1"
+			return
+		fi
+	done
+	echo "0"
 }

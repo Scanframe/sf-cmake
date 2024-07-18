@@ -1,18 +1,18 @@
 #!/bin/bash
 
-SCRIPT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Build directory used for Docker to prevent mixing.
-BUILD_DIR="${SCRIPT_DIR}/cmake-build/docker"
+build_dir="${script_dir}/cmake-build/docker"
 # Create the docker binary build directory.
-mkdir -p "${SCRIPT_DIR}/cmake-build/docker"
+mkdir -p "${script_dir}/cmake-build/docker"
 # Function which runs the docker build.sh script.
 function docker_run {
-	local IMG_NAME HOSTNAME
+	local img_name hostname
 	# Set the image name to be used.
-	IMG_NAME="nexus.scanframe.com:8090/gnu-cpp:dev"
+	img_name="nexus.scanframe.com/gnu-cpp:dev"
 	# Hostname for the docker container.
-	HOSTNAME="cpp-builder"
+	hostname="cpp-builder"
 	docker run \
 		--rm \
 		--interactive \
@@ -22,10 +22,10 @@ function docker_run {
 		--env LOCAL_USER="$(id -u):$(id -g)" \
 		--env DISPLAY \
 		--volume "${HOME}/.Xauthority:/home/user/.Xauthority:ro" \
-		--volume "${SCRIPT_DIR}:/mnt/project:rw" \
-		--volume "${BUILD_DIR}:/mnt/project/cmake-build:rw" \
+		--volume "${script_dir}:/mnt/project:rw" \
+		--volume "${build_dir}:/mnt/project/cmake-build:rw" \
 		--workdir "/mnt/project/" \
-		"${IMG_NAME}" "${@}"
+		"${img_name}" "${@}"
 }
 
 if [[ $# -eq 0 ]]; then
