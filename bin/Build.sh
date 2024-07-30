@@ -608,7 +608,7 @@ if [[ "${CI}" != "true" ]]; then
 	commands+=("dialog" "pcregrep")
 fi
 for cmd in "${commands[@]}"; do
-	if ! command -v "${cmd}" ; then
+	if ! command -v "${cmd}" >/dev/null ; then
 		WriteLog "Missing command '${cmd}' for this script!"
 		WriteLog "Run option with '--required' to install tool dependencies."
 		exit 1
