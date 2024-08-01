@@ -1,67 +1,74 @@
 #!/bin/bash
 
 # Get the script directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${script_dir}/inc/WriteLog.sh"
 # Prints the help.
 #
 function ShowHelp {
-	echo "Usage: ${0} [<options>] [<directories...>]
+	echo "Usage: ${0} [<options>] [<directory/file> ...]
   Options:
   -h, --help      : Show this help.
-  -r, --recursive : Recursively iterate through all sub directories.
+  -r, --recursive : Recursively iterate through all subdirectory arguments.
+  --git-hook      : Use git-diff to get the staged filenames and preferred for a pre-commit git-hook.
+  -g, --git       : Use git-diff to get both staged and unstaged filenames.
   -s, --show      : Show the differences.
   -d, --depth     : Maximum directory depth.
   -f, --format    : Format all found files.
   -q, --quiet     : Quiet, report only when files are not formatted correctly.
-  directories     : Directories to start looking for code-files.
+  arguments     : Directories to start looking for code-files.
 
-  The is script formats the code using the file '.clang_format' found in one of the parent directories.
+  The is script formats the code using the file '.clang_format' found in one of the parent arguments.
+  Files from git and given directories are limited to extensions '.c', '.cc', '.cpp', '.h', '.hh' and '.hpp'.
 
   See for formatting options for configuration file:
      https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 "
 }
 # Initialize the options with the regular expression.
-REGEX='.*\.\(c\|cc\|cpp\|h\|hh\|hpp\)'
-FIND_OPTIONS=('-iregex' "${REGEX}")
+regex='.*\.\(c\|cc\|cpp\|h\|hh\|hpp\)'
+find_options=('-iregex' "${regex}")
 # Recursion is disabled by default.
-FLAG_RECURSIVE=false
+flag_recursive=false
 # Format file for real.
-FLAG_FORMAT=false
+flag_format=false
 # Enables show diff.
-FLAG_SHOW_DIFF=false
-# Disable by default.
-FLAG_QUIET=false
+flag_show_diff=false
+# Disable being quiet by default.
+flag_quiet=false
+# Append arguments using the git diff noticed changes of staged and unstaged files.
+flag_git_unstaged=false
+# Append arguments using the git diff noticed changes of staged files only.
+flag_git_staged=false
 # File counter of all failed files.
-FILE_FAIL_COUNT=0
+file_fail_count=0
 # Max depth is only valid when recursion is enabled.
-MAX_DEPTH=""
+max_depth=""
 
 # Check if the needed commands are installed.
-COMMANDS=(
+commands=(
 	"colordiff"
 	"dos2unix"
 	"grep"
 	"clang-format"
 )
-for COMMAND in "${COMMANDS[@]}"; do
-	if ! command -v "${COMMAND}" >/dev/null; then
-		WriteLog "Missing command '${COMMAND}' for this script!"
+for command in "${commands[@]}"; do
+	if ! command -v "${command}" >/dev/null; then
+		WriteLog "Missing command '${command}' for this script!"
 		exit 1
 	fi
 done
 
 # Parse the passed options.
-TEMP=$(getopt -o 'hrfsqd:' --long 'help,recursive,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
+temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
-if [[ $? -ne 0 ]]; then
+if [[ $? -ne 0 || $# -eq 0 ]]; then
 	ShowHelp
 	exit 1
 fi
-eval set -- "$TEMP"
-unset TEMP
+eval set -- "$temp"
+unset temp
 while true; do
 	case "$1" in
 
@@ -71,28 +78,40 @@ while true; do
 			;;
 
 		-r | --recursive)
-			FLAG_RECURSIVE=true
+			flag_recursive=true
+			shift 1
+			;;
+
+		-g | --git)
+			flag_git_staged=true
+			flag_git_unstaged=true
+			shift 1
+			;;
+
+		--git-hook)
+			flag_git_staged=true
+			flag_git_unstaged=false
 			shift 1
 			;;
 
 		-f | --format)
-			FLAG_FORMAT=true
+			flag_format=true
 			shift 1
 			;;
 
 		-s | --show)
-			FLAG_SHOW_DIFF=true
+			flag_show_diff=true
 			shift 1
 			;;
 
 		-q | --quiet)
-			FLAG_QUIET=true
+			flag_quiet=true
 			shift 1
 			;;
 
 		-d | --depth)
-			FLAG_RECURSIVE=true
-			MAX_DEPTH="$2"
+			flag_recursive=true
+			max_depth="$2"
 			shift 2
 			continue
 			;;
@@ -115,71 +134,100 @@ while [[ $# -gt 0 ]] && ! [[ "$1" =~ ^- ]]; do
 	shift
 done
 # Check for recursive operation.
-if ${FLAG_RECURSIVE}; then
+if ${flag_recursive}; then
 	# When max directory depth is set.
-	FIND_OPTIONS+=("-maxdepth ${MAX_DEPTH:-1}")
+	find_options+=("-maxdepth ${max_depth:-1}")
 fi
 
 # Find the cfg_file file for clang-format up the tree.
-CFG_FILE="$("${SCRIPT_DIR}/find-up.sh" --type f ".clang-format")" || exit 1
+cfg_file="$("${script_dir}/find-up.sh" --type f ".clang-format")" || exit 1
 # Report the format configuration file.
-if ! "${FLAG_QUIET}"; then
-	WriteLog "# Format config file: ${CFG_FILE}"
-	WriteLog "# Files regex matching: ${REGEX}"
+if ! "${flag_quiet}"; then
+	WriteLog "# Format config file: ${cfg_file}"
+	if ${flag_git_staged}; then
+		WriteLog "# Git diff staged files are added."
+	fi
+	if ${flag_git_unstaged}; then
+		WriteLog "# Git diff unstaged files are added."
+	fi
 fi
 
-DIRECTORIES=()
+##
+# $1: filename
+#
+function check_format {
+	local file_name="$1"
+	# Compare formatted unix file with original one.
+	if clang-format --style="file:${cfg_file}" "${file_name}" | dos2unix | diff -s "${file_name}" - >/dev/null; then
+		if ! "${flag_quiet}"; then
+			WriteLog "= ${file_name}"
+		fi
+	else
+		# Increment the fail counter.
+		((file_fail_count += 1))
+		WriteLog "! ${file_name}"
+		# Show differences when flag is set.
+		if ${flag_show_diff}; then
+			clang-format --style="file:${cfg_file}" "${file_name}" | dos2unix | colordiff "${file_name}" -
+			echo "==="
+		fi
+		# Format the file when the option flag was set.
+		if ${flag_format}; then
+			# Check for DOS line endings.
+			if file "${file_name}" | grep -q 'CRLF'; then
+				# And fix it.
+				dos2unix "${file_name}" 2>/dev/null || exit 1
+			fi
+			# Format C/C++ using the style config file.
+			clang-format --style="file:${cfg_file}" "${file_name}" -i || exit 1
+		fi
+	fi
+}
+
+arguments=()
 # Get the relative start directory which must exist otherwise show help and bailout.
-for dir in "${argument[@]}"; do
-	if ! realpath --relative-to="$(pwd)" -e "${dir}" >/dev/null; then
-		WriteLog "Given directory '${dir}' is not relative to current working directory!"
+for arg in "${argument[@]}"; do
+	if ! realpath --relative-to="$(pwd)" -e "${arg}" >/dev/null; then
+		WriteLog "Given argument '${arg}' is not relative to current working directory!"
 		exit 1
 	else
-		DIRECTORIES+=("${dir}")
+		arguments+=("${arg}")
 	fi
 done
+# Check if git diff detected changes are to be added.
+if ${flag_git_staged} || ${flag_git_unstaged}; then
+	while IFS= read -rd $'\n' line; do
+		arguments+=("$line")
+	done < <(
+		${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+		${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+	)
+fi
 
 # Add the needed find option to separate the each entry.
-FIND_OPTIONS+=("-print0")
-# Iterate through all directories.
-for START_DIR in "${DIRECTORIES[@]}"; do
-	if ! "${FLAG_QUIET}"; then
-		WriteLog "# Entering directory: ${START_DIR}"
-	fi
-	# While loop keeping used variables local to be able to update.
-	while read -rd $'\0' FILE; do
-		# Compare formatted unix file with original one.
-		if clang-format --style="file:${CFG_FILE}" "${FILE}" | dos2unix | diff -s "${FILE}" - >/dev/null; then
-			if ! "${FLAG_QUIET}"; then
-				WriteLog "= ${FILE}"
-			fi
-		else
-			# Increment the fail counter.
-			((FILE_FAIL_COUNT+=1))
-			WriteLog "! ${FILE}"
-			# Show differences when flag is set.
-			if ${FLAG_SHOW_DIFF}; then
-				clang-format --style="file:${CFG_FILE}" "${FILE}" | dos2unix | colordiff "${FILE}" -
-				echo "==="
-			fi
-			# Format the file when the option flag was set.
-			if ${FLAG_FORMAT}; then
-				# Check for DOS line endings.
-				if file "${FILE}" | grep -q 'CRLF'; then
-					# And fix it.
-					dos2unix "${FILE}" 2>/dev/null || exit 1
-				fi
-				# Format C/C++ using the style config file.
-				clang-format --style="file:${CFG_FILE}" "${FILE}" -i || exit 1
-			fi
+find_options+=("-print0")
+# Iterate through all arguments directories and/or files.
+for argument in "${arguments[@]}"; do
+	# When the argument is a directory.
+	if [[ -d "${argument}" ]]; then
+		if ! "${flag_quiet}"; then
+			WriteLog "# Entering directory: ${argument}"
 		fi
-	done < <(find "${START_DIR}" "${FIND_OPTIONS[@]}")
+		while read -rd $'\0' fn; do
+			check_format "${fn}"
+		done < <(find "${argument}" "${find_options[@]}")
+	# When the argument is a file.
+	elif [[ -f "${argument}" ]]; then
+		check_format "${argument}"
+	else
+		WriteLog "# Ignoring non-existing entry: ${argument}"
+	fi
 done
 
 # When incorrect formatted files were found.
-if [[ "${FILE_FAIL_COUNT}" -gt 0 ]]; then
- WriteLog "Total of (${FILE_FAIL_COUNT}) files were incorrectly clang-formatted.
+if [[ "${file_fail_count}" -gt 0 ]]; then
+	WriteLog "Total of (${file_fail_count}) files were incorrectly clang-formatted.
 Run command '${0}' with option '--format' to auto fix these files."
- # Signal failure.
- exit 1
+	# Signal failure.
+	exit 1
 fi
