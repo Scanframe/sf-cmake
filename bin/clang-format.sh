@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Bailout on first error.
+set -e
+
 # Get the script directory.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
@@ -9,14 +12,15 @@ source "${script_dir}/inc/WriteLog.sh"
 function ShowHelp {
 	echo "Usage: ${0} [<options>] [<directory/file> ...]
   Options:
-  -h, --help      : Show this help.
-  -r, --recursive : Recursively iterate through all subdirectory arguments.
-  --git-hook      : Use git-diff to get the staged filenames and preferred for a pre-commit git-hook.
-  -g, --git       : Use git-diff to get both staged and unstaged filenames.
-  -s, --show      : Show the differences.
-  -d, --depth     : Maximum directory depth.
-  -f, --format    : Format all found files.
-  -q, --quiet     : Quiet, report only when files are not formatted correctly.
+  -h, --help        : Show this help.
+  -r, --recursive   : Recursively iterate through all subdirectory arguments.
+  -g, --git         : Use git-diff to get both staged and unstaged filenames.
+  --git-hook        : Use git-diff to get the staged filenames and preferred for a pre-commit git-hook.
+  --branch <branch> : Use git-diff using the passed git branch to compare to for files.
+  -s, --show        : Show the differences.
+  -d, --depth       : Maximum directory depth.
+  -f, --format      : Format all found files.
+  -q, --quiet       : Quiet, report only when files are not formatted correctly.
   arguments     : Directories to start looking for code-files.
 
   The is script formats the code using the file '.clang_format' found in one of the parent arguments.
@@ -45,6 +49,8 @@ flag_git_staged=false
 file_fail_count=0
 # Max depth is only valid when recursion is enabled.
 max_depth=""
+# Git branch to compare/diff to.
+git_branch=""
 
 # Check if the needed commands are installed.
 commands=(
@@ -61,7 +67,7 @@ for command in "${commands[@]}"; do
 done
 
 # Parse the passed options.
-temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
+temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,branch:,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 if [[ $? -ne 0 || $# -eq 0 ]]; then
 	ShowHelp
@@ -92,6 +98,11 @@ while true; do
 			flag_git_staged=true
 			flag_git_unstaged=false
 			shift 1
+			;;
+
+		--branch)
+			git_branch="$2"
+			shift 2
 			;;
 
 		-f | --format)
@@ -150,6 +161,9 @@ if ! "${flag_quiet}"; then
 	if ${flag_git_unstaged}; then
 		WriteLog "# Git diff unstaged files are added."
 	fi
+	if [[ -n "${git_branch}" ]]; then
+		WriteLog "# Git diff files compared to branch '${git_branch}'."
+	fi
 fi
 
 ##
@@ -195,12 +209,15 @@ for arg in "${argument[@]}"; do
 	fi
 done
 # Check if git diff detected changes are to be added.
-if ${flag_git_staged} || ${flag_git_unstaged}; then
+if [[ -n "${git_branch}" ]] || ${flag_git_staged} || ${flag_git_unstaged}; then
 	while IFS= read -rd $'\n' line; do
 		arguments+=("$line")
 	done < <(
-		${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
-		${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+		{
+			[[ -n "${git_branch}" ]] && git diff "${git_branch}" --no-commit-id --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+			${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+			${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+		} | sort --unique
 	)
 fi
 
