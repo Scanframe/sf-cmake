@@ -14,13 +14,10 @@ if [[ "$(ps -o comm= $PPID)" == "pre-commit" ]]; then
 	arguments+=('--quiet')
 	# Add git-diff noticed files only for checking.
 	arguments+=('--git-hook')
-# Check if called from a GitLab pipeline for m a merge request.
-elif [[ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" == "true" ]]; then
-	# Get the pipeline
-	if [[ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" ]]; then
-		arguments+=('--quiet')
-		arguments+=('--branch' "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
-	fi
+# Check if called from a GitLab pipeline for a merge request.
+elif [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" ]]; then
+	arguments+=('--quiet')
+	arguments+=('--branch' "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
 # When this script is called manually.
 else
 	echo "Redirection to script 'cmake/lib/bin/clang-format.sh'.
