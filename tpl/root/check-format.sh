@@ -15,9 +15,9 @@ if [[ "$(ps -o comm= $PPID)" == "pre-commit" ]]; then
 	# Add git-diff noticed files only for checking.
 	arguments+=('--git-hook')
 # Check if called from a GitLab pipeline for a merge request.
-elif [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" ]]; then
-	echo "Only checking format on changed files from branch '${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}'."
-	arguments+=('--branch' "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
+elif [[ "${CI}" == "true" ]]; then
+	# Tell the script to use merge request environment variables.
+	arguments+=('--gitlab-mr')
 # Check if called from a GitLab pipeline for a merge request.
 elif [[ -n "${CI}" ]]; then
 	echo "Not checking format due to non-merge-request pipeline being active."
@@ -35,6 +35,6 @@ fi
 # Make this script directory the current one.
 pushd "${script_dir}" >/dev/null
 # Execute the script for checking.
-cmake/lib/bin/clang-format.sh "${arguments[@]}"
+cmake/lib/bin/clang-format.sh "${arguments[@]}" || exit 1
 # Return to the initial directory.
 popd >/dev/null

@@ -2,11 +2,19 @@
 
 # Bailout on first error.
 set -e
+# Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
+set -o pipefail
 
 # Get the script directory.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${script_dir}/inc/WriteLog.sh"
+source "${script_dir}/inc/Miscellaneous.sh"
+
+## Trap script exit with function.
+trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
+
+# Filename wildcards to mach files when filtering using git.
+wildcards=("*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp")
 # Prints the help.
 #
 function ShowHelp {
@@ -17,14 +25,15 @@ function ShowHelp {
   -g, --git         : Use git-diff to get both staged and unstaged filenames.
   --git-hook        : Use git-diff to get the staged filenames and preferred for a pre-commit git-hook.
   --branch <branch> : Use git-diff using the passed git branch to compare to for files.
+  --gitlab-mr       : Use GitLab CI/CD merge-request environment variables for branch and commit SHA to compare for changed files.
   -s, --show        : Show the differences.
   -d, --depth       : Maximum directory depth.
   -f, --format      : Format all found files.
   -q, --quiet       : Quiet, report only when files are not formatted correctly.
-  arguments     : Directories to start looking for code-files.
+  arguments         : Directories to start looking for code-files.
 
   The is script formats the code using the file '.clang_format' found in one of the parent arguments.
-  Files from git and given directories are limited to extensions '.c', '.cc', '.cpp', '.h', '.hh' and '.hpp'.
+  Files from git and given directories are limited to filename wildcards: $(JoinBy ', ' "${wildcards[@]}").
 
   See for formatting options for configuration file:
      https://clang.llvm.org/docs/ClangFormatStyleOptions.html
@@ -45,13 +54,14 @@ flag_quiet=false
 flag_git_unstaged=false
 # Append arguments using the git diff noticed changes of staged files only.
 flag_git_staged=false
+# Use GitLab CI/CD merge-request environment variables for branch and commit SHA to compare for changed files.
+flag_gitlab_mr=false
 # File counter of all failed files.
 file_fail_count=0
 # Max depth is only valid when recursion is enabled.
 max_depth=""
 # Git branch to compare/diff to.
 git_branch=""
-
 # Check if the needed commands are installed.
 commands=(
 	"colordiff"
@@ -67,7 +77,7 @@ for command in "${commands[@]}"; do
 done
 
 # Parse the passed options.
-temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,branch:,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
+temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,branch:,gitlab-mr,format,show,quiet,depth:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 if [[ $? -ne 0 || $# -eq 0 ]]; then
 	ShowHelp
@@ -103,6 +113,11 @@ while true; do
 		--branch)
 			git_branch="$2"
 			shift 2
+			;;
+
+		--gitlab-mr)
+			flag_gitlab_mr=true
+			shift 1
 			;;
 
 		-f | --format)
@@ -208,17 +223,40 @@ for arg in "${argument[@]}"; do
 		arguments+=("${arg}")
 	fi
 done
-# Check if git diff detected changes are to be added.
+# Check if git diff branch detected changes are to be added.
 if [[ -n "${git_branch}" ]] || ${flag_git_staged} || ${flag_git_unstaged}; then
+	# Iterate through all changed C++ files.
 	while IFS= read -rd $'\n' line; do
 		arguments+=("$line")
 	done < <(
 		{
-			[[ -n "${git_branch}" ]] && git diff "${git_branch}" --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
-			${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
-			${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+			[[ -n "${git_branch}" ]] && git diff "${git_branch}" --name-only --diff-filter=ACMR "${wildcards[@]}"
+			${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "${wildcards[@]}"
+			${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "${wildcards[@]}"
 		} | sort --unique
 	)
+fi
+
+# Check if git merge request info it to be used.
+if ${flag_gitlab_mr}; then
+	# List of needed merge request variables.
+	merge_vars=(
+		CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+		CI_MERGE_REQUEST_DIFF_BASE_SHA
+	)
+	# Iterate over the variable-names and check the existence of them.
+	for var in "${merge_vars[@]}"; do
+		if [[ -z "${!var}" ]]; then
+			WriteLog "Required GitLab merge request variable '$var' is not set!"
+			exit 1
+		fi
+	done
+	# Fetch a shallow the target branch for merging.
+	git fetch --depth 1 origin "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+	# Iterate through all changed C++ files.
+	while IFS= read -rd $'\n' line; do
+		arguments+=("$line")
+	done < <(git diff "${CI_MERGE_REQUEST_DIFF_BASE_SHA}" --name-only --diff-filter=ACMR "${wildcards[@]}")
 fi
 
 # Add the needed find option to separate the each entry.
