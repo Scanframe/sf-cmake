@@ -214,7 +214,7 @@ if [[ -n "${git_branch}" ]] || ${flag_git_staged} || ${flag_git_unstaged}; then
 		arguments+=("$line")
 	done < <(
 		{
-			[[ -n "${git_branch}" ]] && git diff "${git_branch}" --no-commit-id --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
+			[[ -n "${git_branch}" ]] && git diff "${git_branch}" --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
 			${flag_git_staged} && git diff --cached --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
 			${flag_git_unstaged} && git diff --name-only --diff-filter=ACMR "*.c" "*.cc" "*.cpp" "*.h" "*.hh" "*.hpp"
 		} | sort --unique

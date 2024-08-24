@@ -16,8 +16,12 @@ if [[ "$(ps -o comm= $PPID)" == "pre-commit" ]]; then
 	arguments+=('--git-hook')
 # Check if called from a GitLab pipeline for a merge request.
 elif [[ -n "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" ]]; then
-	arguments+=('--quiet')
+	echo "Only checking format on changed files from branch '${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}'."
 	arguments+=('--branch' "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}")
+# Check if called from a GitLab pipeline for a merge request.
+elif [[ -n "${CI}" ]]; then
+	echo "Not checking format due to non-merge-request pipeline being active."
+	exit 0
 # When this script is called manually.
 else
 	echo "Redirection to script 'cmake/lib/bin/clang-format.sh'.
