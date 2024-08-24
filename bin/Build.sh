@@ -103,9 +103,16 @@ function InstallPackages {
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install mingw-w64 make cmake doxygen graphviz wine winbind exiftool default-jre-headless ; then
+		if ! sudo apt install mingw-w64 make cmake doxygen graphviz winbind exiftool default-jre-headless ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
+		fi
+		# When Wine HQ is installed do not revert it back to the distro default version.
+		if ! command -v wine >/dev/null; then
+			if ! sudo apt install wine; then
+				WriteLog "Failed to install package wine!"
+				exit 1
+			fi
 		fi
 	elif [[ "$1" == "Cygwin/x86_64" ]]; then
 		# List of WinGet packages to install.
