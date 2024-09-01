@@ -98,7 +98,7 @@ function InstallPackages {
 		sudo apt-get update
 		sudo apt-get --yes upgrade
 		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
-			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
+			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
