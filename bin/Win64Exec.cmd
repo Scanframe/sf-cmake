@@ -21,8 +21,10 @@ set "qt_ver_dir="
 for %%d in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
 	:: Check if the drive exists
 	if exist %%d:\Qt (
-		:: Search for the directory in the current drive
-		for /f "delims=" %%f in ('dir /b /ad %%d:\Qt\* 2^>nul') do (
+		REM Seems REM is needed here since '::' FU the script in Win 11. Microsoft ^%$#^%#$$#@!!!!
+		REM :: Search for the directory in the current selected drive.
+		REM :: There is no version sort in Windows.
+		for /f "delims=" %%f in ('dir /b /ad /on %%d:\Qt\*') do (
 			:: Use a regular expression to match the pattern x.x.x
 			echo %%f | findstr /r "^[0-9]*\.[0-9]*\.[0-9]*.$" >nul
 			:: Check if the there was a match.
@@ -35,6 +37,7 @@ for %%d in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
 		)
 	)
 )
+
 
 :: Output the result
 if not defined qt_ver_dir (

@@ -44,7 +44,7 @@ Usage: ${0} [<options>] [<presets> ...]
   --required       : Install required Linux packages using debian apt package manager.
   -m, --make       : Create build directory and makefiles only.
   -f, --fresh      : Configure a fresh build tree, removing any existing cache file.
-  -C, --wipe       : Wipe clean build tree directory.
+  -C, --wipe       : Wipe clean build tree directory by removing all contents from the build directory.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
   -b, --build      : Build target and make config when it does not exist.
   -B, --build-only : Build target only and fail when the configuration does note exist.
@@ -119,6 +119,7 @@ function InstallPackages {
 		declare -A wg_pkgs
 		wg_pkgs["CMake C++ build tool"]="Kitware.CMake"
 		wg_pkgs["Ninja build system"]="Ninja-build.Ninja"
+		wg_pkgs["Oracle JRE"]="Oracle.JavaRuntimeEnvironment"
 		#wg_pkgs["GNU Make"]="GnuWin32.Make"
 		# Iterate through the associative array of subdirectories (key) and remotes (value).
 		for name in "${!wg_pkgs[@]}"; do
