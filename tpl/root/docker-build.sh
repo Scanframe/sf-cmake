@@ -64,8 +64,9 @@ function is_detached {
 
 if [[ $# -eq 0 ]]; then
 	# When no arguments are given run bash from within the container.
-	echo "Same as 'build.sh' script but running from Docker image '${img_name}'.
-Subcommands able to execute from this script:
+	echo "Same as 'build.sh' script but running from Docker image '${img_name}' but allows Docker specific commands.
+
+Usage: cmake/lib/bin/docker-build.sh [command] <args...>
   pull      : Pulls the docker image '${img_name}' from the Docker registry.
   run       : Runs a command as user 'user' in the container using Docker command
               'run' or 'exec' depending on a running container in the background.
