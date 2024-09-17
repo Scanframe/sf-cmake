@@ -715,6 +715,13 @@ if ${flag_build} || ${flag_config}; then
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			# Notify the build of the preset.
 			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
+			# When the '--fresh' option is has been passed delete the depending repository CMakeCache.txt files as well.
+			if InArray '--fresh' "${cmake_config[@]}"; then
+				while read -r cache_file; do
+					WriteLog "Deleting cache file: ${cache_file}"
+					rm "${cache_file}"
+				done < <(find "${binary_dir}/_deps" -type f -name "CMakeCache.txt")
+			fi
 			# When the binary directory exists and the Wipe flag is set.
 			if ${flag_wipe} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
