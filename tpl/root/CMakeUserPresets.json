@@ -33,7 +33,7 @@
 			"description": "GW User debug build preset.",
 			"configurePreset": "gw-user",
 			"targets": [
-				"devops-trial-test"
+				"devops-shared-test"
 			]
 		},
 		{
@@ -42,11 +42,11 @@
 			"inherits": [
 				".build"
 			],
-			"displayName": "*GNU User Dbg",
+			"displayName": "GNU User Dbg",
 			"description": "GNU User debug build preset.",
 			"configurePreset": "gnu-user",
 			"targets": [
-				"devops-trial-test"
+				"devops-shared-test"
 			]
 		}
 	],

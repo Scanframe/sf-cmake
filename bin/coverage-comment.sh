@@ -27,7 +27,7 @@ function ShowHelp {
     SF_PARENT_PIPELINE_ID='<parent-pipeline-id>'
     CI_API_V4_URL='https://git.scanframe.com/api/v4'
     CI_SERVER_URL='https://git.scanframe.com'
-    CI_PROJECT_PATH='trial/devops'
+    CI_PROJECT_PATH='shared/devops'
     NEXUS_SERVER_URL='https://nexus.scanframe.com'
     NEXUS_EXCHANGE_REPO='exchange'
 

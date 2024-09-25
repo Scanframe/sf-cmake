@@ -33,21 +33,24 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	# Initialize return value.
 	set(${_VarOut} "" PARENT_SCOPE)
 	# Get git binary location for execution.
-	find_program(_GitExe "git")
-	if (_Compiler STREQUAL "_GitExe-NOTFOUND")
+	find_program(_GitExe "git" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
+	if (_GitExe STREQUAL "_GitExe-NOTFOUND")
 		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		# Only annotated tags so no '--tags' option.
-		execute_process(COMMAND bash -c "\"${_GitExe}\" describe --dirty --match \"v*.*.*\""
+		execute_process(COMMAND "${_GitExe}" describe --dirty --match "v*.*.*"
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
 			OUTPUT_STRIP_TRAILING_WHITESPACE
-			ERROR_QUIET
 		)
+		# Report solution for specific Windows issue when using a share file system.
+		if (_ExitCode EQUAL 128)
+			message(SEND_ERROR "Solve this Windows only issue: git config --global --add safe.directory '*'")
+		endif ()
 	else ()
 		# Only annotated tags so no '--tags' option.
 		execute_process(COMMAND "${_GitExe}" describe --dirty --match "v*.*.*"
@@ -57,7 +60,6 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
 			OUTPUT_STRIP_TRAILING_WHITESPACE
-			ERROR_QUIET
 		)
 	endif ()
 	# Check the exist code for an error.
@@ -79,7 +81,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	v0.1.2-dirty
 	v0.1.1
 	Group 1 > Version          : 1.2.3
-	Group 3 > Release Candidate: 4
+	Group 3 > Release Candidate: 4f4d0976ac5eb0a07889f1913f38d66127f3b9abe
 	Group 5 > Commits since tag: 56
 	Group 7 > Hash of some sort: 78abcdef
 	]]
@@ -238,13 +240,16 @@ endmacro()
 # Adds an exif custom target for reporting the resource stored versions.
 #
 macro(Sf_AddExifTarget _Target)
-	# Only possible when compiling in Linux.
-	#if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux")
+	# Try finding the bash.exe from cygwin.
+	find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
+	if (_BashExe STREQUAL "_BashExe-NOTFOUND")
+		message(SEND_ERROR "Bash program not found!")
+	endif ()
 	# Add "exif-<target>" custom target when main 'exif' target exist.
 	if (TARGET "exif")
 		if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 			add_custom_target("exif-${_Target}" ALL
-				COMMAND bash -c "exiftool '$<TARGET_FILE:${_Target}>' | egrep -i '(File Name|Product Version|File Version|File Type|CPU Type)\\s*:' | sed 's/\\s*:/:/g'"
+				COMMAND "${_BashExe}" -lc "exiftool '$<TARGET_FILE:${_Target}>' | egrep -i '(File Name|Product Version|File Version|File Type|CPU Type)\\s*:' | sed 's/\\s*:/:/g'"
 				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
 				DEPENDS "$<TARGET_FILE:${_Target}>"
 				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
@@ -289,6 +294,10 @@ function(Sf_AddVersionResource _Target)
 	elseif (_Type STREQUAL "SHARED_LIBRARY")
 		get_target_property(_OutputName "${_Target}" LIBRARY_OUTPUT_NAME)
 	endif ()
+	# Check if _OutputName was set.
+	if (_OutputName STREQUAL "_OutputName-NOTFOUND")
+		message(SEND_ERROR "For target '${_Target}', a call to Sf_SetTargetSuffix() must preceded ${CMAKE_CURRENT_FUNCTION}()!")
+	endif ()
 	get_target_property(_OutputSuffix "${_Target}" SUFFIX)
 	string(REPLACE "." "," RC_WindowsFileVersion "${_Version},0")
 	set(RC_WindowsProductVersion "${RC_WindowsFileVersion}")
@@ -298,6 +307,7 @@ function(Sf_AddVersionResource _Target)
 	set(RC_ProductName "${CMAKE_PROJECT_DESCRIPTION}")
 	set(RC_OriginalFilename "${_OutputName}${_OutputSuffix}")
 	set(RC_InternalName "${_OutputName}${_OutputSuffix}")
+	set(RC_Compiler "${CMAKE_HOST_SYSTEM} ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 	string(TIMESTAMP RC_BuildDateTime "%Y-%m-%dT%H:%M:%SZ" UTC)
 	if (NOT DEFINED SF_COMPANY_NAME)
 		set(RC_CompanyName "Unknown")
@@ -489,7 +499,7 @@ function(Sf_AddAsCoverageTest _Test)
 		else ()
 			list(APPEND SF_COVERAGE_TESTS "${_Test}")
 		endif ()
-		# Over write the cache value using FORCE.
+		# Overwrite the cache value using FORCE.
 		set(SF_COVERAGE_TESTS "${SF_COVERAGE_TESTS}" CACHE STRING "List of tests producing coverage information." FORCE)
 	endif ()
 endfunction()

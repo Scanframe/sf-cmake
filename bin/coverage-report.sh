@@ -3,9 +3,9 @@
 # Exit at first error.
 set -e
 # Get the script directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
+source "${script_dir}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
@@ -211,7 +211,6 @@ if ${flag_search_path}; then
 else
 	# Collect all the "*.gcda" files from the passed source directory.
 	while IFS='' read -r -d $'\n'; do
-		#[[ "${REPLY}" =~ \.dir/test- ]] && continue
 		if ${flag_verbose}; then
 			WriteLog "- File: ${REPLY}"
 		fi
@@ -226,16 +225,27 @@ gcovr_mcd+=("${filters[@]}")
 
 # Try speeding up the report generation when the filter arguments are passed remove all files '*.gc??' files not intended for the report.
 if [[ "${#argument[@]}" -ne 0 ]]; then
-	echo "Remove files not in: " "${argument[@]}"
+	WriteLog "- Remove files not in: " "${argument[@]}"
 	while IFS='' read -r -d $'\n'; do
+		# Variable when set to true skip removal.
+		rm_file=true
 		# Remove the sub directory '/CMakeFiles/*/' from the path.
 		dir="$(dirname "${REPLY}" | sed --regexp-extended "s/^(.*)\/CMakeFiles\/[^\/]*(.*)$/\\1\\2/")"
 		# Now check the resulting path if it is part of the including filter paths.
 		for value in "${argument[@]}"; do
 			# When the directory of the file is a subdirectory of one of the filter values.
-			[[ "${dir}" == "${value}"/* ]] && continue;
-			rm "${source_dir}/${REPLY}"
+			if [[ "${dir}/" == "${value}/"* && "${dir}"/ != "${value}/tests/"* ]]; then
+				# Unmark the file to be deleted.
+				rm_file=false
+				if ${flag_verbose}; then
+					WriteLog "- Keeping: ${REPLY}"
+				fi
+			fi
 		done
+		# When file is marked for removal.
+		if ${rm_file} ; then
+			rm "${source_dir}/${REPLY}"
+		fi
 	done < <(find "${source_dir}" -type f -name "*.gc??" -printf "%P\n")
 fi
 
@@ -254,10 +264,10 @@ if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 	if ${flag_cleanup}; then
 		# Remove all the "*.gcda" files after.
 		while IFS='' read -r -d $'\n'; do
-			#[[ "${REPLY}" =~ \.dir/test- ]] && continue
 			if ${flag_verbose}; then
 				WriteLog "- Removing: ${REPLY}"
 			fi
+			# Do not fail this command by using '--force'.
 			rm "${REPLY}"
 		done < <(find "${source_dir}" -type f -name "*.gcda")
 	fi

@@ -21,10 +21,10 @@ list(GET _Versions 1 SF_GIT_TAG_RC)
 list(GET _Versions 2 SF_GIT_TAG_COMMITS)
 
 # Set the global project name.
-project("devops-trial"
+project("devops-shared"
 	VERSION "${SF_GIT_TAG_VERSION}"
-	DESCRIPTION "Scanframe DevOps Trial App"
-	HOMEPAGE_URL "https://git.scanframe.com/trial/devops.git"
+	DESCRIPTION "Scanframe DevOps Template App"
+	HOMEPAGE_URL "https://git.scanframe.com/shared/devops.git"
 	LANGUAGES C CXX
 )
 
@@ -55,7 +55,7 @@ find_package(SfCompiler CONFIG REQUIRED)
 Sf_SetOutputDirs("bin")
 
 # Configure the rpath.
-if (SF_BUILD_QT STREQUAL "ON")
+if (SF_BUILD_QT)
 	# When the Qt directory is available append it.
 	Sf_GetQtVersionDirectory(_QtVer)
 	if (NOT _QtVer STREQUAL "")

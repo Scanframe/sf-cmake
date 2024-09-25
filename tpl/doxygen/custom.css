@@ -16,17 +16,15 @@ body div.contents div.fragment {
 	padding: 0.5em;
 }
 
-body  div.contents div.fragment > div.line {
+body div.contents div.fragment > div.line {
 	line-height: 1.5;
 }
 
-div .plantumlgraph
-{
+div .plantumlgraph {
 	text-align: left;
 }
 
-@media screen and (min-width: 700px)
-{
+@media screen and (min-width: 700px) {
 	body {
 		height: 100vh;
 		margin: 0;
@@ -34,11 +32,11 @@ div .plantumlgraph
 		flex-direction: column;
 	}
 
-	body > div.contents
-	{
+	body > div.contents {
 		margin: 0;
 		padding: 0 0.5em;
 	}
+
 	body > div.contents,
 	body > div.PageDoc {
 		flex-grow: 1;
@@ -57,4 +55,15 @@ div .plantumlgraph
 		background-position: 0 -5px;
 	}
 
+	/* Increment the page title size so it is larger the first heading. */
+	body > div.PageDoc > div.header > div > div {
+		font-size: 200%;
+	}
+
+	/** Underline the heading 1+2 like in GitLab markdown viewer. */
+	body > div.PageDoc > div.contents > div > h1,
+	body > div.PageDoc > div.contents > div > h2 {
+		padding-bottom: 0.3em;
+		border-bottom: 1px solid #bfbfc3;
+	}
 }

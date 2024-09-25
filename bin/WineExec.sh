@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Bailout on first error.
+set -e
+
 # Get this script's directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 

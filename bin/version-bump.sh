@@ -6,9 +6,9 @@ set -e
 set -o pipefail
 
 # Get the include directory which is this script's directory.
-INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the Miscellaneous functions.
-source "${INCLUDE_DIR}/inc/Miscellaneous.sh"
+source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
@@ -40,7 +40,7 @@ function ShowHelp {
 # When no arguments are passed show help.
 if [[ $# -eq 0 ]]; then
 	ShowHelp
-	# Signal error when nothing to upload when called from CI-pipeline.
+	# No error just bailout.
 	exit 0
 fi
 
@@ -115,7 +115,7 @@ while true; do
 			;;
 
 		*)
-			echo "Internal error on argument (${1}) !" >&2
+			WriteLog "Internal error on argument (${1}) !"
 			exit 1
 			;;
 	esac
@@ -134,8 +134,8 @@ flag_tag_found=true
 git_top_level="$(git rev-parse --show-toplevel)"
 # Get the current non release-candidate version.
 cur_ver_tag="$(git tag --list --format '%(tag)' | sort --version-sort --reverse | grep -P '^v\d+\.\d+\.\d+$' | head -n 1 || true)"
-# When no tag available set the flag.
-if [[ -n "${cur_ver_tag}" ]];then
+# When no tag available set the flag to false and the current tag to 'v0.0.0'.
+if [[ -z "${cur_ver_tag}" ]]; then
 	flag_tag_found=false
 	cur_ver_tag="v0.0.0"
 fi
@@ -316,7 +316,7 @@ function BumpVersion {
 	# Regular expression to match the message header to.
 	regex='^([a-z_\-]+)(\(([a-z_\-]+)\))?(!)?:\s(.*)$'
 	# Check if the current version tag was found, if not the max_effect is set to 'minor' to start with.
-	if [[ "${cur_ver_tag}" == 'v0.0.0' ]]; then
+	if ! ${flag_tag_found}; then
 		# Get the highest version effect.
 		effect_max='minor'
 		WriteLog ": No current git version tag was found so max effect is set to '${effect_max}'."

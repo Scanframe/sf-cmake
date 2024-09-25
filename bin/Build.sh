@@ -5,35 +5,22 @@ set -e
 set -o pipefail
 
 # Get the include directory which is this script's directory.
-INCLUDE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+include_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include the Miscellaneous functions.
-source "${INCLUDE_DIR}/inc/Miscellaneous.sh"
+source "${include_dir}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
-	# When the script directory is not set then
+# When the script directory is not set then
 if [[ -z "${SCRIPT_DIR}" ]]; then
 	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
 	exit 1
 fi
 
-# Check if the needed commands are installed.1+
-COMMANDS=("git" "jq" "cmake" "ctest" "cpack" "ninja")
-# Add interactive commands when running interactively.
-if [[ "${CI}" != "true" ]]; then
-	COMMANDS+=(dialog)
-fi
-for COMMAND in "${COMMANDS[@]}"; do
-	if ! command -v "${COMMAND}" >/dev/null; then
-		WriteLog "Missing command '${COMMAND}' for this script!"
-		exit 1
-	fi
-done
-
 # When the script directory is not set then use the this scripts directory.
 if [[ -z "${SCRIPT_DIR}" ]]; then
-	SCRIPT_DIR="${INCLUDE_DIR}"
+	SCRIPT_DIR="${include_dir}"
 fi
 
 # Change to the scripts directory to operated from when script is called from a different location.
@@ -57,7 +44,7 @@ Usage: ${0} [<options>] [<presets> ...]
   --required       : Install required Linux packages using debian apt package manager.
   -m, --make       : Create build directory and makefiles only.
   -f, --fresh      : Configure a fresh build tree, removing any existing cache file.
-  -C, --wipe       : Wipe clean build tree directory.
+  -C, --wipe       : Wipe clean build tree directory by removing all contents from the build directory.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
   -b, --build      : Build target and make config when it does not exist.
   -B, --build-only : Build target only and fail when the configuration does note exist.
@@ -84,7 +71,7 @@ MAKEFLAGS=" -j $(nproc --ignore 1)"
 export MAKEFLAGS
 
 # Get the target OS.
-SF_TARGET_OS="$(uname -o)"
+sf_target_os="$(uname -o)"
 
 ##
 # Installs needed packages depending in the Windows(cygwin) or Linux environment it is called from.
@@ -111,23 +98,54 @@ function InstallPackages {
 		sudo apt-get update
 		sudo apt-get --yes upgrade
 		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
-			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless "${LINUX_PACKAGES[@]}"; then
+			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install mingw-w64 make cmake doxygen graphviz wine winbind exiftool default-jre-headless ; then
+		if ! sudo apt install mingw-w64 make cmake doxygen graphviz winbind exiftool default-jre-headless ; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
-	elif [[ "$1" == "Cygwin/x86_64" ]]; then
-		if ! apt-cyg install doxygen graphviz perl-Image-ExifTool; then
-			WriteLog "Failed to install 1 or more Cygwin packages (Try the Cygwin setup tool when elevation is needed) !"
-			exit 1
+		# When Wine HQ is installed do not revert it back to the distro default version.
+		if ! command -v wine >/dev/null; then
+			if ! sudo apt install wine; then
+				WriteLog "Failed to install package wine!"
+				exit 1
+			fi
 		fi
-	else
-		# shellcheck disable=SC2128
-		WriteLog "Unknown '$1' environment selection passed to function '${FUNCNAME}' !"
+	elif [[ "$1" == "Cygwin/x86_64" ]]; then
+		# List of WinGet packages to install.
+		declare -A wg_pkgs
+		wg_pkgs["CMake C++ build tool"]="Kitware.CMake"
+		wg_pkgs["Ninja build system"]="Ninja-build.Ninja"
+		wg_pkgs["Oracle JRE"]="Oracle.JavaRuntimeEnvironment"
+		#wg_pkgs["GNU Make"]="GnuWin32.Make"
+		# Iterate through the associative array of subdirectories (key) and remotes (value).
+		for name in "${!wg_pkgs[@]}"; do
+			if winget list --disable-interactivity --accept-source-agreements --exact --id "${wg_pkgs["${name}"]}" >/dev/null; then
+				WriteLog "-WinGet Package '${name}' already installed."
+			else
+				WriteLog "-Installing WinGet package'${name}' ..."
+				winget install --disable-interactivity --accept-source-agreements --exact --id "${wg_pkgs["${name}"]}"
+			fi
+		done
+		# List of Cygwin packages to install.
+		cg_pkgs=(
+			"dialog"
+			"recode"
+			"doxygen"
+			"perl-Image-ExifTool"
+			"graphviz"
+			"pcre"
+			"jq"
+		)
+		for pkg in "${cg_pkgs[@]}"; do
+			if ! apt-cyg install "${pkg}"; then
+				WriteLog "Failed to install 1 or more Cygwin packages (Try the Cygwin setup tool when elevation is needed) !"
+				exit 1
+			fi
+		done
 	fi
 }
 
@@ -293,7 +311,7 @@ function SelectPackagePreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Package Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -305,7 +323,7 @@ function SelectPackagePreset {
 # @param: Json file.
 #
 function SelectWorkflowPreset {
-	local preset name desc presets preset_names dlg_options idx selection
+	local preset name desc presets preset_names dlg_options idx selection target_os
 	# Action is the first argument.
 	action="${1}"
 	# Remove the first argument from the list.
@@ -320,6 +338,12 @@ function SelectWorkflowPreset {
 		# Ignore entries with display names starting with '#'.
 		[[ "${name:0:1}" == "#" && "${action}" != "info" ]] && continue
 		desc="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").description" "${@}")"
+		# Get the custom create vendor flag 'target_os' to check if the work flow applies.
+		target_os="$(jq -r ".workflowPresets[]|select(.name==\"${preset}\").vendor.target_os" "${@}")"
+		# When not set allow the workflow and when set it must conform to the result of 'uname -o' command.
+		if [[ "${target_os}" != 'null' && "${target_os}" != "${sf_target_os}" ]]; then
+			continue
+		fi
 		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Workflow: ${preset} '${name}' ${desc}"
@@ -341,54 +365,54 @@ function SelectWorkflowPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Workflow Selection" --menu "Select a preset workflow" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
 }
 
 # Detect windows using the cygwin 'uname' command.
-if [[ "${SF_TARGET_OS}" == "Cygwin" ]]; then
+if [[ "${sf_target_os}" == "Cygwin" ]]; then
 	WriteLog "# Windows OS detected through Cygwin shell"
-	export SF_TARGET_OS="Cygwin"
-	FLAG_WINDOWS=true
+	export sf_target_os="Cygwin"
+	flag_windows=true
 	# Set the directory the local QT root.
 	# shellcheck disable=SC2012
-	LOCAL_QT_ROOT="$( (ls -d /cygdrive/?/Qt | head -n 1) 2>/dev/null)"
-	if [[ -d "$LOCAL_QT_ROOT" ]]; then
-		WriteLog "# Found QT in '${LOCAL_QT_ROOT}'"
+	local_qt_root="$( (ls -d /cygdrive/?/Qt | head -n 1) 2>/dev/null)"
+	if [[ -d "$local_qt_root" ]]; then
+		WriteLog "# Found QT in '${local_qt_root}'"
 	fi
 	# Create temporary file for executing cmake.
 	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
-elif [[ "${SF_TARGET_OS}" == "Msys" ]]; then
+elif [[ "${sf_target_os}" == "Msys" ]]; then
 	WriteLog "# Windows OS detected through Msys shell"
-	export SF_TARGET_OS="Msys"
-	FLAG_WINDOWS=true
+	export sf_target_os="Msys"
+	flag_windows=true
 	# Set the directory the local QT root.
 	# shellcheck disable=SC2012
-	LOCAL_QT_ROOT="$( (ls -d /?/Qt | tail -n 1) 2>/dev/null)"
-	if [[ -d "$LOCAL_QT_ROOT" ]]; then
-		WriteLog "# Found QT in '${LOCAL_QT_ROOT}'"
+	local_qt_root="$( (ls -d /?/Qt | tail -n 1) 2>/dev/null)"
+	if [[ -d "$local_qt_root" ]]; then
+		WriteLog "# Found QT in '${local_qt_root}'"
 	fi
 	# Create temporary file for executing cmake.
 	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
-elif [[ "${SF_TARGET_OS}" == "GNU/Linux" ]]; then
+elif [[ "${sf_target_os}" == "GNU/Linux" ]]; then
 	WriteLog "# Linux detected"
-	export SF_TARGET_OS="GNU/Linux"
-	FLAG_WINDOWS=false
+	export sf_target_os="GNU/Linux"
+	flag_windows=false
 	# Set the directory the local QT root.
-	LOCAL_QT_ROOT="${HOME}/lib/Qt"
+	local_qt_root="${HOME}/lib/Qt"
 	# Check if it exists.
-	if [[ -d "${LOCAL_QT_ROOT}" ]]; then
-		WriteLog "# QT found in '${LOCAL_QT_ROOT}'"
+	if [[ -d "${local_qt_root}" ]]; then
+		WriteLog "# QT found in '${local_qt_root}'"
 	else
-		LOCAL_QT_ROOT=""
+		local_qt_root=""
 	fi
 	# Create temporary file for executing cmake.
 	#EXEC_SCRIPT="$(mktemp --suffix .sh)"
 	#chmod +x "${EXEC_SCRIPT}"
 else
-	WriteLog "Targeted OS '${SF_TARGET_OS}' not supported!"
+	WriteLog "Targeted OS '${sf_target_os}' not supported!"
 fi
 
 # No arguments at show help and bailout.
@@ -398,43 +422,43 @@ if [[ $# == 0 ]]; then
 fi
 
 # When in windows determine which cmake to use and where to get it including ninja and the compiler.
-if ${FLAG_WINDOWS}; then
+if ${flag_windows}; then
 	# shellcheck disable=SC2154
 	if ! command -v cmake >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin):${PATH}"
+		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin 2>/dev/null):${PATH}" || true
 	fi
 	if ! command -v ninja >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/ninja/win/x64):${PATH}"
+		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/ninja/win/x64 2>/dev/null):${PATH}" || true
 	fi
-	PATH="${LOCAL_QT_ROOT}/Tools/mingw1120_64/bin:${PATH}"
+	PATH="${local_qt_root}/Tools/mingw1120_64/bin:${PATH}"
 	export PATH
 fi
 
 # Initialize arguments and switches.
-FLAG_DEBUG=false
-FLAG_CONFIG=false
-FLAG_BUILD=false
-FLAG_BUILD_ONLY=false
-FLAG_TEST=false
-FLAG_PACKAGE=false
-FLAG_WORKFLOW=false
-FLAG_WIPE=false
-FLAG_INFO=false
-FLAG_LIST=false
+flag_debug=false
+flag_config=false
+flag_build=false
+flag_build_only=false
+flag_test=false
+flag_package=false
+flag_workflow=false
+flag_wipe=false
+flag_info=false
+flag_list=false
 # Initialize the cmake configure command as an array.
-CMAKE_CONFIG=("cmake")
+cmake_config=("cmake")
 # Create file for exploring in Chrome using URL "chrome://tracing/".
-#CMAKE_CONFIG+=("--profiling-output=perf.json" "--profiling-format=google-trace")
+#cmake_config+=("--profiling-output=perf.json" "--profiling-format=google-trace")
 # Initialize the cmake build command as an array.
-CMAKE_BUILD=("cmake" "--build")
+cmake_build=("cmake" "--build")
 # Initialize the ctest command as an array.
-CTEST_BUILD=("ctest")
+ctest_build=("ctest")
 # Initialize the cpack command as an array.
-CPACKAGE_BUILD=("cpack")
+cpackage_build=("cpack")
 # When empty the target is not overridden.
-TARGET_NAME=""
+target_name=""
 # When empty the regex is not applied to test names.
-TEST_REGEX=""
+test_regex=""
 
 # Parse options.
 temp=$(getopt -o 'n:hisdpfCcmbwBtlr:' \
@@ -457,28 +481,28 @@ while true; do
 		-i | --info)
 			WriteLog "# Information on presets"
 			# Set the flag to wipe the build directory first.
-			FLAG_INFO=true
+			flag_info=true
 			shift 1
 			continue
 			;;
 
 		-d | --debug)
 			WriteLog "# Script debugging is enabled"
-			FLAG_DEBUG=true
+			flag_debug=true
 			shift 1
 			continue
 			;;
 
 		--required)
-			InstallPackages "${SF_TARGET_OS}/$(uname -m)/Cross"
-			InstallPackages "${SF_TARGET_OS}/$(uname -m)"
+			InstallPackages "${sf_target_os}/$(uname -m)/Cross"
+			InstallPackages "${sf_target_os}/$(uname -m)"
 			exit 0
 			;;
 
 		-C | --wipe)
 			WriteLog "# Wipe clean build directory commenced"
 			# Set the flag to wipe the build directory first.
-			FLAG_WIPE=true
+			flag_wipe=true
 			shift 1
 			continue
 			;;
@@ -486,14 +510,14 @@ while true; do
 		-f | --fresh)
 			WriteLog "# Configure a fresh build tree, removing any existing cache file."
 			# Set the flag to wipe the build directory first.
-			CMAKE_CONFIG+=("--fresh")
+			cmake_config+=("--fresh")
 			shift 1
 			continue
 			;;
 
 		-c | --clean)
 			WriteLog "# Clean first enabled"
-			CMAKE_BUILD+=("--clean-first")
+			cmake_build+=("--clean-first")
 			shift 1
 			continue
 			;;
@@ -502,73 +526,73 @@ while true; do
 			WriteLog "# Information on Git-submodules."
 			shift 1
 			# shellcheck disable=SC2016
-			SCRIPT='echo "$(pwd): $(git log -n 1 --oneline --decorate | pcregrep -o1 ", ([^ ]*)\) ")";GIT_COLOR_UI="always git status" git status --short'
+			script='echo "$(pwd): $(git log -n 1 --oneline --decorate | pcregrep -o1 ", ([^ ]*)\) ")";GIT_COLOR_UI="always git status" git status --short'
 			# shellcheck disable=SC2086
-			eval "${SCRIPT}"
-			git -C "${SCRIPT_DIR}" submodule foreach --quiet "${SCRIPT}"
+			eval "${script}"
+			git -C "${SCRIPT_DIR}" submodule foreach --quiet "${script}"
 			exit 0
 			;;
 
 		-m | --make)
 			WriteLog "# Create build directory and makefile(s) only"
-			FLAG_CONFIG=true
+			flag_config=true
 			shift 1
 			continue
 			;;
 
 		-b | --build)
 			WriteLog "# Build the given presets and make the configuration when not present."
-			FLAG_BUILD=true
+			flag_build=true
 			shift 1
 			continue
 			;;
 
 		-B | --build-only)
 			WriteLog "# Build the given presets only and fail when the configuration has not been made."
-			FLAG_BUILD=true
-			FLAG_BUILD_ONLY=true
+			flag_build=true
+			flag_build_only=true
 			shift 1
 			continue
 			;;
 
 		-t | --test)
 			WriteLog "# Run enabled tests."
-			FLAG_TEST=true
+			flag_test=true
 			shift 1
 			continue
 			;;
 
 		-w | --workflow)
 			WriteLog "# Run workflow presets."
-			FLAG_WORKFLOW=true
+			flag_workflow=true
 			shift 1
 			continue
 			;;
 
 		-p | --package)
 			WriteLog "# Running packaging enabled."
-			FLAG_PACKAGE=true
+			flag_package=true
 			shift 1
 			continue
 			;;
 
 		-n | --target)
 			WriteLog "# Setting different target then default."
-			TARGET_NAME="${2}"
+			target_name="${2}"
 			shift 2
 			continue
 			;;
 
 		-l | --list-only)
 			WriteLog "# Listing is enabled"
-			FLAG_LIST=true
+			flag_list=true
 			shift 1
 			continue
 			;;
 
 		-r | --regex)
 			WriteLog "# Setting regex for test names."
-			TEST_REGEX="${2}"
+			test_regex="${2}"
 			shift 2
 			continue
 			;;
@@ -585,10 +609,24 @@ while true; do
 	esac
 done
 
+# Check if the needed commands are installed.
+commands=("git" "jq" "cmake" "ctest" "cpack" "ninja" "doxygen")
+# Add interactive commands when running interactively.
+if [[ "${CI}" != "true" ]]; then
+	commands+=("dialog" "pcregrep")
+fi
+for cmd in "${commands[@]}"; do
+	if ! command -v "${cmd}" >/dev/null ; then
+		WriteLog "Missing command '${cmd}' for this script!"
+		WriteLog "Run option with '--required' to install tool dependencies."
+		exit 1
+	fi
+done
+
 # Get the arguments/presets in an array.
 argument=()
 while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
-	argument=("${argument[@]}" "$1")
+	argument+=("$1")
 	shift
 done
 
@@ -607,7 +645,7 @@ if [[ -f "${SCRIPT_DIR}/CMakeUserPresets.json" ]]; then
 fi
 
 # Check if information is to be shown only.
-if ${FLAG_INFO}; then
+if ${flag_info}; then
 	# Set tabs distance 2 spaces.
 	tabs -2
 	WriteLog "# Build preset information:"
@@ -625,14 +663,14 @@ fi
 
 # First argument is mandatory.
 if [[ "${#argument[@]}" -eq 0 ]]; then
-	if ${FLAG_WORKFLOW}; then
+	if ${flag_workflow}; then
 		preset="$(SelectWorkflowPreset "select" "${file_presets[@]}")"
 	# Assign an argument.
-	elif ${FLAG_BUILD} || ${FLAG_CONFIG}; then
+	elif ${flag_build} || ${flag_config}; then
 		preset="$(SelectBuildPreset "select" "${file_presets[@]}")"
-	elif ${FLAG_TEST}; then
+	elif ${flag_test}; then
 		preset="$(SelectTestPreset "select" "${file_presets[@]}")"
-	elif ${FLAG_PACKAGE}; then
+	elif ${flag_package}; then
 		preset="$(SelectPackagePreset "select" "${file_presets[@]}")"
 	fi
 	if [[ -z "${preset}" ]]; then
@@ -644,7 +682,7 @@ if [[ "${#argument[@]}" -eq 0 ]]; then
 fi
 
 # When workflow is requested.
-if ${FLAG_WORKFLOW}; then
+if ${flag_workflow}; then
 	for preset in "${argument[@]}"; do
 		cmake --workflow --preset "${preset}"
 	done
@@ -653,17 +691,17 @@ if ${FLAG_WORKFLOW}; then
 fi
 
 # Check if wiping can be performed.
-if [[ "${TARGET}" == @(help|install) && ${FLAG_WIPE} == true ]]; then
-	FLAG_WIPE=false
-	WriteLog "Wiping clean with target '${TARGET}' not possible!"
+if [[ "${target_name}" == @(help|install) && ${flag_wipe} == true ]]; then
+	flag_wipe=false
+	WriteLog "Wiping clean with target '${target_name}' not possible!"
 fi
 
 # When configure and/or build is requested.
-if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
+if ${flag_build} || ${flag_config}; then
 	#  Make a copy of the array.
-	SAVED_CMAKE_CONFIG=("${CMAKE_CONFIG[@]}")
+	saved_cmake_config=("${cmake_config[@]}")
 	for preset in "${argument[@]}"; do
-		CMAKE_CONFIG=("${SAVED_CMAKE_CONFIG[@]}")
+		cmake_config=("${saved_cmake_config[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".buildPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
@@ -677,8 +715,15 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			# Notify the build of the preset.
 			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
+			# When the '--fresh' option is has been passed delete the depending repository CMakeCache.txt files as well.
+			if InArray '--fresh' "${cmake_config[@]}"; then
+				while read -r cache_file; do
+					WriteLog "Deleting cache file: ${cache_file}"
+					rm "${cache_file}"
+				done < <(find "${binary_dir}/_deps" -type f -name "CMakeCache.txt")
+			fi
 			# When the binary directory exists and the Wipe flag is set.
-			if ${FLAG_WIPE} && [[ -d "${binary_dir}" ]]; then
+			if ${flag_wipe} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
 				if [[ "${binary_dir}" != "${SCRIPT_DIR}/"* ]]; then
 					WriteLog "Cannot wipe non subdirectory '${binary_dir}' !"
@@ -686,7 +731,7 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 				fi
 				WriteLog "# Wiping clean build-dir '${binary_dir}'"
 				# When the directory exists only.
-				if ${FLAG_DEBUG}; then
+				if ${flag_debug}; then
 					WriteLog "rm --verbose --recursive --one-file-system --interactive=never --preserve-root \"${binary_dir}\""
 				else
 					if [[ -d "${binary_dir}" ]]; then
@@ -696,34 +741,34 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 				fi
 			fi
 			# When the binary directory does not exists or configure is required.
-			if [[ ! -d "${binary_dir}" ]] || ${FLAG_CONFIG} && ! ${FLAG_BUILD_ONLY}; then
-				CMAKE_CONFIG+=("--preset ${cfg_preset}")
-				if ${FLAG_DEBUG}; then
-					WriteLog "$(JoinBy ' ' "${CMAKE_CONFIG[@]}")"
+			if [[ ! -d "${binary_dir}" ]] || ${flag_config} && ! ${flag_build_only}; then
+				cmake_config+=("--preset ${cfg_preset}")
+				if ${flag_debug}; then
+					WriteLog "$(JoinBy ' ' "${cmake_config[@]}")"
 				else
-					WriteLog "# $(JoinBy ' ' "${CMAKE_CONFIG[@]}")"
+					WriteLog "# $(JoinBy ' ' "${cmake_config[@]}")"
 					# shellcheck disable=SC2091
-					$(JoinBy " " "${CMAKE_CONFIG[@]}")
+					$(JoinBy " " "${cmake_config[@]}")
 				fi
 			fi
 			# Build when flag is set.
-			if ${FLAG_BUILD}; then
-				CMAKE_BUILD+=("--preset ${cfg_preset}")
+			if ${flag_build}; then
+				cmake_build+=("--preset ${cfg_preset}")
 				# Add flag to list targets.
-				if ${FLAG_LIST}; then
-					CMAKE_BUILD+=("--target help")
+				if ${flag_list}; then
+					cmake_build+=("--target help")
 				# Otherwise just set the given target when it was set.
 				else
-					if [[ -n "${TARGET_NAME}" ]]; then
-						CMAKE_BUILD+=("--target ${TARGET_NAME}")
+					if [[ -n "${target_name}" ]]; then
+						cmake_build+=("--target ${target_name}")
 					fi
 				fi
-				WriteLog "$(JoinBy " " "${CMAKE_BUILD[@]}")"
-				if ! ${FLAG_DEBUG}; then
-					WriteLog "# $(JoinBy " " "${CMAKE_BUILD[@]}")"
+				WriteLog "$(JoinBy " " "${cmake_build[@]}")"
+				if ! ${flag_debug}; then
+					WriteLog "# $(JoinBy " " "${cmake_build[@]}")"
 					# Run the build preset.
 					# shellcheck disable=SC2091
-					if ! eval "$(JoinBy " " "${CMAKE_BUILD[@]}")"; then
+					if ! eval "$(JoinBy " " "${cmake_build[@]}")"; then
 						WriteLog "CMake failed!"
 						exit 1
 					fi
@@ -734,10 +779,10 @@ if ${FLAG_BUILD} || ${FLAG_CONFIG}; then
 fi
 
 # When test is requested.
-if ${FLAG_TEST}; then
-	SAVED_CTEST_BUILD=("${CTEST_BUILD[@]}")
+if ${flag_test}; then
+	saved_ctest_build=("${ctest_build[@]}")
 	for preset in "${argument[@]}"; do
-		CTEST_BUILD=("${SAVED_CTEST_BUILD[@]}")
+		ctest_build=("${saved_ctest_build[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".testPresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
@@ -751,31 +796,31 @@ if ${FLAG_TEST}; then
 			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
 			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
-			CTEST_BUILD+=(--preset "${preset}")
-			CTEST_BUILD+=(--verbose)
+			ctest_build+=(--preset "${preset}")
+			ctest_build+=(--verbose)
 			# Add flag to list tests.
-			if ${FLAG_LIST}; then
-				CTEST_BUILD+=(--show-only)
+			if ${flag_list}; then
+				ctest_build+=(--show-only)
 			fi
 			# Add regular expression for test when given.
-			if [[ -n "${TEST_REGEX}" ]]; then
-				CTEST_BUILD+=(--tests-regex "${TEST_REGEX}")
+			if [[ -n "${test_regex}" ]]; then
+				ctest_build+=(--tests-regex "${test_regex}")
 				# Regard no tests found as no error and ignore it (exit code is 0 otherwise 8).
-				#CTEST_BUILD+=("--no-tests=ignore")
+				#ctest_build+=("--no-tests=ignore")
 			fi
-			WriteLog "$(JoinBy " " "${CTEST_BUILD[@]}")"
-			if ! ${FLAG_DEBUG}; then
+			WriteLog "$(JoinBy " " "${ctest_build[@]}")"
+			if ! ${flag_debug}; then
 				set +e
 				# Run the test preset.
 				# shellcheck disable=SC2091
-				"${CTEST_BUILD[@]}"
+				"${ctest_build[@]}"
 				exitcode="$?"
 				case "${exitcode}" in
 					0) WriteLog "CTest success." ;;
 					8)
 						# When the regex is empty the test failed.
-						if [[ -z "${TEST_REGEX}" ]]; then exit 1; else
-							WriteLog "CTest no tests matched '${TEST_REGEX}'."
+						if [[ -z "${test_regex}" ]]; then exit 1; else
+							WriteLog "CTest no tests matched '${test_regex}'."
 						fi
 						;;
 					*)
@@ -789,10 +834,10 @@ if ${FLAG_TEST}; then
 fi
 
 # When package is requested.
-if ${FLAG_PACKAGE}; then
-	SAVED_CPACKAGE_BUILD=("${CPACKAGE_BUILD[@]}")
+if ${flag_package}; then
+	saved_cpackage_build=("${cpackage_build[@]}")
 	for preset in "${argument[@]}"; do
-		CPACKAGE_BUILD=("${SAVED_CPACKAGE_BUILD[@]}")
+		cpackage_build=("${saved_cpackage_build[@]}")
 		# Retrieve the configuration preset.
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
@@ -805,14 +850,14 @@ if ${FLAG_PACKAGE}; then
 			# Show the available presets.
 			cmake --list-presets configure
 		else
-			CPACKAGE_BUILD+=(--preset "${preset}")
-			CPACKAGE_BUILD+=(--verbose)
-			WriteLog "$(JoinBy " " "${CPACKAGE_BUILD[@]}")"
-			if ! ${FLAG_DEBUG}; then
+			cpackage_build+=(--preset "${preset}")
+			cpackage_build+=(--verbose)
+			WriteLog "$(JoinBy " " "${cpackage_build[@]}")"
+			if ! ${flag_debug}; then
 				set +e
 				# Run the package preset.
 				# shellcheck disable=SC2091
-				"${CPACKAGE_BUILD[@]}"
+				"${cpackage_build[@]}"
 				exitcode="$?"
 				# Check the exit code.
 				if [[ "${exitcode}" -ne 0 ]]; then

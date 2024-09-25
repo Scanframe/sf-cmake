@@ -103,11 +103,15 @@ function PrependAndEcho {
 	return 0
 }
 
-function PrependAndEcho {
+##
+# Prepends each line read from the input write it to log.
+# Allows a line counter "\${counter}" to be expanded.
+#
+function PrependAndLog {
 	local counter
 	while read -r line; do
 		((counter += 1))
-		eval "echo -e \"${1}${line}\""
+		eval "WriteLog -e \"${1}${line}\""
 	done
 	return 0
 }
