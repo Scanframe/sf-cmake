@@ -3,10 +3,23 @@
 # Bail out on first error.
 set -e
 
-# Get the script directory.
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the scripts run directory weather it is a symlink or not.
+run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When a symlink determine the script directory.
+if [[ -L "${BASH_SOURCE[0]}" ]];then
+	include_dir="$(dirname "$(readlink "$0")")"
+# Check if the library directory exists when not called from a sym-link.
+elif [[ -d "${run_dir}/cmake/lib" ]]; then
+	include_dir="${run_dir}/cmake/lib/bin"
+else
+	include_dir="${run_dir}"
+fi
+
+# Include the Miscellaneous functions.
+source "${include_dir}/inc/Miscellaneous.sh"
+
 # Get the project root and subdirectory.
-project_subdir="$(basename "${script_dir}")"
+project_subdir="$(basename "${run_dir}")"
 # Set the image name to be used.
 img_name="nexus.scanframe.com/gnu-cpp:dev"
 # Set container name to be used.
@@ -40,11 +53,11 @@ options+=(--env DISPLAY="${DISPLAY}")
 options+=(--volume "${HOME}/.Xauthority:/home/user/.Xauthority:ro")
 # Mount the project sub directory into the project directory like
 # CLion does using a Docker toolchain.
-options+=(--volume "${script_dir}:/mnt/project/${project_subdir}:rw")
+options+=(--volume "${run_dir}:/mnt/project/${project_subdir}:rw")
 # Check if the build directory offset has been set for separate build dir offset.
 if [[ -n "${DOCKER_BUILD}" ]]; then
 	# Build directory used for Docker builds.
-	build_dir="${script_dir}/cmake-build/docker"
+	build_dir="${run_dir}/cmake-build/docker"
 	# Create the special docker binary build directory.
 	mkdir --parents "${build_dir}"
 	options+=(--volume "${build_dir}:/mnt/project/${project_subdir}/cmake-build:rw")
@@ -66,7 +79,7 @@ if [[ $# -eq 0 ]]; then
 	# When no arguments are given run bash from within the container.
 	echo "Same as 'build.sh' script but running from Docker image '${img_name}' but allows Docker specific commands.
 
-Usage: cmake/lib/bin/docker-build.sh [command] <args...>
+Usage: $(basename "${0}") [command] <args...>
   pull      : Pulls the docker image '${img_name}' from the Docker registry.
   run       : Runs a command as user 'user' in the container using Docker command
               'run' or 'exec' depending on a running container in the background.

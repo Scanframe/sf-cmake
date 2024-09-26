@@ -4,28 +4,27 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
-# Get the include directory which is this script's directory.
-include_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the scripts run directory weather it is a symlink or not.
+run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When a symlink determine the script directory.
+if [[ -L "${BASH_SOURCE[0]}" ]];then
+	include_dir="$(dirname "$(readlink "$0")")"
+# Check if the library directory exists when not called from a sym-link.
+elif [[ -d "${run_dir}/cmake/lib" ]]; then
+	include_dir="${run_dir}/cmake/lib/bin"
+else
+	include_dir="${run_dir}"
+fi
+
 # Include the Miscellaneous functions.
 source "${include_dir}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
-# When the script directory is not set then
-if [[ -z "${SCRIPT_DIR}" ]]; then
-	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
-	exit 1
-fi
-
-# When the script directory is not set then use the this scripts directory.
-if [[ -z "${SCRIPT_DIR}" ]]; then
-	SCRIPT_DIR="${include_dir}"
-fi
-
-# Change to the scripts directory to operated from when script is called from a different location.
-if ! cd "${SCRIPT_DIR}"; then
-	WriteLog "Change to operation directory '${SCRIPT_DIR}' failed!"
+# Change to the run directory to operated from when script is called from a different location.
+if ! cd "${run_dir}"; then
+	WriteLog "Change to operation directory '${run_dir}' failed!"
 	exit 1
 fi
 
@@ -35,7 +34,7 @@ function ShowHelp {
 	echo "Executes CMake commands using the 'CMakePresets.json' and 'CMakeUserPresets.json' files
 of which the first is mandatory to exist.
 
-Usage: ${0} [<options>] [<presets> ...]
+Usage: $(basename "${0}") [<options>] [<presets> ...]
   -h, --help       : Shows this help.
   -d, --debug      : Debug: Show executed commands rather then executing them.
   -i, --info       : Return information on all available build, test and package presets.
@@ -174,8 +173,8 @@ function SelectBuildPreset {
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
 		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
-		# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
-		eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+		# Expand used 'sourceDir' variable using 'run_dir' variable.
+		eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Build: ${preset} '${name}' ${desc}"
@@ -236,8 +235,8 @@ function SelectTestPreset {
 			if ! ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-"; then
 				# Get the binary directory from the configuration.
 				binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
-				# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
-				eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+				# Expand used 'sourceDir' variable using 'run_dir' variable.
+				eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 				# Check if the configuration step has been performed.
 				if [[ ! -f "${binary_dir}/CMakeCache.txt" ]]; then
 					WriteLog -e "\t\t:Need cmake configuration step for this information."
@@ -529,7 +528,7 @@ while true; do
 			script='echo "$(pwd): $(git log -n 1 --oneline --decorate | pcregrep -o1 ", ([^ ]*)\) ")";GIT_COLOR_UI="always git status" git status --short'
 			# shellcheck disable=SC2086
 			eval "${script}"
-			git -C "${SCRIPT_DIR}" submodule foreach --quiet "${script}"
+			git -C "${run_dir}" submodule foreach --quiet "${script}"
 			exit 0
 			;;
 
@@ -631,7 +630,7 @@ while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
 done
 
 # Form the presets file location.
-file_presets=("${SCRIPT_DIR}/CMakePresets.json")
+file_presets=("${run_dir}/CMakePresets.json")
 
 # Check if the presets file is present.
 if [[ ! -f "${file_presets[0]}" ]]; then
@@ -640,8 +639,8 @@ if [[ ! -f "${file_presets[0]}" ]]; then
 fi
 
 # Add user presets to the list.
-if [[ -f "${SCRIPT_DIR}/CMakeUserPresets.json" ]]; then
-	file_presets+=("${SCRIPT_DIR}/CMakeUserPresets.json")
+if [[ -f "${run_dir}/CMakeUserPresets.json" ]]; then
+	file_presets+=("${run_dir}/CMakeUserPresets.json")
 fi
 
 # Check if information is to be shown only.
@@ -711,8 +710,8 @@ if ${flag_build} || ${flag_config}; then
 			WriteLog "Build preset '${preset}' does not exist!"
 			cmake --list-presets build
 		else
-			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+			# Expand used 'sourceDir' variable using local 'run_dir' variable.
+			eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 			# Notify the build of the preset.
 			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			# When the '--fresh' option is has been passed delete the depending repository CMakeCache.txt files as well.
@@ -725,7 +724,7 @@ if ${flag_build} || ${flag_config}; then
 			# When the binary directory exists and the Wipe flag is set.
 			if ${flag_wipe} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
-				if [[ "${binary_dir}" != "${SCRIPT_DIR}/"* ]]; then
+				if [[ "${binary_dir}" != "${run_dir}/"* ]]; then
 					WriteLog "Cannot wipe non subdirectory '${binary_dir}' !"
 					exit 0
 				fi
@@ -793,8 +792,8 @@ if ${flag_test}; then
 			# Show the available presets.
 			ctest --list-presets
 		else
-			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+			# Expand used 'sourceDir' variable using local 'run_dir' variable.
+			eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			ctest_build+=(--preset "${preset}")
 			ctest_build+=(--verbose)
@@ -842,8 +841,8 @@ if ${flag_package}; then
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
 		package_dir="$(jq -r ".packagePresets[]|select(.name==\"${cfg_preset}\").packageDirectory" "${file_presets[@]}")"
-		# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-		eval "sourceDir=\"${SCRIPT_DIR}\" package_dir=${package_dir//\$env{/\${}"
+		# Expand used 'sourceDir' variable using local 'run_dir' variable.
+		eval "sourceDir=\"${run_dir}\" package_dir=${package_dir//\$env{/\${}"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Configure or Package preset '${preset}' does not exist!"
