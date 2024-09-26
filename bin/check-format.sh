@@ -16,7 +16,7 @@ if [[ "$(ps -o comm= $PPID)" == "pre-commit" ]]; then
 	# Add git-diff noticed files only for checking.
 	arguments+=('--git-hook')
 # Check if called from a GitLab pipeline for a merge request.
-elif [[ -n "${CI_MERGE_REQUEST_ID}" ]]; then
+elif [[ -z "${CI_MERGE_REQUEST_ID}" ]]; then
 	echo "Not checking format due to non-merge-request pipeline being active."
 	exit 0
 # Check if called from a GitLab pipeline for a merge request.
