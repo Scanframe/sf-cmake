@@ -48,10 +48,10 @@ Usage: $(basename "${0}") [<options>] [<presets> ...]
   -b, --build      : Build target and make config when it does not exist.
   -B, --build-only : Build target only and fail when the configuration does note exist.
   -t, --test       : Runs the ctest application using a test-preset.
+  -r, --regex      : Regular expression on which test names are to be executed.
   -w, --workflow   : Runs the passed work flow presets.
   -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
   -n, --target     : Overrides the build targets set in the preset by a single target.
-  -r, --regex      : Regular expression on which test names are to be executed.
   Where <sub-dir> is the directory used as build root for the CMakeLists.txt in it.
   This is usually the current directory '.'.
   When the <target> argument is omitted it defaults to 'all'.

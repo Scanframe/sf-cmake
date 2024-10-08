@@ -27,7 +27,7 @@ else
 fi
 
 # Wine command to execute.
-WINE_BIN="wine64"
+WINE_BIN="wine"
 # Check if wine command exists.
 if ! command -v "${WINE_BIN}" >/dev/null; then
 	WriteLog "Wine is not installed!"

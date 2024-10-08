@@ -21,7 +21,7 @@ source "${include_dir}/inc/Miscellaneous.sh"
 # Get the project root and subdirectory.
 project_subdir="$(basename "${run_dir}")"
 # Set the image name to be used.
-img_name="nexus.scanframe.com/gnu-cpp:dev"
+img_name="nexus.scanframe.com/gnu-cpp:24.04-6.7.2"
 # Set container name to be used.
 container_name="cpp_builder"
 # Hostname for the docker container.

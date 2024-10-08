@@ -1,4 +1,13 @@
 ##!
+# Declare some cmake flags for decisions on building targets.
+#
+set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
+set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
+set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")
+set(SF_TEST_NAME_PREFIX "t_" CACHE STRING "Prefix for test applications to allow skipping when packaging.")
+set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when developing locally to speed up.")
+
+##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
 #
 if (${CMAKE_VERSION} VERSION_LESS 3.14)
@@ -267,15 +276,15 @@ macro(Sf_AddExifTarget _Target)
 					VERBATIM
 				)
 			else ()
-			add_custom_target("exif-${_Target}" ALL
-				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
-				# Report the runpath and the linked shared libraries.
-				COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
-				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
-				DEPENDS "$<TARGET_FILE:${_Target}>"
-				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
-				VERBATIM
-			)
+				add_custom_target("exif-${_Target}" ALL
+					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
+					# Report the runpath and the linked shared libraries.
+					COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
+					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+					DEPENDS "$<TARGET_FILE:${_Target}>"
+					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+					VERBATIM
+				)
 			endif ()
 		endif ()
 		add_dependencies("exif" "exif-${_Target}")
@@ -359,7 +368,7 @@ endfunction()
 function(Sf_GetIncludeDirectories _var _targets)
 	set(_list "")
 	# Iterate through the passed list of build targets.
-	foreach (_target IN LISTS ${_targets})
+	foreach (_target IN LISTS _targets)
 		# Get the source directory from the target.
 		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
 		# Get all the include directories from the target.
@@ -466,8 +475,11 @@ endfunction()
 # Adds the passed target for coverage only when the build type is 'Coverage'.
 #
 function(Sf_AddTargetForCoverage _Target)
-	# Set options only when the build type
-	if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+	# Set options only when the build type is coverage and the SF_COVERAGE_ONLY_TARGET is empty.
+	if (CMAKE_BUILD_TYPE STREQUAL "Coverage" AND
+	(
+		SF_COVERAGE_ONLY_TARGETS STREQUAL "" OR _Target IN_LIST SF_COVERAGE_ONLY_TARGETS
+	))
 		# Get the type of the target.
 		get_target_property(_Type "${_Target}" TYPE)
 		# When the GNU compiler is involved.
