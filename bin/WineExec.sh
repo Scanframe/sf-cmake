@@ -4,10 +4,10 @@
 set -e
 
 # Get this script's directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${script_dir}/inc/WriteLog.sh"
 
 # Check if the executable directory has been set.
 if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
@@ -16,73 +16,117 @@ if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
 fi
 
 # Only when it could find the script.
-if [[ -f "${SCRIPT_DIR}/QtLibDir.sh" ]]; then
+if [[ -f "${script_dir}/QtLibDir.sh" ]]; then
 	# Get the Qt installed directory.
-	QT_VER_DIR="$(bash "${SCRIPT_DIR}/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
+	qt_ver_dir="$(bash "${script_dir}/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
 	# Location of Qt DLLs.
-	DIR_QT_DLL="$(realpath "${QT_VER_DIR}/mingw_64/bin")"
+	dir_qt_dll="$(realpath "${qt_ver_dir}/mingw_64/bin")"
 else
-	WriteLog "File not found: ${SCRIPT_DIR}/QtLibDir.sh"
-	DIR_QT_DLL=""
+	WriteLog "File not found: ${script_dir}/QtLibDir.sh"
+	dir_qt_dll=""
 fi
 
 # Wine command to execute.
-WINE_BIN="wine"
+wine_bin="wine"
 # Check if wine command exists.
-if ! command -v "${WINE_BIN}" >/dev/null; then
+if ! command -v "${wine_bin}" >/dev/null; then
 	WriteLog "Wine is not installed!"
 	exit 0
 fi
 
 # Form the binary target directory for cross Windows builds.
-#DIR_BIN_WIN="$(realpath "${EXECUTABLE_DIR}")"
-DIR_BIN_WIN="${EXECUTABLE_DIR}"
+dir_bin_win="$(realpath "${EXECUTABLE_DIR}")"
+dir_bin_win="${EXECUTABLE_DIR}"
 # Location of MinGW DLLs.
-DIR_MINGW_DLL="/usr/x86_64-w64-mingw32/lib"
+dir_mingw_dll="/usr/x86_64-w64-mingw32/lib"
 # Location of MinGW posix DLLs 2.
-DIR_MINGW_DLL2="$(find /usr/lib/gcc/x86_64-w64-mingw32 -name "*-posix" | sort -V | tail -n 1)"
+dir_mingw_dll2="$(find /usr/lib/gcc/x86_64-w64-mingw32 -name "*-posix" | sort -V | tail -n 1)"
+
+##
+# Select executable from the available ones using a dialog.
+#
+function SelectBinary {
+	local files
+	declare -A files
+	local dlg_options=("0" "<None>")
+	local idx=0
+	# 'None' as first entry.
+	files[0]=""
+	# Split the output into an array using the newline character as the delimiter
+	while IFS= read -r -d $'\n'; do
+		idx=$((idx + 1))
+		files[${idx}]="${REPLY}"
+		dlg_options+=("${idx}" "${REPLY}")
+	done < <(cd "${dir_bin_win}" && ls -1A *.exe)
+	# Create a dialog returning a selection index.
+	idx="$(dialog --backtitle "Run Windows Binary" \
+		--menu "Select a windows binary to run using Wine $("${wine_bin}" --version)" \
+		22 60 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
+	# Echoing the binary filename as the return value.
+	echo "${files[${idx}]}"
+}
 
 # When nothing is passed show help and wine version.
-if [[ -z "$1" ]]; then
-	WriteLog \
-		"Executes a cross-compiled Windows binary from the target directory.
-Usage: $0 <win-exe-in-binwin-dir> [[<options>]...]
-Wine Version: $("${WINE_BIN}" --version)
-
-Available exe-files:
-$(cd "${DIR_BIN_WIN}" && ls *.exe)
-	"
-	exit 1
+if [[ -z "${1}" ]]; then
+	bin_file="$(SelectBinary)"
+else
+	# Selected binary file from command line.
+	bin_file="${1}"
+	shift 1
 fi
 
+# When no selection made exit.
+if [[ -z "${bin_file}" ]]; then
+	WriteLog "- No selection made."
+	exit 0
+else
+	WriteLog "- Selected binary: ${bin_file}"
+fi
+
+
 # Check if the command is available/installed.
-if ! command -v "${WINE_BIN}" >/dev/null; then
-	WriteLog "Missing command '${WINE_BIN}', so skipping it and exiting with zero."
+if ! command -v "${wine_bin}" >/dev/null; then
+	WriteLog "Missing command '${wine_bin}', so skipping it and exiting with zero."
 	# Deliberate return zero so tests do not fail when wine is not installed.
 	exit 0
 fi
 
 # Check if all directories exist.
-for DIR_NAME in "${DIR_BIN_WIN}" "${DIR_MINGW_DLL}" "${DIR_MINGW_DLL2}" "${DIR_QT_DLL}"; do
-	if [[ -n "${DIR_NAME}" && ! -d "${DIR_NAME}" ]]; then
-		WriteLog "Missing directory '${DIR_NAME}', probably something is not installed."
+for dir_name in "${dir_bin_win}" "${dir_mingw_dll}" "${dir_mingw_dll2}" "${dir_qt_dll}"; do
+	if [[ -n "${dir_name}" && ! -d "${dir_name}" ]]; then
+		WriteLog "Missing directory '${dir_name}', probably something is not installed."
 		exit 1
 	fi
 done
 
-export WINEDEBUG="fixme-all"
 # Path to executable and its DLL's in the lib subdirectory.
-WDIR_EXE_DLL="$(winepath -w "${DIR_BIN_WIN}/lib")"
+wdir_exe_dll="$(winepath -w "${dir_bin_win}/lib")"
 # Path to mingw runtime DLL's
-WDIR_MINGW_DLL="$(winepath -w "${DIR_MINGW_DLL}")"
+wdir_mingw_dll="$(winepath -w "${dir_mingw_dll}")"
 # Path to mingw runtime DLL's second path.
-WDIR_MINGW_DLL2="$(winepath -w "${DIR_MINGW_DLL2}")"
+wdir_mingw_dll2="$(winepath -w "${dir_mingw_dll2}")"
 # Path to QT runtime DLL's
-WDIR_QT_DLL="$(winepath -w "${DIR_QT_DLL}")"
-# Export the path to find the needed DLLs in.
-export WINEPATH="${WINEPATH};${WDIR_EXE_DLL};${WDIR_QT_DLL};${WDIR_MINGW_DLL};${WDIR_MINGW_DLL2}"
+wdir_qt_dll="$(winepath -w "${dir_qt_dll}")"
+# Export the path to find the needed DLLs in where MinGW DLLs are at the beginning.
+# Correct version of 'libstdc++-6.dll' is required.
+export WINEPATH="${wdir_mingw_dll};${wdir_mingw_dll2};${WINEPATH};${wdir_exe_dll};${wdir_qt_dll}"
+# Suppress warnings.
+export WINEDEBUG="fixme-all"
+
 ## Execute it in its own shell to contain the temp dir change.
 ## Redirect wine stderr to be ignored.
-cd "${DIR_BIN_WIN}" || exit 1
-# Execute the binary with all options.
-"${WINE_BIN}" "$@"
+cd "${dir_bin_win}" || exit 1
+if [[ -n "${GDBSERVER_BIN}" ]]; then
+	# Trap Ctrl-C and call exit() to exit the while loop.
+	trap exit INT
+	# Run the GDB-server infinitely.
+	while true; do
+		# Execute the binary with all options.
+		WriteLog "- ${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@"
+		"${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@"
+		WriteLog "Exit code ($?)!"
+	done
+else
+	# Execute the binary with all options.
+	"${wine_bin}" "${bin_file}" "$@"
+fi

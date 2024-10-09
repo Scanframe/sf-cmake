@@ -197,7 +197,7 @@ function SelectBuildPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Build Selection" --menu "Select a preset to build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection="$(dialog --backtitle "Build Selection" --menu "Select a preset to build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi

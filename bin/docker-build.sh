@@ -83,9 +83,9 @@ Usage: $(basename "${0}") [command] <args...>
   pull      : Pulls the docker image '${img_name}' from the Docker registry.
   run       : Runs a command as user 'user' in the container using Docker command
               'run' or 'exec' depending on a running container in the background.
-  detach    : Detaches a container named '${container_name}' in the background.
-  attach    : Attaches to the  in the background running container named '${container_name}'.
+  start     : Starts/Detaches a container named '${container_name}' in the background.
   status    : Returns info of the running container '${container_name}' in the background.
+  attach    : Attaches to the  in the background running container named '${container_name}'.
   stop      : Stops the container named '${container_name}' running in the background.
   kill      : Kills the container named '${container_name}' running in the background.
   versions  : Shows versions of most installed applications within the container.
@@ -111,7 +111,7 @@ else
 			docker_run "${@}"
 			;;
 
-		detach)
+		start)
 			# Check if the container is running.
 			if is_detached; then
 				echo "Container '${container_name}' is already running."
