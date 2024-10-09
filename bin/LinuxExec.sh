@@ -15,6 +15,9 @@ if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
 	exit 1
 fi
 
+# Form the binary target directory for Linux builds.
+dir_bin="$(realpath "${EXECUTABLE_DIR}")"
+
 function GetExecutablesFiles
 {
 	for fn in "${EXECUTABLE_DIR}"/*; do
@@ -24,16 +27,45 @@ function GetExecutablesFiles
   done
 }
 
-# When nothing is passed show help and wine version.
-if [[ "$#" -eq 0 ]]; then
-	WriteLog \
-		"Executes a cross-compiled Windows binary from the target directory.
-Usage: $0 <executable> [[<options>]...]
+##
+# Select executable from the available ones using a dialog.
+#
+function SelectBinary {
+	local files
+	declare -A files
+	local dlg_options=("0" "<None>")
+	local idx=0
+	# 'None' as first entry.
+	files[0]=""
+	# Split the output into an array using the newline character as the delimiter
+	while IFS= read -r -d $'\n'; do
+		idx=$((idx + 1))
+		files[${idx}]="${REPLY}"
+		dlg_options+=("${idx}" "${REPLY}")
+	done < <(GetExecutablesFiles)
+	# Create a dialog returning a selection index.
+	idx="$(dialog --backtitle "Run Linux Binary" \
+		--menu "Select a Linux binary to run" \
+		22 60 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
+	# Echoing the binary filename as the return value.
+	echo "${files[${idx}]}"
+}
 
-Available exe-files:
-$(GetExecutablesFiles)
-	"
-	exit 1
+# When nothing is passed show help and wine version.
+if [[ -z "${1}" ]]; then
+	bin_file="$(SelectBinary)"
+else
+	# Selected binary file from command line.
+	bin_file="${1}"
+	shift 1
+fi
+
+# When no selection made exit.
+if [[ -z "${bin_file}" ]]; then
+	WriteLog "- No selection made."
+	exit 0
+else
+	WriteLog "- Selected binary: ${bin_file}"
 fi
 
 # Only when it could find the script.
@@ -47,18 +79,13 @@ else
 	dir_qt_lib=""
 fi
 
-# Get the command.
-executable="${1}"
-shift 1
-
-dir_bin_lnx="${EXECUTABLE_DIR}"
+dir_bin="${EXECUTABLE_DIR}"
 export LD_LIBRARY_PATH="${dir_qt_lib}:${LD_LIBRARY_PATH}"
 
-
 # When the path is relative add './' to it.
-if [[ "${executable:0:1}" != "/" ]]; then
-	executable="./${executable}"
+if [[ "${bin_file:0:1}" != "/" ]]; then
+	bin_file="./${bin_file}"
 fi
 
 # Execute it in the directory.
-cd "${dir_bin_lnx}" && "${executable}" "${@}"
+cd "${dir_bin}" && "${bin_file}" "${@}"

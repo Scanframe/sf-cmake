@@ -28,15 +28,15 @@ fi
 
 # Wine command to execute.
 wine_bin="wine"
-# Check if wine command exists.
+# Check if the command is available/installed.
 if ! command -v "${wine_bin}" >/dev/null; then
-	WriteLog "Wine is not installed!"
+	WriteLog "Missing command '${wine_bin}', so skipping it and exiting with zero."
+	# Deliberate return zero so tests do not fail when wine is not installed.
 	exit 0
 fi
 
 # Form the binary target directory for cross Windows builds.
 dir_bin_win="$(realpath "${EXECUTABLE_DIR}")"
-dir_bin_win="${EXECUTABLE_DIR}"
 # Location of MinGW DLLs.
 dir_mingw_dll="/usr/x86_64-w64-mingw32/lib"
 # Location of MinGW posix DLLs 2.
@@ -81,14 +81,6 @@ if [[ -z "${bin_file}" ]]; then
 	exit 0
 else
 	WriteLog "- Selected binary: ${bin_file}"
-fi
-
-
-# Check if the command is available/installed.
-if ! command -v "${wine_bin}" >/dev/null; then
-	WriteLog "Missing command '${wine_bin}', so skipping it and exiting with zero."
-	# Deliberate return zero so tests do not fail when wine is not installed.
-	exit 0
 fi
 
 # Check if all directories exist.
