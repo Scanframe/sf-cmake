@@ -89,6 +89,7 @@ Usage: $(basename "${0}") [command] <args...>
   stop      : Stops the container named '${container_name}' running in the background.
   kill      : Kills the container named '${container_name}' running in the background.
   versions  : Shows versions of most installed applications within the container.
+  sshd      : Starts sshd service on port 3022 to allow remote control.
 
 Set environment variable 'DOCKER_BUILD=1' for using 'docker' as offset in the build directory to prevent mixing host build directories.
 When a the container is detached it executes the 'build.sh' script by attaching to the container which is much faster.
@@ -121,6 +122,19 @@ else
 			options+=(--name "${container_name}")
 			options+=(--detach)
 			docker_run sleep infinity
+			docker_run sudo -- /usr/sbin/sshd -e -D -p 3022
+			;;
+
+		sshd)
+			# Check if the container is running.
+			if is_detached; then
+				echo "Container '${container_name}' is already running."
+				exit 1
+			fi
+			# Name of the container only useful for detached running.
+			options+=(--name "${container_name}")
+			options+=(--detach)
+			docker_run sudo -- /usr/sbin/sshd -e -D -p 3022
 			;;
 
 		attach)
