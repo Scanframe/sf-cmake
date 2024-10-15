@@ -97,7 +97,7 @@ function InstallPackages {
 		sudo apt-get update
 		sudo apt-get --yes upgrade
 		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev libxkbfile-dev libvulkan-dev \
-			libssl-dev exiftool default-jre-headless chrpath dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
+			libssl-dev exiftool default-jre-headless chrpath colordiff dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
@@ -139,6 +139,7 @@ function InstallPackages {
 			"pcre"
 			"jq"
 			"unzip"
+			"colordiff"
 		)
 		for pkg in "${cg_pkgs[@]}"; do
 			if ! apt-cyg install "${pkg}"; then
