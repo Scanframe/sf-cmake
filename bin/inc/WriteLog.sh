@@ -36,8 +36,8 @@ else
 		local FIRST_CH LAST_ARG LAST_CH COLOR
 		LAST_ARG="${*: -1}"
 		LAST_CH="${LAST_ARG:0-1}"
-		# Match a single non-whitespace character.
-		if [[ "$(printf "%b" "${LAST_ARG}")" =~ [^[:space:]] ]]; then
+		# Match a single non-whitespace character and suppress errors.
+		if [[ "$(printf "%b" "${LAST_ARG}" 2>/dev/null)" =~ [^[:space:]] ]]; then
 			FIRST_CH="${BASH_REMATCH[0]}"
 		else
 			FIRST_CH="${LAST_ARG:0:1}"

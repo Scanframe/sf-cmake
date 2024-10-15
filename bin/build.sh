@@ -7,7 +7,7 @@ set -o pipefail
 # Get the scripts run directory weather it is a symlink or not.
 run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # When a symlink determine the script directory.
-if [[ -L "${BASH_SOURCE[0]}" ]];then
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
 	include_dir="$(dirname "$(readlink "$0")")"
 # Check if the library directory exists when not called from a sym-link.
 elif [[ -d "${run_dir}/cmake/lib" ]]; then
@@ -77,14 +77,14 @@ sf_target_os="$(uname -o)"
 #
 function InstallPackages {
 	WriteLog "About to install required packages for ($1)..."
-	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
-	#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then
+	if [[ "$1" == "GNU/Linux" ]]; then
+		#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then
 		# Install packages needed for installing other packages.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
 		sudo apt --yes install wget curl gpg lsb-release software-properties-common
 		# Check if the package repository has been added.
-		if ! apt-add-repository --list | grep "llvm-toolchain">/dev/null; then
+		if ! apt-add-repository --list | grep "llvm-toolchain" >/dev/null; then
 			wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
 			sudo apt-add-repository --yes --no-update "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc) main"
 		fi
@@ -96,13 +96,13 @@ function InstallPackages {
 		# Update after repositories were added.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
-		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
-			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
+		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev libxkbfile-dev libvulkan-dev \
+			libssl-dev exiftool default-jre-headless chrpath dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
-	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install mingw-w64 make cmake doxygen graphviz winbind exiftool default-jre-headless ; then
+	elif [[ "$1" == "GNU/Linux/Cross" ]]; then
+		if ! sudo apt install mingw-w64 make cmake doxygen graphviz winbind exiftool default-jre-headless; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
@@ -113,7 +113,7 @@ function InstallPackages {
 				exit 1
 			fi
 		fi
-	elif [[ "$1" == "Cygwin/x86_64" ]]; then
+	elif [[ "$1" == "Cygwin" ]]; then
 		# List of WinGet packages to install.
 		declare -A wg_pkgs
 		wg_pkgs["CMake C++ build tool"]="Kitware.CMake"
@@ -138,6 +138,7 @@ function InstallPackages {
 			"graphviz"
 			"pcre"
 			"jq"
+			"unzip"
 		)
 		for pkg in "${cg_pkgs[@]}"; do
 			if ! apt-cyg install "${pkg}"; then
@@ -197,7 +198,7 @@ function SelectBuildPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection="$(dialog --backtitle "Build Selection" --menu "Select a preset to build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
+		selection="$(dialog --backtitle "Build Selection" --menu "Select a preset to configure or build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -372,44 +373,20 @@ function SelectWorkflowPreset {
 
 # Detect windows using the cygwin 'uname' command.
 if [[ "${sf_target_os}" == "Cygwin" ]]; then
+	tools_dir_file="${run_dir}/.tools-dir-$(uname -n)"
 	WriteLog "# Windows OS detected through Cygwin shell"
-	export sf_target_os="Cygwin"
-	flag_windows=true
-	# Set the directory the local QT root.
-	# shellcheck disable=SC2012
-	local_qt_root="$( (ls -d /cygdrive/?/Qt | head -n 1) 2>/dev/null)"
-	if [[ -d "$local_qt_root" ]]; then
-		WriteLog "# Found QT in '${local_qt_root}'"
+	# Check if the tools directory file exists.
+	if [[ -f "${tools_dir_file}" ]]; then
+		tools_dir="$(head -n 1 "${tools_dir_file}")"
+		if [[ -d "${tools_dir}" ]]; then
+			export PATH="${tools_dir}:${PATH}"
+			WriteLog "# Tools directory added to PATH: ${tools_dir}"
+		else
+			WriteLog "Tools directory '${tools_dir}' from file '${run_dir}/.tools-dir' does not exist!"
+		fi
 	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
-elif [[ "${sf_target_os}" == "Msys" ]]; then
-	WriteLog "# Windows OS detected through Msys shell"
-	export sf_target_os="Msys"
-	flag_windows=true
-	# Set the directory the local QT root.
-	# shellcheck disable=SC2012
-	local_qt_root="$( (ls -d /?/Qt | tail -n 1) 2>/dev/null)"
-	if [[ -d "$local_qt_root" ]]; then
-		WriteLog "# Found QT in '${local_qt_root}'"
-	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
 elif [[ "${sf_target_os}" == "GNU/Linux" ]]; then
 	WriteLog "# Linux detected"
-	export sf_target_os="GNU/Linux"
-	flag_windows=false
-	# Set the directory the local QT root.
-	local_qt_root="${HOME}/lib/Qt"
-	# Check if it exists.
-	if [[ -d "${local_qt_root}" ]]; then
-		WriteLog "# QT found in '${local_qt_root}'"
-	else
-		local_qt_root=""
-	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .sh)"
-	#chmod +x "${EXEC_SCRIPT}"
 else
 	WriteLog "Targeted OS '${sf_target_os}' not supported!"
 fi
@@ -418,19 +395,6 @@ fi
 if [[ $# == 0 ]]; then
 	ShowHelp
 	exit 0
-fi
-
-# When in windows determine which cmake to use and where to get it including ninja and the compiler.
-if ${flag_windows}; then
-	# shellcheck disable=SC2154
-	if ! command -v cmake >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin 2>/dev/null):${PATH}" || true
-	fi
-	if ! command -v ninja >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/ninja/win/x64 2>/dev/null):${PATH}" || true
-	fi
-	PATH="${local_qt_root}/Tools/mingw1120_64/bin:${PATH}"
-	export PATH
 fi
 
 # Initialize arguments and switches.
@@ -493,8 +457,8 @@ while true; do
 			;;
 
 		--required)
-			InstallPackages "${sf_target_os}/$(uname -m)/Cross"
-			InstallPackages "${sf_target_os}/$(uname -m)"
+			InstallPackages "${sf_target_os}/Cross"
+			InstallPackages "${sf_target_os}"
 			exit 0
 			;;
 
@@ -615,7 +579,7 @@ if [[ "${CI}" != "true" ]]; then
 	commands+=("dialog" "pcregrep")
 fi
 for cmd in "${commands[@]}"; do
-	if ! command -v "${cmd}" >/dev/null ; then
+	if ! command -v "${cmd}" >/dev/null; then
 		WriteLog "Missing command '${cmd}' for this script!"
 		WriteLog "Run option with '--required' to install tool dependencies."
 		exit 1
@@ -742,6 +706,7 @@ if ${flag_build} || ${flag_config}; then
 			# When the binary directory does not exists or configure is required.
 			if [[ ! -d "${binary_dir}" ]] || ${flag_config} && ! ${flag_build_only}; then
 				cmake_config+=("--preset ${cfg_preset}")
+				#cmake_config+=("--trace")
 				if ${flag_debug}; then
 					WriteLog "$(JoinBy ' ' "${cmake_config[@]}")"
 				else

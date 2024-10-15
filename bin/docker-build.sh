@@ -81,7 +81,7 @@ if [[ $# -eq 0 ]]; then
 
 Usage: $(basename "${0}") [command] <args...>
   pull      : Pulls the docker image '${img_name}' from the Docker registry.
-  run       : Runs a command as user 'user' in the container using Docker command
+  run       : Runs a command as user 'user' in the container using Docker command.
               'run' or 'exec' depending on a running container in the background.
   start     : Starts/Detaches a container named '${container_name}' in the background.
   attach    : Attaches to the  in the background running container named '${container_name}'.

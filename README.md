@@ -8,6 +8,7 @@
     * [Repository as Sub-Module](#repository-as-sub-module)
   * [Project Directory Structure](#project-directory-structure)
   * [Main Project Head Start](#main-project-head-start)
+  * [Qt Library Download](#qt-library-download)
   * [Doxygen Document](#doxygen-document)
   * [Git Versioning](#git-versioning)
     * [Tagging](#tagging)
@@ -36,7 +37,7 @@ Contains `.cmake` files for:
 ### Fetching the Repository in CMake itself
 
 Bellow an excerpt of a `CMakeLists.txt` to use the repository as CMake-package.
-Disadvantage is that the shell scripts are not accessible before CMake make has been run and a chicken and egg problem occurs.
+Disadvantage is that the shell scripts are not accessible before CMake make has been run and a chicken-and-egg problem occurs.
 
 ```cmake
 # Required to use the 'FetchContent_XXXX' functions. 
@@ -55,9 +56,16 @@ list(APPEND CMAKE_PREFIX_PATH "${sf_cmakelibrary_SOURCE_DIR}")
 
 The preferred way is to create a Git submodule `lib` in the `<project-root>/cmake`
 
+From private GitLab use:
+
 ```bash
-  git submodule add -b main -- https://github.com/Scanframe/sf-cmake.git lib
-  git submodule add -b main -- https://git.scanframe.com/library/cmake-lib.git lib
+  git submodule add -b main -- https://github.com/Scanframe/sf-cmake.git cmake/lib
+```  
+
+From GitHub use:
+
+```bash
+  git submodule add -b main -- https://git.scanframe.com/library/cmake-lib.git cmake/lib
 ```
 
 ## Project Directory Structure
@@ -66,29 +74,52 @@ A project directory tree could look like this.
 
 ```
 <project-root>
-    ├── src
-    │   └── tests
+    ├── .gitlab
     ├── bin
     │   ├── gcov
     │   ├── lnx64
+    │   │   └── lib
     │   ├── pkg
     │   ├── man
     │   └── win64
+    │       └── lib
     ├── cmake
+    │   ├── cpack
     │   └── lib
-    └── doc
+    ├── cmake-build
+    │   ├── gnu-debug (Linux GNU)
+    │   ├── gw-debug (Linux MinGW)
+    │   └── mingw-debug (Windows MinGW)
+    ├── doc
+    ├── lib
+    │   ├── Qt
+    │   ├── QtWin
+    │   └── QtW64
+    └── src
+        └── tests
 ```
 
-| Path      | Description                            |
-|-----------|----------------------------------------|
-| src       | Application source files.              |
-| src/test  | Test application source files.         |
-| bin       | Root for compiled results from builds. |
-| bin/gcov  | Coverage report files from unittests.  |
-| bin/lnx64 | Binaries from Linux 64-bit builds.     |
-| bin/pkg   | Packages from all builds.              |
-| bin/man   | Generated documentation builds.        |
-| doc       | DoxgGen document project source.       |
+| Path          | Description                                            |
+|---------------|--------------------------------------------------------|
+| .gitlab       | GitLab CI/CD pipeline scripts.                         | 
+| bin           | Root for compiled results from builds.                 |
+| bin/gcov      | Coverage report files from unittests.                  |
+| bin/lnx64     | Binaries from Linux 64-bit builds.                     |
+| bin/lnx64/lib | Dynamic libraries from Linux 64-bit builds.            |
+| bin/win64     | Binaries from Windows 64-bit builds.                   |
+| bin/win64/lib | Dynamic libraries from Windows 64-bit builds.          |
+| bin/pkg       | Packages from all builds.                              |
+| bin/man       | Doxygen generated documentation builds.                |
+| cmake/cpack   | CPack files for packing the application and libraries. |
+| cmake/lib     | Obligatory Location of the 'cmake-lib' submodule.      |
+| cmake-build   | CMake binary root directory.                           |
+| doc           | Doxygen document project source.                       |
+| lib           | Downloaded or symlinks to libraries.                   |
+| lib/Qt        | Linux Qt library directory.                            |
+| lib/QtWin     | Cross Windows Qt library directory.                    |
+| lib/QtW64     | Native Windows Qt library directory.                   |
+| src           | Application source files.                              |
+| src/test      | Test application source files.                         |
 
 The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
 output directory for subprojects. Reason for building only subprojects instead of all is to speed
@@ -99,6 +130,19 @@ When directories are empty but needed then add a file called `__placeholder__` s
 
 To get a head start look into the **[tpl/root](./tpl/root)** directory for files that will
 give a head start getting a project going.
+
+## Qt Library Download
+
+Instead of installing Qt with the "Qt Maintenance Tool" this CMake command will download the library
+in `lib/Qt`, `lib/QtWin` or `lib/QtW64` depending on the host and target OS.
+
+The tools for building on a Windows OS can also be installed using the symlink `./tools` in the project 
+root created from  `cmake/lib/bin/tools.sh`. A file `.tools-dir-<hostname>` is created where the tools 
+are installed and used by the `./build.sh` to add it to the `PATH` when executing CMake commands.
+
+```cmake
+find_package(SfQtLibrary 6.7.2 CONFIG REQUIRED)
+```
 
 ## Doxygen Document
 
@@ -234,7 +278,6 @@ The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfB
 | Sf_AddTargetForCoverage  | Sets compiler and linker options for the target depending on the target type.                        |
 | Sf_AddAsCoverageTest     | Adds a test to the list which is used as a dependency for the test generating the report.            |
 | Sf_AddTestCoverageReport | Adds the test generating the report calling the script [coverage-report.sh](bin/coverage-report.sh). |
-
 
 ## Code Format Checking and Fixing with Clang
 

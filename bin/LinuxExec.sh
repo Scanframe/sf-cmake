@@ -68,24 +68,27 @@ else
 	WriteLog "- Selected binary: ${bin_file}"
 fi
 
-# Only when it could find the script.
-if [[ -f "${script_dir}/QtLibDir.sh" ]]; then
-	# Get the Qt installed directory.
-	qt_ver_dir="$(bash "${script_dir}/QtLibDir.sh" "$(realpath "${HOME}/lib/Qt")")"
-	# Location of Qt DLLs.
-	dir_qt_lib="$(realpath "${qt_ver_dir}/gcc_64/lib")"
-else
-	WriteLog "File not found: ${script_dir}/QtLibDir.sh"
-	dir_qt_lib=""
-fi
+# Get the Qt installed directory.
+qt_ver_dir="$("${script_dir}/QtLibDir.sh" "Linux")"
+# Location of Qt DLLs.
+dir_qt_lib="$(realpath "${qt_ver_dir}/gcc_64/lib")"
 
 dir_bin="${EXECUTABLE_DIR}"
-export LD_LIBRARY_PATH="${dir_qt_lib}:${LD_LIBRARY_PATH}"
+
+if [[ -n "${LD_LIBRARY_PATH}" ]]; then
+	export LD_LIBRARY_PATH="${dir_qt_lib}:${LD_LIBRARY_PATH}"
+else
+	export LD_LIBRARY_PATH="${dir_qt_lib}"
+fi
+
+# Report some useful information about dynamic library files.
+WriteLog "- LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+WriteLog "- RPATH: $(chrpath --list "${dir_bin}/${bin_file}")"
 
 # When the path is relative add './' to it.
 if [[ "${bin_file:0:1}" != "/" ]]; then
 	bin_file="./${bin_file}"
 fi
 
-# Execute it in the directory.
+# Execute it in its own directory.
 cd "${dir_bin}" && "${bin_file}" "${@}"

@@ -20,7 +20,7 @@ cmd_pf="echo"
 # Prints the help to stderr.
 #
 function ShowHelp {
-	echo "Usage: ${0} [options...] [<qt-dir>]
+	echo "Usage: ${0} [options...]
 
   Fixes Windows Qt toolkit library to operate under besides the Linux Qt library/toolkit.
   The script expects Linux and Windows libraries to be installed/downloaded in respectively
@@ -89,7 +89,7 @@ done
 [[ -z "${cmd_pf}" ]] && WriteLog "# Running for real..." || WriteLog "# Running dry..."
 
 # Get the Qt installed directory.
-qt_ver_dir="$(bash "${script_dir}/QtLibDir.sh" "${argument[0]}")"
+qt_ver_dir="$(bash "${script_dir}/QtLibDir.sh" "Linux")"
 # When found
 qt_win_dir="${qt_ver_dir}/../../QtWin"
 if [[ -d "${qt_win_dir}" ]]; then

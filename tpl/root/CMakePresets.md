@@ -109,10 +109,12 @@ The following are some of the valid targets for this Makefile:
 ... rebuild_cache
 ... exif
 ... exif-hello-world
+... exif-hello-world-qt
 ... manual
 ... Catch2
 ... Catch2WithMain
 ... hello-world
+... hello-world-qt
 ... hello-world-test
 ```
 

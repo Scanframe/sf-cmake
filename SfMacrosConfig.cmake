@@ -129,47 +129,6 @@ function(Sf_GetSubDirectories VarOut Directory MatchStr)
 endfunction()
 
 ##!
-# Gets the Qt directory located a defined position for Linux and Windows.
-#
-function(Sf_GetQtVersionDirectory _VarOut)
-	# Check if the environment variable has been set for the directory.
-	if (NOT "$ENV{QT_VER_DIR}" STREQUAL "")
-		if (NOT EXISTS "$ENV{QT_VER_DIR}")
-			message(FATAL_ERROR "Environment QT_VER_DIR set to non existing directory: $ENV{QT_VER_DIR} !")
-		endif ()
-		set(${_VarOut} "$ENV{QT_VER_DIR}" PARENT_SCOPE)
-	else()
-		set(_QtDir "")
-		if (NOT "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "${CMAKE_SYSTEM_NAME}" AND "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux")
-			set(_QtDir "$ENV{HOME}/lib/QtWin")
-		elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-			set(_QtDir "$ENV{HOME}/lib/Qt")
-		elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
-			set(_QtDir "")
-			# Iterate through all the most logical drives. (Drive P is preferred so put in front.)
-			set(_Drives P C D E F G H I J K L M N O P Q R S T U V W X Y Z)
-			foreach (_Drive ${_Drives})
-				if (EXISTS "${_Drive}:/Qt/")
-					set(_QtDir "${_Drive}:/Qt")
-					message(STATUS "Qt root library found in '${_QtDir}'!")
-					break()
-				endif ()
-			endforeach ()
-		endif ()
-		Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
-		list(LENGTH _SubDirs _Len)
-		if (NOT ${_Len})
-			message(STATUS "Qt versioned library not found in '${_QtDir}'!")
-			set(${_VarOut} "" PARENT_SCOPE)
-			return()
-		endif ()
-		list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
-		list(GET _SubDirs 0 _QtVerDir)
-		set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
-	endif ()
-endfunction()
-
-##!
 # Works around the cmake bug with sources and binary directory on a shared drive.
 #
 function(Sf_WorkAroundSmbShare)
@@ -209,4 +168,162 @@ function(Sf_GetTargetSource _Targets _OutVar)
 	list(REMOVE_DUPLICATES _ActiveSources)
 	# Assign the passed variable.
 	set("${_OutVar}" "${_ActiveSources}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Downloads a QT-library zip files and unzips it the directory specified by variable 'SF_COMMON_LIB_DIR'.
+# @param _Version Version to download Qt version.
+#
+function(Sf_QtLibraryDownload _Version)
+	if (NOT "$ENV{QT_VER_DIR}" STREQUAL "")
+		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Skipping since environment variable 'QT_VER_DIR' is set!")
+		return()
+	endif ()
+	# Fixed URL for now.
+	set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library")
+	# When the host is Linux and the targeted system is Linux use the linux Qt library.
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+		set(_Url "${SF_NEXUS_SHARED_LIBS}/qt-lnx-${_Version}.zip")
+		set(_ZipFile "/tmp/qt-lnx-${_Version}.zip")
+		set(_QtSubDir "Qt")
+		# When the host is Linux and the targeted system is Windows use the cross compiler enabled QtWin library.
+	elseif ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+		set(_Url "${SF_NEXUS_SHARED_LIBS}/qt-win-${_Version}.zip")
+		set(_ZipFile "/tmp/qt-win-${_Version}.zip")
+		set(_QtSubDir "QtWin")
+		# When the host is Windows and the targeted system is Windows use the Windows native compiler QtW64 library.
+	elseif ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+		set(_Url "${SF_NEXUS_SHARED_LIBS}/qt-w64-${_Version}.zip")
+		string(REPLACE "\\" "/" _Temp "$ENV{TEMP}")
+		set(_ZipFile "${_Temp}/qt-w64-${_Version}.zip")
+		set(_QtSubDir "QtW64")
+		# Try finding the bash.exe from cygwin.
+		find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
+		if (_BashExe STREQUAL "_BashExe-NOTFOUND")
+			message(SEND_ERROR "Bash program not found!")
+		endif ()
+	else ()
+		message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}(): Combination of host OS '${CMAKE_HOST_SYSTEM_NAME}' and target OS '${CMAKE_SYSTEM_NAME}' is not possible!")
+	endif ()
+	# When SF_COMMON_LIB_DIR is not provided bailout.
+	if (NOT SF_COMMON_LIB_DIR)
+		message(FATAL_ERROR "Cache variable SF_COMMON_LIB_DIR has not been set!")
+	endif ()
+	# Form the Qt version directory.
+	set(_QtVerDir "${SF_COMMON_LIB_DIR}/${_QtSubDir}/${_Version}")
+	# Check if the required library exists and unpack it.
+	if (EXISTS "${_QtVerDir}")
+		message(VERBOSE "Found Qt Library at: ${_QtVerDir}")
+	else ()
+		if (EXISTS "${_ZipFile}")
+			message(VERBOSE "Downloaded file exists: ${_ZipFile}")
+		else ()
+			message(VERBOSE "Downloading: ${_ZipFile} from ${_Url}")
+			# Download the ZIP file using the wget command.
+			execute_process(
+				COMMAND wget -qcO "${_ZipFile}" "${_Url}"
+				RESULT_VARIABLE _ExitCode
+				ECHO_OUTPUT_VARIABLE
+				ECHO_ERROR_VARIABLE
+			)
+		endif ()
+		# Check the exit code.
+		if (_ExitCode GREATER 0 OR NOT EXISTS "${_ZipFile}")
+			message(SEND_ERROR "Download failed (${_ExitCode})!")
+			return()
+		endif ()
+		# Extract the ZIP file using unzip
+		message(VERBOSE "Unzipping to: ${SF_COMMON_LIB_DIR}/${_QtSubDir}")
+		if (FALSE)
+			execute_process(
+				COMMAND mkdir -p "${_QtVerDir}"
+				RESULT_VARIABLE _ExitCode
+				ECHO_OUTPUT_VARIABLE
+				ECHO_ERROR_VARIABLE
+			)
+		else ()
+			execute_process(
+				COMMAND unzip -qd "${SF_COMMON_LIB_DIR}/${_QtSubDir}" "${_ZipFile}"
+				RESULT_VARIABLE _ExitCode
+				ECHO_OUTPUT_VARIABLE
+				ECHO_ERROR_VARIABLE
+			)
+		endif ()
+		# Check the exit code.
+		if (NOT _ExitCode EQUAL 0)
+			message(SEND_ERROR "Unzipping failed (${_ExitCode})!")
+			return()
+		endif ()
+		# Check if the directory exists after unpacking.
+		if (NOT EXISTS "${_QtVerDir}")
+			message(SEND_ERROR "Unzipped directory not exists: ${_QtVerDir} !")
+			return()
+		endif ()
+		# Clean up the downloaded file.
+		execute_process(COMMAND rm -rf "${_ZipFile}")
+	endif ()
+	# Set the environment variable which is used in Sf_GetQtVersionDirectory() to set the fixed Qt version directory.
+	set(ENV{QT_VER_DIR} "${_QtVerDir}")
+endfunction()
+
+##!
+# Finds the Qt directory located a defined position for Linux and Windows.
+# @param _VarOut Out: Found Qt version of the directory.
+#
+function(Sf_FindQtVersionDirectory _VarOut)
+	set(_QtDir "")
+	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		set(_Locations "${SF_COMMON_LIB_DIR}/Qt" _QtDir "$ENV{HOME}/lib/Qt")
+	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		set(_Locations "${SF_COMMON_LIB_DIR}/QtWin" _QtDir "$ENV{HOME}/lib/QtWin")
+	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		set(_QtDir "")
+		# Iterate through all the specified locations.
+		set(_Locations
+			"${SF_COMMON_LIB_DIR}/QtW64"
+			"C:/Qt" "D:/Qt" "E:/Qt" "F:/Qt" "G:/Qt" "H:/Qt" "I:/Qt" "J:/Qt" "K:/Qt" "L:/Qt" "M:/Qt" "N:/Qt"
+			"O:/Qt" "P:/Qt" "Q:/Qt" "R:/Qt" "S:/Qt" "T:/Qt" "U:/Qt" "V:/Qt" "W:/Qt" "X:/Qt" "Y:/Qt" "Z:/Qt"
+		)
+	endif ()
+	# Iterate through the location and use the first one that matches.
+	foreach (_Location ${_Locations})
+		if (EXISTS "${_Location}")
+			set(_QtDir "${_Location}")
+			message(STATUS "Qt root library found in '${_QtDir}'!")
+			break()
+		endif ()
+	endforeach ()
+	if (_QtDir STREQUAL "")
+		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt library not found!")
+	endif ()
+	Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+	list(LENGTH _SubDirs _Len)
+	if (NOT ${_Len})
+		message(STATUS "${CMAKE_CURRENT_FUNCTION}():Qt versioned library not found in '${_QtDir}'!")
+		set(${_VarOut} "" PARENT_SCOPE)
+		return()
+	endif ()
+	list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
+	list(GET _SubDirs 0 _QtVerDir)
+	set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Gets the Qt directory located a defined position for Linux and Windows.
+# @param _VarOut Out: Found Qt version of the directory.
+#
+function(Sf_GetQtVersionDirectory _VarOut)
+	# Check if the environment variable has been set for a fixed Qt directory.
+	if ("$ENV{QT_VER_DIR}" STREQUAL "")
+		# Try finding a Qt directory in some possible locations.
+		Sf_FindQtVersionDirectory(_QtVerDir)
+		set(${_VarOut} "${_QtVerDir}" PARENT_SCOPE)
+	else ()
+		if (EXISTS "$ENV{QT_VER_DIR}")
+			set(${_VarOut} "$ENV{QT_VER_DIR}" PARENT_SCOPE)
+		else ()
+			set(${_VarOut} "" PARENT_SCOPE)
+			message(SEND_ERROR "Environment QT_VER_DIR set to non existing directory: $ENV{QT_VER_DIR} !")
+		endif ()
+	endif ()
 endfunction()

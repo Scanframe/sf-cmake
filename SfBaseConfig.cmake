@@ -1,6 +1,6 @@
 ##!
 # Declare some cmake flags for decisions on building targets.
-#
+set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
 set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
 set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
 set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")
@@ -549,4 +549,39 @@ function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
 		# Ensure this test is run after the ones adding coverage information.
 		set_property(TEST "${_Test}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
 	endif ()
+endfunction()
+
+
+function(Sf_ToolsNotice)
+	string(REPLACE ";" "\n" _Path "$ENV{PATH}")
+	message(NOTICE "
+==================================================
+ENV{PATH}=
+${_Path}
+--------------------------------------------------
+CMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+CMAKE_C_COMPILER_AR=${CMAKE_C_COMPILER_AR}
+CMAKE_C_COMPILER_RANLIB=${CMAKE_C_COMPILER_RANLIB}
+CMAKE_RC_COMPILER=${CMAKE_RC_COMPILER}
+CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+CMAKE_CXX_COMPILER_AR=${CMAKE_CXX_COMPILER_AR}
+CMAKE_CXX_COMPILER_RANLIB=${CMAKE_CXX_COMPILER_RANLIB}
+CMAKE_RANLIB=${CMAKE_RANLIB}
+CMAKE_AR=${CMAKE_AR}
+CMAKE_NM=${CMAKE_NM}
+CMAKE_ADDR2LINE=${CMAKE_ADDR2LINE}
+CMAKE_DLLTOOL=${CMAKE_DLLTOOL}
+CMAKE_OBJCOPY=${CMAKE_OBJCOPY}
+CMAKE_OBJDUMP=${CMAKE_OBJDUMP}
+CMAKE_LINKER=${CMAKE_LINKER}
+CMAKE_READELF=${CMAKE_READELF}
+CMAKE_STRIP=${CMAKE_STRIP}
+CMAKE_SYSROOT=${CMAKE_SYSROOT}
+--------------------------------------------------
+CMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}
+CMAKE_FIND_ROOT_PATH_MODE_INCLUDE=${CMAKE_FIND_ROOT_PATH_MODE_INCLUDE}
+CMAKE_FIND_ROOT_PATH_MODE_LIBRARY=${CMAKE_FIND_ROOT_PATH_MODE_LIBRARY}
+CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=${CMAKE_FIND_ROOT_PATH_MODE_PROGRAM}
+==================================================
+")
 endfunction()

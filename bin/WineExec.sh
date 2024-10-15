@@ -7,7 +7,7 @@ set -e
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # Include WriteLog function.
-source "${script_dir}/inc/WriteLog.sh"
+source "${script_dir}/inc/Miscellaneous.sh"
 
 # Check if the executable directory has been set.
 if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
@@ -15,16 +15,10 @@ if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
 	exit 1
 fi
 
-# Only when it could find the script.
-if [[ -f "${script_dir}/QtLibDir.sh" ]]; then
-	# Get the Qt installed directory.
-	qt_ver_dir="$(bash "${script_dir}/QtLibDir.sh" "$(realpath "${HOME}/lib/QtWin")")"
-	# Location of Qt DLLs.
-	dir_qt_dll="$(realpath "${qt_ver_dir}/mingw_64/bin")"
-else
-	WriteLog "File not found: ${script_dir}/QtLibDir.sh"
-	dir_qt_dll=""
-fi
+# Get the Qt installed directory.
+qt_ver_dir="$("${script_dir}/QtLibDir.sh" "Windows")"
+# Location of Qt DLLs.
+dir_qt_dll="$(realpath "${qt_ver_dir}/mingw_64/bin")"
 
 # Wine command to execute.
 wine_bin="wine"
@@ -90,9 +84,8 @@ for dir_name in "${dir_bin_win}" "${dir_mingw_dll}" "${dir_mingw_dll2}" "${dir_q
 		exit 1
 	fi
 done
-
-# Path to executable and its DLL's in the lib subdirectory.
-wdir_exe_dll="$(winepath -w "${dir_bin_win}/lib")"
+# Path to executable and its DLL's in the lib subdirectory and suppress any error messages.
+wdir_exe_dll="$(winepath -w "${dir_bin_win}/lib" 2>/dev/null)"
 # Path to mingw runtime DLL's
 wdir_mingw_dll="$(winepath -w "${dir_mingw_dll}")"
 # Path to mingw runtime DLL's second path.
@@ -104,6 +97,11 @@ wdir_qt_dll="$(winepath -w "${dir_qt_dll}")"
 export WINEPATH="${wdir_mingw_dll};${wdir_mingw_dll2};${WINEPATH};${wdir_exe_dll};${wdir_qt_dll}"
 # Suppress warnings.
 export WINEDEBUG="fixme-all"
+# Architecture is 64-bit.
+export WINEARCH=win64
+
+# Report some useful information.
+WriteLog "- WINEPATH: ${WINEPATH}"
 
 ## Execute it in its own shell to contain the temp dir change.
 ## Redirect wine stderr to be ignored.
