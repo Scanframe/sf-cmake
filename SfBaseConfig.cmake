@@ -1,6 +1,7 @@
 ##!
 # Declare some cmake flags for decisions on building targets.
 set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
+set(SF_NEXUS_SHARED_LIBS CACHE INTERNAL "https://nexus.scanframe.com/repository/shared/library")
 set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
 set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
 set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")

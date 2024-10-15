@@ -29,17 +29,25 @@ else
 	qt_subdir="Qt"
 fi
 
-##
-## Try finding the Qt library of the project first using the file 'build.sh' location.
-##
-# Move 1 directory up since the 'build.sh' is also in this directory.
-pushd "${script_dir}/.." >/dev/null
-# Look for file 'build.sh' up the directory path from the scripts directory.
-if filepath="$(FindUp --type f build.sh)"; then
-	# Form the expected directory for the Qt library.
-	local_qt_root="$(dirname "${filepath}")/lib/${qt_subdir}"
+# When in Docker do not locate the
+if [[ -f /.dockerenv ]]; then
+	##
+	## In Docker use the home directory.
+	##
+	local_qt_root="${HOME}/lib/${qt_subdir}"
+else
+	##
+	## Try finding the Qt library of the project first using the file 'build.sh' location.
+	##
+	# Move 1 directory up since the 'build.sh' is also in this directory.
+	pushd "${script_dir}/.." >/dev/null
+	# Look for file 'build.sh' up the directory path from the scripts directory.
+	if filepath="$(FindUp --type f build.sh)"; then
+		# Form the expected directory for the Qt library.
+		local_qt_root="$(dirname "${filepath}")/lib/${qt_subdir}"
+	fi
+	popd >/dev/null
 fi
-popd >/dev/null
 
 # Check is the Qt install can be found.
 if [[ ! -d "${local_qt_root}" ]] ; then

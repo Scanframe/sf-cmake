@@ -64,15 +64,19 @@ if [[ -n "${DOCKER_BUILD}" ]]; then
 fi
 options+=(--workdir "/mnt/project/${project_subdir}/")
 
-# Function which runs the docker build.sh script in the container.
-function docker_run {
-	docker run "${options[@]}" "${img_name}" "${@}"
-}
-
 # Check if running detached.
 function is_detached {
 	cntr_id="$(docker ps --filter name="${container_name}" --quiet)"
 	[[ -n "${cntr_id}" ]] || return 1 && return 0
+}
+
+# Function which runs the docker build.sh script in the container.
+function docker_run {
+	if is_detached; then
+		docker exec --interactive --tty "${container_name}" sudo --login --user=user -- "${@}"
+	else
+		docker run "${options[@]}" "${img_name}" "${@}"
+	fi
 }
 
 if [[ $# -eq 0 ]]; then
@@ -122,7 +126,6 @@ else
 			options+=(--name "${container_name}")
 			options+=(--detach)
 			docker_run sleep infinity
-			docker_run sudo -- /usr/sbin/sshd -e -D -p 3022
 			;;
 
 		sshd)

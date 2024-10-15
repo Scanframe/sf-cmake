@@ -8,7 +8,7 @@ set -o pipefail
 run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # When a symlink determine the script directory.
 if [[ -L "${BASH_SOURCE[0]}" ]]; then
-	include_dir="$(dirname "$(readlink "$0")")"
+	include_dir="${run_dir}/$(dirname "$(readlink "$0")")"
 # Check if the library directory exists when not called from a sym-link.
 elif [[ -d "${run_dir}/cmake/lib" ]]; then
 	include_dir="${run_dir}/cmake/lib/bin"
@@ -592,6 +592,14 @@ while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
 	argument+=("$1")
 	shift
 done
+
+# When in a docker container the Qt version directories are fixed in the user home '~/lib' directory.
+if [ -f /.dockerenv ]; then
+	# shellcheck disable=SC2155
+	export QT_WIN_VER_DIR="$("${include_dir}/QtLibDir.sh" "Windows")"
+	# shellcheck disable=SC2155
+	export QT_LNX_VER_DIR="$("${include_dir}/QtLibDir.sh" "Linux")"
+fi
 
 # Form the presets file location.
 file_presets=("${run_dir}/CMakePresets.json")
