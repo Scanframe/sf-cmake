@@ -520,27 +520,29 @@ endfunction()
 ##!
 # Adds coverage target to the project when the build type is Coverage.
 # _TestName      : The target name for the report.
-# _SourceDirList : List of relative directories to be included in the coverage report
 #                  relative to the 'PROJECT_SOURCE_DIR'.
 # _OutDir        : Output directory for the coverage report.
+# _Options       : See script 'bin/coverage-report.sh' for options other then already by default used.
+# _SourceDirList : List of relative directories to be included in the coverage report
 #
-function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
+function(Sf_AddTestCoverageReport _TestName _OutDir _Options _SourceDirList)
 	# Get the actual output directory.
 	get_filename_component(_OutDir "${_OutDir}" REALPATH)
 	# Check if the resulting directory exists.
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
 	endif ()
+	# Make a list from
+	string(REPLACE " " ";" _Options "${_Options}")
 	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
 		# Add a test to generate the report.
-		add_test(NAME "${_Test}"
+		add_test(NAME "${_TestName}"
 			COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
-			# Cleanup arc transition counting files after the report is generated.
-			--cleanup
 			# Set the coverage command of the tool chain.
 			--gcov "${COVERAGE_COMMAND}"
 			--source "${CMAKE_CURRENT_BINARY_DIR}"
 			--target "${_OutDir}"
+			${_Options}
 			# Show some information while executing te script.
 			#--verbose
 			${_SourceDirList}
@@ -548,7 +550,7 @@ function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
 			COMMAND_EXPAND_LISTS
 		)
 		# Ensure this test is run after the ones adding coverage information.
-		set_property(TEST "${_Test}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
+		set_property(TEST "${_TestName}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
 	endif ()
 endfunction()
 
