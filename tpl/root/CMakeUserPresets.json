@@ -4,8 +4,8 @@
 		{
 			"name": "gw-user",
 			"hidden": false,
-			"displayName": "GW Dbg Compiler",
-			"description": "GW Debug config for cross Windows GW compiler on Linux.",
+			"displayName": "User GW",
+			"description": "Debug config for Windows GW compiler on Linux.",
 			"inherits": [
 				".lnx-only",
 				".cfg-win"
@@ -18,11 +18,11 @@
 		{
 			"name": "gnu-user",
 			"hidden": false,
-			"displayName": "GNU Dbg Compiler",
-			"description": "GNU Debug config for Linux.",
+			"displayName": "User GNU",
+			"description": "Debug config for Linux GNU compiler.",
 			"inherits": [
 				".lnx-only",
-				".cfg-lnx"
+				".cfg"
 			],
 			"binaryDir": "${sourceDir}/cmake-build/gnu-user"
 		}
@@ -35,8 +35,8 @@
 				".lnx-only",
 				".build"
 			],
-			"displayName": "GW User Dbg",
-			"description": "GW User debug build preset.",
+			"displayName": "User GW",
+			"description": "User debug build preset GW compiler.",
 			"configurePreset": "gw-user",
 			"targets": [
 				"t_devops-shared-test"
@@ -49,8 +49,8 @@
 				".lnx-only",
 				".build"
 			],
-			"displayName": "GNU User Dbg",
-			"description": "GNU User debug build preset.",
+			"displayName": "User GNU",
+			"description": "User debug build preset GNU compiler.",
 			"configurePreset": "gnu-user",
 			"targets": [
 				"t_devops-shared-test"
@@ -61,8 +61,8 @@
 		{
 			"name": "gw-user",
 			"hidden": false,
-			"displayName": "GW User Dbg",
-			"description": "GW user test debug Windows cross compiler on Linux.",
+			"displayName": "User GW",
+			"description": "User test debug Windows GW compiler on Linux.",
 			"inherits": [
 				".lnx-only",
 				".test"
@@ -72,8 +72,8 @@
 		{
 			"name": "gnu-user",
 			"hidden": false,
-			"displayName": "GNU User Dbg",
-			"description": "GNU user test debug Linux.",
+			"displayName": "User GNU",
+			"description": "User test debug Linux.",
 			"inherits": [
 				".lnx-only",
 				".test"
@@ -86,8 +86,8 @@
 	"workflowPresets": [
 		{
 			"name": "gw-user",
-			"displayName": "GW User Build & Test",
-			"description": "GW User build & test only.",
+			"displayName": "User GW",
+			"description": "User build & test only.",
 			"steps": [
 				{
 					"type": "configure",
@@ -108,8 +108,8 @@
 		},
 		{
 			"name": "gnu-user",
-			"displayName": "GNU User Build & Test",
-			"description": "GNU User build & test only.",
+			"displayName": "User GNU",
+			"description": "User build & test only.",
 			"steps": [
 				{
 					"type": "configure",

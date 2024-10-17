@@ -291,7 +291,7 @@ if [[ "${#argument[@]}" -ne 0 ]]; then
 		done
 		# When file is marked for removal.
 		if ${rm_file}; then
-			echo rm "${source_dir}/${REPLY}"
+			rm "${source_dir}/${REPLY}"
 		fi
 	done < <(find "${source_dir}" -type f -name "*.gc??" -printf "%P\n")
 fi

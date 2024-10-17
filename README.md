@@ -6,7 +6,9 @@
   * [Usage](#usage)
     * [Fetching the Repository in CMake itself](#fetching-the-repository-in-cmake-itself)
     * [Repository as Sub-Module](#repository-as-sub-module)
-  * [Project Directory Structure](#project-directory-structure)
+  * [Project Directory Structure & Setup](#project-directory-structure--setup)
+    * [Structure](#structure)
+    * [Setup](#setup)
   * [Main Project Head Start](#main-project-head-start)
   * [Qt Library Download](#qt-library-download)
   * [Doxygen Document](#doxygen-document)
@@ -23,14 +25,21 @@
 
 # Introduction
 
-Contains `.cmake` files for:
+This repository makes using CMake in C++ projects easier and features: 
 
-* Finding the Qt library files location for Windows 'C:\Qt' and for Linux `~/lib/Qt'.
-* Adding version and description to Windows DLL's EXE's and only version to Linux SO-files.
-* Generating/compiling Doxygen documentation from the source with PlantUML.
-* Find the newest installed GCC compiler when more are installed and a cross Windows compiler when requested.
-* Shell script to make, build and test the project and subprojects also easy to use in CI-pipelines.
-* Building a debian package file from the project. (is under development)
+* Allows building from Linux for Linux & Windows and from Windows only for Windows itself.
+  Building from Windows requires Cygwin to be installed.
+* Shell script to make, build, test and package using CMake also use by CI-pipelines.
+* Locating the installed Qt library or downloading them.
+* Downloading build tools for Windows when needed.
+* Adding version and description to Windows DLL's EXE's as resource from the project (Linux: SO-files are versioned only).
+* Generating/compiling Doxygen documentation from the source with PlantUML plugin installed (downloaded by version).
+* Find the newest installed GCC compiler when more are installed and a cross Windows compiler when used.
+* Creating installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
+* Uploading to a Nexus APT repository of Debian packages or raw upload for Windows packages.
+* Upload of generated HTML coverage reports of which a message containing a link is written to the GitLab merge request.
+* Version bump script to determine the next version based on which (merge-)commit is released when using conventional commit messages.
+* Script to build using Docker container using a special image containing all tools needed.  
 
 ## Usage
 
@@ -68,7 +77,9 @@ From GitHub use:
   git submodule add -b main -- https://git.scanframe.com/library/cmake-lib.git cmake/lib
 ```
 
-## Project Directory Structure
+## Project Directory Structure & Setup
+
+### Structure
 
 A project directory tree could look like this.
 
@@ -85,7 +96,7 @@ A project directory tree could look like this.
     │       └── lib
     ├── cmake
     │   ├── cpack
-    │   └── lib
+    │   └── lib (Repository location)
     ├── cmake-build
     │   ├── gnu-debug (Linux GNU)
     │   ├── gw-debug (Linux MinGW)
@@ -111,7 +122,7 @@ A project directory tree could look like this.
 | bin/pkg       | Packages from all builds.                              |
 | bin/man       | Doxygen generated documentation builds.                |
 | cmake/cpack   | CPack files for packing the application and libraries. |
-| cmake/lib     | Obligatory Location of the 'cmake-lib' submodule.      |
+| cmake/lib     | Obligatory Location of this 'cmake-lib' git-submodule. |
 | cmake-build   | CMake binary root directory.                           |
 | doc           | Doxygen document project source.                       |
 | lib           | Downloaded or symlinks to libraries.                   |
@@ -126,6 +137,24 @@ output directory for subprojects. Reason for building only subprojects instead o
 up debugging by compiling only the dynamic loaded library separately.
 When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.
 
+### Setup
+
+To set up a project from scratch some files, directories or templates need to be copied or symlinked 
+as shown in the next table.
+
+| Method  | Source                         | Destination                      |
+|---------|--------------------------------|----------------------------------|
+| Copy    | tpl/root/CMakeLists.tpl.cmake  | <prj-root>/CMakeLists.txt        | 
+| Copy    | tpl/root/CMakePresets.json     | <prj-root>/CMakePresets.json     |
+| Copy    | tpl/root/CMakeUserPresets.json | <prj-root>/CMakeUserPresets.json |
+| Copy    | tpl/gitlab-ci/*                | <prj-root>/.gitlab               |
+| Symlink | bin/build.sh                   | <prj-root>/build.sh              |
+| Symlink | bin/docker-build.sh            | <prj-root>/docker-build.sh       |
+| Symlink | bin/tools.sh                   | <prj-root>/tools.sh              |
+| Symlink | bin/version-bump.sh            | <prj-root>/version-bump.sh       |
+| Symlink | bin/check-format.sh            | <prj-root>/check-format.sh       |
+
+
 ## Main Project Head Start
 
 To get a head start look into the **[tpl/root](./tpl/root)** directory for files that will
@@ -136,8 +165,8 @@ give a head start getting a project going.
 Instead of installing Qt with the "Qt Maintenance Tool" this CMake command will download the library
 in `lib/Qt`, `lib/QtWin` or `lib/QtW64` depending on the host and target OS.
 
-The tools for building on a Windows OS can also be installed using the symlink `./tools` in the project 
-root created from  `cmake/lib/bin/tools.sh`. A file `.tools-dir-<hostname>` is created where the tools 
+The tools for building on a Windows OS can also be installed using the symlink `./tools` in the project
+root created from  `cmake/lib/bin/tools.sh`. A file `.tools-dir-<hostname>` is created where the tools
 are installed and used by the `./build.sh` to add it to the `PATH` when executing CMake commands.
 
 ```cmake
