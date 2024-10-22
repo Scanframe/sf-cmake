@@ -208,18 +208,18 @@ if ${flag_create}; then
 	mkdir --parents "${project_root}/nbproject"
 	WriteLog "Creating project from presets"
 	# Create the project.xml file.
-	project_xml "$(basename "${project_root}")" > "${project_root}/nbproject/project.xml"
+	project_xml "$(basename "${project_root}")" >"${project_root}/nbproject/project.xml"
 	# Create the configurations.xml file by writing the first part.
-	configurations_xml_first > "${project_root}/nbproject/configurations.xml"
+	configurations_xml_first >"${project_root}/nbproject/configurations.xml"
 	# shellcheck disable=SC2034
 	while read -r preset config; do
-		preset="${preset//\"}"
+		preset="${preset//\"/}"
 		WriteLog "~ Parsing preset '${preset}'"
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${preset}\").displayName" "${file_presets}")"
 		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${preset}\").binaryDir" "${file_presets}")"
-		binary_dir="${binary_dir//\$\{sourceDir\}\/}"
+		binary_dir="${binary_dir//\$\{sourceDir\}\//}"
 		WriteLog "~ Creating configuration '${cfg_name}' from preset '$preset' with build directory '${binary_dir}'."
-		configurations_conf "${cfg_name}" "${preset}" "${binary_dir}" >> "${project_root}/nbproject/configurations.xml"
+		configurations_conf "${cfg_name}" "${preset}" "${binary_dir}" >>"${project_root}/nbproject/configurations.xml"
 	done < <(cmake --list-presets | tail -n +3)
-	configurations_xml_last >> "${project_root}/nbproject/configurations.xml"
+	configurations_xml_last >>"${project_root}/nbproject/configurations.xml"
 fi

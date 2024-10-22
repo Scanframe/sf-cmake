@@ -50,13 +50,13 @@ else
 fi
 
 # Check is the Qt install can be found.
-if [[ ! -d "${local_qt_root}" ]] ; then
+if [[ ! -d "${local_qt_root}" ]]; then
 	WriteLog "Qt install directory or symbolic link '${local_qt_root}' was not found!"
 	exit 1
 fi
 # Find the newest Qt library installed also following symlinks.
 local_qt_dir="$(find -L "${local_qt_root}/" -maxdepth 1 -type d -regex ".*\/[0-9]\\.[0-9]+\\.[0-9]+$" | sort --reverse --version-sort | head -n 1)"
-if [[ -z "${local_qt_dir}" ]] ; then
+if [[ -z "${local_qt_dir}" ]]; then
 	WriteLog "Could not find local installed ${qt_subdir} directory."
 	exit 1
 fi

@@ -22,7 +22,7 @@ function ScriptExit {
 	local exitcode="${?}" idx line file func
 	# Show the stack in case of an error.
 	if [[ "${exitcode}" -ne 0 ]]; then
-		# Create 
+		# Create
 		WriteLog -e "\n--- Call Stack ---"
 		# Perform a stack trace.
 		idx=0
@@ -216,10 +216,11 @@ function IncrementVersion {
 
 	# Increment version based on the specified increment type
 	case "$2" in
-		none) ;;
+		none)
+			: # No operation.
+			;;
 
-		\
-			patch)
+		patch)
 			patch=$((patch + 1))
 			;;
 

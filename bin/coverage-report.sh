@@ -245,7 +245,7 @@ gcovr_mcd+=(--sort uncovered-percent)
 # Output also additional values/columns.
 #gcovr_mcd+=(--decisions --calls)
 # Remove lines containing only an accolade.
-gcovr_mcd+=( --exclude-lines-by-pattern '^\s*\}\s*$')
+gcovr_mcd+=(--exclude-lines-by-pattern '^\s*\}\s*$')
 
 # Add the gcda-files using file or search path(s).
 if ${flag_search_path}; then

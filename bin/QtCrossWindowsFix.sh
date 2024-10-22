@@ -11,7 +11,7 @@
 # Bailout on first error.
 set -e
 # Directory of this script.
-script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
 source "${script_dir}/inc/WriteLog.sh"
 # Defaults to dry run.
@@ -123,8 +123,7 @@ tabs -2
 # Show intent.
 WriteLog -e "Fixing Windows Qt version ${qt_ver} for Cross-compiling: \n\tSource: '${dir_from}'\n\tDestination: '${dir_to}'"
 # Ask for permission
-read -rp "Continue [y/N]? " && if [[ "${REPLY}" = [yY] ]]
-then
+read -rp "Continue [y/N]? " && if [[ "${REPLY}" = [yY] ]]; then
 	WriteLog "Starting..."
 else
 	exit 0
@@ -146,8 +145,8 @@ while read -r file; do
 			${cmd_pf} ln --symbolic --force --relative "${file}" "${win_libexec}/$(basename "${file}").bin"
 			WriteLog "Creating script for '${win_libexec}/$(basename "${file}")'"
 			# Check if dry running.
-			if [[ "${#cmd_pf}" -eq 0 ]] ; then
-			cat <<'EOD' >"${win_libexec}/rcc"
+			if [[ "${#cmd_pf}" -eq 0 ]]; then
+				cat <<'EOD' >"${win_libexec}/rcc"
 #!/bin/bash
 # Get this script's directory.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -176,10 +175,10 @@ done < <(ls "${qt_ver_dir}/gcc_64/libexec/"*)
 ##
 for fn in "qtpaths" "qmake" \
 	"qmldom" "qmllint" "qmlformat" "qmlprofiler" "qmlprofiler" "qmltime" "qmlplugindump" "qmltc" \
-	"qmltestrunner"	"androiddeployqt" "androidtestrunner" "windeployqt" "qmlls" ; do
-	if [[ ! -f "${qt_ver_dir}/gcc_64/bin/${fn}" ]] ; then
+	"qmltestrunner" "androiddeployqt" "androidtestrunner" "windeployqt" "qmlls"; do
+	if [[ ! -f "${qt_ver_dir}/gcc_64/bin/${fn}" ]]; then
 		WriteLog "Creating dummy to missing binary file to symlink: ${qt_ver_dir}/gcc_64/bin/${fn}"
-		cat <<EOD > "${qt_win_dir}/${qt_ver}/${qt_lib_sub}/bin/${fn}"
+		cat <<EOD >"${qt_win_dir}/${qt_ver}/${qt_lib_sub}/bin/${fn}"
 #!/bin/bash
 ###
 ### Dummy executable to fool Windows cmake files.
@@ -194,22 +193,22 @@ done
 #
 # Replace all cmake files referencing windows EXE-tools.
 #
-pushd "${dir_to}" > /dev/null || exit
+pushd "${dir_to}" >/dev/null || exit
 declare -a files
 while IFS='' read -r -d $'\n'; do
 	# Only file with a reverence to a '.exe' in it.
-	if grep -qli "\.exe\"" "${REPLY}" ; then
+	if grep -qli "\.exe\"" "${REPLY}"; then
 		files+=("${REPLY}")
 	fi
 done < <(find "${dir_to}" -type f -name "*-relwithdebinfo.cmake" -printf "%P\n")
-popd > /dev/null || exit
+popd >/dev/null || exit
 
 # Iterate through the files.
-for fn in "${files[@]}" ; do
+for fn in "${files[@]}"; do
 	WriteLog "Overwriting CMake files using Linux version: $fn"
 	${cmd_pf} cp "${dir_from}/${fn}" "${dir_to}/${fn}"
-	if [[ $fn == "Qt6CoreTools/Qt6CoreToolsTargets-relwithdebinfo.cmake" ]] ; then
-		cat <<EOF >> "${dir_to}/${fn}"
+	if [[ $fn == "Qt6CoreTools/Qt6CoreToolsTargets-relwithdebinfo.cmake" ]]; then
+		cat <<EOF >>"${dir_to}/${fn}"
 
 # ===================================================================================================
 # == Appended from Windows version because it is missed when cross compiling on Linux for Windows. ==

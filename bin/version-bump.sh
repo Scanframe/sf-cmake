@@ -8,7 +8,7 @@ set -o pipefail
 # Get the scripts run directory weather it is a symlink or not.
 run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # When a symlink determine the script directory.
-if [[ -L "${BASH_SOURCE[0]}" ]];then
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
 	include_dir="$(dirname "$(readlink "$0")")"
 # Check if the library directory exists when not called from a sym-link.
 elif [[ -d "${run_dir}/cmake/lib" ]]; then

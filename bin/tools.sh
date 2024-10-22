@@ -82,7 +82,7 @@ else
 				chmod -R 770 "${2}/Tools"
 			fi
 			if [[ -d "${2}/Tools" ]]; then
-				ls -d "${2}"/Tools/mingw*/bin > "${tools_dir_file}"
+				ls -d "${2}"/Tools/mingw*/bin >"${tools_dir_file}"
 				WriteLog "Written location into file '${tools_dir_file}'."
 			fi
 			;;

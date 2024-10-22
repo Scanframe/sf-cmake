@@ -18,13 +18,12 @@ fi
 # Form the binary target directory for Linux builds.
 dir_bin="$(realpath "${EXECUTABLE_DIR}")"
 
-function GetExecutablesFiles
-{
+function GetExecutablesFiles {
 	for fn in "${EXECUTABLE_DIR}"/*; do
-  	if [[ "$(file -ib "${fn}")" =~ ^application/x-pie-executable ]]; then
- 			basename "${fn}"
-  	fi
-  done
+		if [[ "$(file -ib "${fn}")" =~ ^application/x-pie-executable ]]; then
+			basename "${fn}"
+		fi
+	done
 }
 
 ##
