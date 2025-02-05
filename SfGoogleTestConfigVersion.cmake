@@ -1,5 +1,5 @@
 # Define the version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 3.7.1)
+set(PACKAGE_VERSION 1.15.2)
 
 # Define the compatibility logic
 if ("${PACKAGE_VERSION}" VERSION_EQUAL "${PACKAGE_FIND_VERSION}")

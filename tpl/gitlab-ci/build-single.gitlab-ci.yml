@@ -20,6 +20,9 @@ variables:
 workflow:
   rules:
     - when: always
+  # Cancel when there is a new commit.
+  auto_cancel:
+    on_new_commit: interruptible
 
 # Order of stages for jobs to perform in.
 stages:
@@ -49,25 +52,34 @@ stages:
       fi
     fi    
 
-# Template to define artifacts in the designated directory.
-.artifacts-build:
+# Defaults for all jobs.
+default:
+  # Set a specific Docker image to execute all jobs in.
+  image: "${SF_DOCKER_IMAGE}"
+  # Tags determine the selection of a runner.
+  tags:
+    - cplusplus
+    - "${SF_TARGET_OS}"
+    - "${SF_TARGET_ARCH}"
+  # Allow to be interrupted.
+  interruptible: true
+
+# Job for creating the make-file using the build.sh script calling CMake with appropriate arguments.
+# Wiping build directory is not needed since the push policy.
+job-build:
+  stage: build
+  rules:
+    - when: on_success
+    - allow_failure: false
   artifacts:
     name: "${CI_COMMIT_REF_NAME}-${SF_TOOLCHAIN}-binaries"
     # Expiration period before artifacts expire.
     # FIXME: Currently variable expansion is not possible and is fixed.
     # (See: https://gitlab.com/gitlab-org/gitlab/-/issues/365855)
-    expire_in: 2 days
-    paths:
-      - "${SF_DIR_BIN}/"
-    exclude:
-      - "**/.gitkeep"
-
-# Template to define package generated artifacts in the designated directory.
-.artifacts-pack:
-  artifacts:
-    name: "${CI_COMMIT_REF_NAME}-${SF_TOOLCHAIN}-packages"
     expire_in: 7 days
     paths:
+      # Tree of created binaries.
+      - "${SF_DIR_BIN}/"
       # Package generator DEB Debian results.
       - "${SF_DIR_PKG}/*.deb"
       # Package generator RPM results.
@@ -78,19 +90,6 @@ stages:
       - "${SF_DIR_PKG}/*.zip"
     exclude:
       - "**/.gitkeep"
-
-# Defaults for all jobs.
-default:
-  # Tags determine the selection of a runner.
-  tags:
-    - cplusplus
-    - "${SF_TARGET_OS}"
-    - "${SF_TARGET_ARCH}"
-
-# Job for creating the make-file using the build.sh script calling CMake with appropriate arguments.
-# Wiping build directory is not needed since the push policy.
-job-build:
-  stage: build
   before_script:
     - 'echo "Working Directory=$(pwd)" && echo "Environment Dump" && printenv | sort'
   script:
@@ -101,8 +100,6 @@ job-build:
 
 # Template for all deploy jobs.
 .deploy:
-  needs:
-    - job: job-build
   script:
     # Upload all generated packages to Nexus depending on their extension to a specific destination.
     - 'find "${SF_DIR_PKG}" -maxdepth 1 -type f -name "*.deb" -o -name "*.exe" -o -name "*.zip" | xargs cmake/lib/bin/upload-nexus.sh'
@@ -111,6 +108,11 @@ job-build:
 job-deploy-develop:
   stage: deploy
   extends: .deploy
+  needs:
+    - job: job-build
+  # Jobs from which it needs artifacts.
+  dependencies:
+    -  job-build
   rules:
     # For testing the 'deploy' step in any scenario.
     - if: '$SF_SIGNAL == "deploy"'
@@ -121,12 +123,18 @@ job-deploy-develop:
     - if: '$CI_COMMIT_BRANCH == $SF_RELEASE_BRANCH'
       when: never
     # Develop is allowed to automatically deploy.
-    - when: always
+    - when: on_success
+    - allow_failure: false
 
 # Use variables set using environment 'staging'.
 job-deploy-staging:
   stage: deploy
   extends: .deploy
+  needs:
+    - job: job-build
+  # Jobs from which it needs artifacts.
+  dependencies:
+    - job-build
   environment: staging
   rules:
     # For testing the 'deploy' step in any scenario.
@@ -138,13 +146,18 @@ job-deploy-staging:
     - if: '$CI_COMMIT_REF_NAME == $SF_RELEASE_BRANCH'
       when: manual
       allow_failure: true
-    # Staging is allowed to automatically deploy.
-    - when: always
+    # Staging is never deployed other than from a commit/merge to the release branch.
+    - when: never
 
 # Use variables set using environment 'stable'.
 job-deploy-stable:
   stage: deploy
   extends: .deploy
+  needs:
+    - job: job-build
+  # Jobs from which it needs artifacts.
+  dependencies:
+    - job-build
   environment: stable
   rules:
     # For testing the 'deploy' step in any scenario.
@@ -157,5 +170,5 @@ job-deploy-stable:
       when: manual
       # Make this job optional.
       allow_failure: true
-    # Never by deploy a release.
+    # Stable is never deployed other than from a commit/merge to the release branch.
     - when: never

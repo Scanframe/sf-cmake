@@ -81,7 +81,7 @@ temp=$(getopt -o 'hrgfsqd:' --long 'help,recursive,git,git-hook,branch:,gitlab-m
 # shellcheck disable=SC2181
 if [[ $? -ne 0 || $# -eq 0 ]]; then
 	ShowHelp
-	exit 1
+	exit 0
 fi
 eval set -- "$temp"
 unset temp

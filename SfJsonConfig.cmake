@@ -2,12 +2,12 @@
 include(FetchContent)
 # Check if the version has been given for this repo otherwise use a default.
 if (NOT DEFINED json_VERSION)
-	set(json_VERSION "v3.11.2")
+	set(json_VERSION "v3.11.3")
 endif ()
 # Import Json library.
 FetchContent_Declare(
 	json
-	GIT_REPOSITORY https://github.com/nlohmann/json
+	GIT_REPOSITORY "https://github.com/nlohmann/json"
 	GIT_TAG "${json_VERSION}"
 	)
 # Adds nlohmann_json::nlohmann_json

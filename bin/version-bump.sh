@@ -5,24 +5,34 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
-# Get the include directory which is this script's directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the scripts run directory weather it is a symlink or not.
+run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When a symlink determine the script directory.
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+	include_dir="$(dirname "$(readlink "$0")")"
+# Check if the library directory exists when not called from a sym-link.
+elif [[ -d "${run_dir}/cmake/lib" ]]; then
+	include_dir="${run_dir}/cmake/lib/bin"
+else
+	include_dir="${run_dir}"
+fi
+
 # Include the Miscellaneous functions.
-source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
+source "${include_dir}/inc/Miscellaneous.sh"
+
+# Default path to the replacement commit messages.
+cmt_msgs="${run_dir}/.$(basename "${0}" ".sh")"
+if [[ ! -f "${cmt_msgs}" ]]; then
+	cmt_msgs=""
+fi
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
-# When the script directory is not set then
-if [[ -z "${SCRIPT_DIR}" ]]; then
-	SCRIPT_DIR="${PWD}"
-	WriteLog "Environment variable 'SCRIPT_DIR' not set using current working directory."
-fi
-
 # Prints the help to stderr.
 #
 function ShowHelp {
-	echo "Usage: ${0} [options...]
+	echo "Usage: $(basename "${0}") [options...]
 
   Bumps/predicts versions according conventional commits.
 
@@ -32,7 +42,7 @@ function ShowHelp {
   -b, --bump    : Creates/predicts the next version from the the conventional commits.
   -c, --commit  : Commit hash to tag as new version (defaults to last commit/HEAD).
   -m, --merges  : Use only merge commits.
-  --dbg-msgs    : Script file containing associated array 'declare -A commit_messages' where
+  --cmt-msgs    : Script file containing associated array 'declare -A commit_messages' where
                   the key is the full hash to replace commit messages for debugging purposes.
 "
 }
@@ -53,7 +63,7 @@ flags['commit']="$(git rev-parse --verify HEAD)"
 
 # Parse options.
 temp=$(getopt -o 'hrivbc:m' \
-	--long 'help,info,verbose,bump,commit:,merges,dbg-msgs:' \
+	--long 'help,info,verbose,bump,commit:,merges,cmt-msgs:' \
 	-n "$(basename "${0}")" -- "$@")
 # No arguments, show help and bailout.
 if [[ "${#}" -eq 0 ]]; then
@@ -77,10 +87,10 @@ while true; do
 			continue
 			;;
 
-		--dbg-msgs)
+		--cmt-msgs)
 			WriteLog "# Sourcing '${2}'."
 			# shellcheck source=version-bump.msgs.sh
-			source "${2}"
+			cmt_msgs="${2}"
 			shift 2
 			continue
 			;;
@@ -120,6 +130,13 @@ while true; do
 			;;
 	esac
 done
+
+# Import commit messages when the file exists.
+if [[ -f "${cmt_msgs}" ]]; then
+	WriteLog "- Importing messages from: ${cmt_msgs}"
+	# shellcheck disable=SC1090
+	source "${cmt_msgs}"
+fi
 
 # Harvest the arguments in an array.
 argument=()

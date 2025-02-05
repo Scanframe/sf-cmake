@@ -1,4 +1,18 @@
 ##!
+# Declare some cmake flags for decisions on building targets.
+#
+set(SF_COMPILER "gnu" CACHE STRING "Selected compiler for the build which default to 'gnu' and could be 'ga', 'gw', 'mingw'.")
+set(SF_ARCHITECTURE "x86_64" CACHE INTERNAL "Determines the architecture of the build and is determined by the tool chain selection for the set compiler.")
+set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
+set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library" CACHE INTERNAL "Nexus repository server for downloads of libraries.")
+set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
+set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
+set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")
+set(SF_TEST_NAME_PREFIX "t_" CACHE STRING "Prefix for test applications to allow skipping when packaging.")
+set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when developing locally to speed up.")
+set(SF_OUTPUT_DIR_SUFFIX "" CACHE STRING "Output directory suffix only used by e.g. user presets to separate builds.")
+
+##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
 #
 if (${CMAKE_VERSION} VERSION_LESS 3.14)
@@ -15,11 +29,11 @@ endif ()
 # Checks if the required passed file exists.
 # When not a useful fatal message is produced.
 #
-macro(Sf_CheckFileExists _File)
+function(Sf_CheckFileExists _File)
 	if (NOT EXISTS "${_File}")
-		message(FATAL_ERROR "The file \"${_File}\" does not exist. Check order of dependent add_subdirectory(...).")
+		message(SEND_ERROR "The file \"${_File}\" does not exist. Check order of dependent add_subdirectory(...).")
 	endif ()
-endmacro()
+endfunction()
 
 ##!
 # Gets the version from the Git repository using 'PROJECT_SOURCE_DIR' variable.
@@ -29,27 +43,55 @@ endmacro()
 # 3: Diverted commits since the tag was created.
 # 3: A hash ???
 # When no tag is set it simulates finding 'v0.0.0-rc.0' as the version tag.
+#
 function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	# Initialize return value.
 	set(${_VarOut} "" PARENT_SCOPE)
 	# Get git binary location for execution.
 	find_program(_GitExe "git" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
-	if (_GitExe STREQUAL "_GitExe-NOTFOUND")
+	if (NOT _GitExe)
 		message(SEND_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-		# Only annotated tags so no '--tags' option.
-		execute_process(COMMAND "${_GitExe}" describe --dirty --match "v*.*.*"
-			# Use the current project directory to find.
-			WORKING_DIRECTORY "${_SrcDir}"
-			OUTPUT_VARIABLE _Version
-			RESULT_VARIABLE _ExitCode
-			ERROR_VARIABLE _ErrorText
-			OUTPUT_STRIP_TRAILING_WHITESPACE
+		# Get the toplevel directory of this repository or submodule.
+		# This is faster then the other call and cache the version result to speed configuration up.
+		execute_process(COMMAND
+				"${_GitExe}" rev-parse --show-toplevel
+				# Use the current project directory to find.
+				WORKING_DIRECTORY "${_SrcDir}"
+				OUTPUT_VARIABLE _FilePath
+				RESULT_VARIABLE _ExitCode
+				ERROR_VARIABLE _ErrorText
+				OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
-		# Report solution for specific Windows issue when using a share file system.
-		if (_ExitCode EQUAL 128)
-			message(SEND_ERROR "Solve this Windows only issue: git config --global --add safe.directory '*'")
+		# Replace the directory separators from the filepath.
+		string(REPLACE "/" "-" _FilePath "${_FilePath}")
+		# Prefix the file with the path.
+		set(_FilePath "${CMAKE_BINARY_DIR}/git-cache/ver${_FilePath}")
+		# Check if the cache file exists.
+		if (NOT EXISTS "${_FilePath}")
+			# Only annotated tags so no '--tags' option.
+			execute_process(COMMAND
+				#"${_GitExe}" rev-parse --show-toplevel
+				"${_GitExe}" describe --dirty --match "v*.*.*"
+				# Use the current project directory to find.
+				WORKING_DIRECTORY "${_SrcDir}"
+				OUTPUT_VARIABLE _Version
+				RESULT_VARIABLE _ExitCode
+				ERROR_VARIABLE _ErrorText
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+			)
+			# Report solution for specific Windows issue when using a share file system.
+			if (_ExitCode EQUAL 128)
+				message(SEND_ERROR "Solve this Windows only issue: git config --global --add safe.directory '*'")
+			endif ()
+			# Write the cache file.
+			file(WRITE "${_FilePath}" "${_Version}")
+		else ()
+			# Read the cache file.
+			file(READ "${_FilePath}" _Version)
+			# Notify the that a cache version is used.
+			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Using cached version (${_Version})")
 		endif ()
 	else ()
 		# Only annotated tags so no '--tags' option.
@@ -122,6 +164,9 @@ function(Sf_SetTargetDefaultOptions _Target)
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		# Workaround for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden) globally.
 		target_compile_options("${_Target}" PRIVATE "-fvisibility=hidden")
+		# Generate an error on undefined (imported) symbols on dynamic libraries
+		# because the error appears only at load-time otherwise.
+		target_link_options("${_Target}" PRIVATE -Wl,--no-undefined -Wl,--no-allow-shlib-undefined)
 		# Set options depending on the build type.
 		if (CMAKE_BUILD_TYPE STREQUAL "Release")
 			# This bellow could also be the default already.
@@ -129,10 +174,23 @@ function(Sf_SetTargetDefaultOptions _Target)
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 			# Nothing specific yet.
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-			# Nothing specific yet.
+			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
 		else ()
 			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered!")
 		endif ()
+		# When compiling a Windows target.
+		if (WIN32)
+			# Needed for Windows since Catch2 is creating a huge obj file.
+			target_compile_options("${_Target}" PRIVATE -m64 -Wa,-mbig-obj)
+			# Needed to suppress warnings since MinGW seems to need inline in class methods later redeclared as inline.
+			target_compile_options("${_Target}" PRIVATE -Wno-attributes -Wignored-attributes)
+		else ()
+			# For detecting memory errors.
+			target_compile_options("${_Target}" PRIVATE --pedantic-errors #[[-fsanitize=address]])
+		endif ()
+		# When MSVC compiler is used set some options.
+	elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+		target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
 	endif ()
 endfunction()
 
@@ -159,15 +217,15 @@ function(Sf_SetTargetVersion _Target)
 		# Set the target version properties for Windows.
 		get_target_property(_Version "${_Target}" SOVERSION)
 	endif ()
-	if (NOT "${_Version}" STREQUAL "_Version-NOTFOUND")
+	if (_Version)
 		message(VERBOSE "Target '${_Target}' skipping, version already set to (${_Version})")
 		return()
 	endif ()
-	# Prepend a text to message function.
-	list(APPEND CMAKE_MESSAGE_INDENT "Target '${_Target}' version set from ")
 	# Get versions from Git when possible.
 	Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_SOURCE_DIR}")
 	list(GET _Versions 0 _Version)
+	# Prepend a text to message function.
+	list(APPEND CMAKE_MESSAGE_INDENT "Target '${_Target}' version set from ")
 	# Check if the git version was found.
 	if (NOT "${_Version}" STREQUAL "0.0.0")
 		# Get only the sub directory to report where Git got its version from.
@@ -209,21 +267,21 @@ endfunction()
 ##!
 # Adds an executable application target and also sets the default compile options.
 #
-macro(Sf_AddExecutable _Target)
+function(Sf_AddExecutable _Target)
 	# Add the executable.
 	add_executable("${_Target}")
 	# Set the default compiler options for our own code only.
 	Sf_SetTargetDefaultOptions("${_Target}")
 	# Set the version of this target.
 	Sf_SetTargetVersion("${_Target}")
-endmacro()
+endfunction()
 
 ##!
 # Adds a dynamic library target and sets the version number.
 # For Windows builds the library output directory is set the
 # same as when build for Linux.
 #
-macro(Sf_AddSharedLibrary _Target)
+function(Sf_AddSharedLibrary _Target)
 	# Add the library to create.
 	add_library("${_Target}" SHARED)
 	# Set the default compiler options for our own code only.
@@ -234,17 +292,14 @@ macro(Sf_AddSharedLibrary _Target)
 	if (WIN32)
 		set_target_properties("${PROJECT_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 	endif ()
-endmacro()
+endfunction()
 
 ##!
 # Adds an exif custom target for reporting the resource stored versions.
 #
-macro(Sf_AddExifTarget _Target)
+function(Sf_AddExifTarget _Target)
 	# Try finding the bash.exe from cygwin.
-	find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
-	if (_BashExe STREQUAL "_BashExe-NOTFOUND")
-		message(SEND_ERROR "Bash program not found!")
-	endif ()
+	find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" REQUIRED)
 	# Add "exif-<target>" custom target when main 'exif' target exist.
 	if (TARGET "exif")
 		if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
@@ -267,21 +322,21 @@ macro(Sf_AddExifTarget _Target)
 					VERBATIM
 				)
 			else ()
-			add_custom_target("exif-${_Target}" ALL
-				COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
-				# Report the runpath and the linked shared libraries.
-				COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
-				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
-				DEPENDS "$<TARGET_FILE:${_Target}>"
-				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
-				VERBATIM
-			)
+				add_custom_target("exif-${_Target}" ALL
+					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
+					# Report the runpath and the linked shared libraries.
+					COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
+					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+					DEPENDS "$<TARGET_FILE:${_Target}>"
+					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+					VERBATIM
+				)
 			endif ()
 		endif ()
 		add_dependencies("exif" "exif-${_Target}")
 	endif ()
 	#endif ()
-endmacro()
+endfunction()
 
 ##!
 # Add version resource 'resource.rc' to be compiled by passed target.
@@ -295,7 +350,7 @@ function(Sf_AddVersionResource _Target)
 		get_target_property(_OutputName "${_Target}" LIBRARY_OUTPUT_NAME)
 	endif ()
 	# Check if _OutputName was set.
-	if (_OutputName STREQUAL "_OutputName-NOTFOUND")
+	if (NOT _OutputName)
 		message(SEND_ERROR "For target '${_Target}', a call to Sf_SetTargetSuffix() must preceded ${CMAKE_CURRENT_FUNCTION}()!")
 	endif ()
 	get_target_property(_OutputSuffix "${_Target}" SUFFIX)
@@ -359,13 +414,13 @@ endfunction()
 function(Sf_GetIncludeDirectories _var _targets)
 	set(_list "")
 	# Iterate through the passed list of build targets.
-	foreach (_target IN LISTS ${_targets})
+	foreach (_target IN LISTS _targets)
 		# Get the source directory from the target.
 		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
 		# Get all the include directories from the target.
 		get_target_property(_incdirs "${_target}" INCLUDE_DIRECTORIES)
 		# Check if there are include directories for this target.
-		if ("${_incdirs}" STREQUAL "_incdirs-NOTFOUND")
+		if (NOT _incdirs)
 			#message("The '${_target}' has no includes...")
 			continue()
 		endif ()
@@ -422,7 +477,7 @@ function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
 			# Decrement the loops variable.
 			math(EXPR _Loops "${_Loops} - 1")
 			if (${_Loops} LESS_EQUAL 0)
-				message(FATAL_ERROR "[${_Loops}] Populating '${_DepName}' took more then the given '${_Timeout}s'!")
+				message(SEND_ERROR "[${_Loops}] Populating '${_DepName}' took more then the given '${_Timeout}s'!")
 			endif ()
 		endif ()
 	endwhile ()
@@ -463,11 +518,53 @@ function(Sf_SetRPath _Path)
 endfunction()
 
 ##!
+# Calls native add_test() function using start scripts to set the library paths for Windows/Wine and Linux.
+# @param _Target Name of the target.
+# @param _RunTimeDir Runtime directory which also contains the shell scripts win-exec.sh, win-exec.cmd and lnx-exec.sh.
+#
+function(Sf_AddTest _Target _RunTimeDir)
+	# When target is a Windows build.
+	if (WIN32)
+		# When the host is Windows use a command script.
+		if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+			set(_Script "win-exec.cmd")
+		# When the host is Linux use a shell script executing Wine.
+		else()
+			set(_Script "win-exec.sh")
+		endif ()
+	else ()
+		# When NOT compiling Windows assume Linux build and use a shell script.
+		set(_Script "lnx-exec.sh")
+	endif ()
+	# Check if the needed script exists.
+	if (NOT EXISTS "${_RunTimeDir}/${_Script}")
+		# Notify copying the script.
+		message(NOTICE "Copying required script: ${_RunTimeDir}/${_Script}")
+		# Copy the file when it does not exist and do not use 'file(INSTALL ... DESTINATION ...)' since this does not copy the execute mod of the file.
+		execute_process(
+			COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tpl/bin/${_Script}" "${_RunTimeDir}/${_Script}"
+			COMMAND_ERROR_IS_FATAL ANY
+		)
+	endif ()
+
+	# Add the test using the script.
+	add_test(NAME "${_Target}"
+		COMMAND "${_Script}" "$<TARGET_FILE_NAME:${_Target}>"
+		WORKING_DIRECTORY "${_RunTimeDir}"
+	)
+	# Set the environment variable for the shell script to pickup up to target the correct output directory.
+	set_property(TEST "${_Target}" PROPERTY ENVIRONMENT "SF_OUTPUT_DIR_SUFFIX=${SF_OUTPUT_DIR_SUFFIX}")
+endfunction()
+
+##!
 # Adds the passed target for coverage only when the build type is 'Coverage'.
 #
 function(Sf_AddTargetForCoverage _Target)
-	# Set options only when the build type
-	if (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+	# Set options only when the build type is coverage and the SF_COVERAGE_ONLY_TARGET is empty.
+	if (CMAKE_BUILD_TYPE STREQUAL "Coverage" AND
+	(
+		SF_COVERAGE_ONLY_TARGETS STREQUAL "" OR _Target IN_LIST SF_COVERAGE_ONLY_TARGETS
+	))
 		# Get the type of the target.
 		get_target_property(_Type "${_Target}" TYPE)
 		# When the GNU compiler is involved.
@@ -507,27 +604,29 @@ endfunction()
 ##!
 # Adds coverage target to the project when the build type is Coverage.
 # _TestName      : The target name for the report.
-# _SourceDirList : List of relative directories to be included in the coverage report
 #                  relative to the 'PROJECT_SOURCE_DIR'.
 # _OutDir        : Output directory for the coverage report.
+# _Options       : See script 'bin/coverage-report.sh' for options other then already by default used.
+# _SourceDirList : List of relative directories to be included in the coverage report
 #
-function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
+function(Sf_AddTestCoverageReport _TestName _OutDir _Options _SourceDirList)
 	# Get the actual output directory.
 	get_filename_component(_OutDir "${_OutDir}" REALPATH)
 	# Check if the resulting directory exists.
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
 	endif ()
+	# Make a list from
+	string(REPLACE " " ";" _Options "${_Options}")
 	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
 		# Add a test to generate the report.
-		add_test(NAME "${_Test}"
+		add_test(NAME "${_TestName}"
 			COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
-			# Cleanup arc transition counting files after the report is generated.
-			--cleanup
 			# Set the coverage command of the tool chain.
 			--gcov "${COVERAGE_COMMAND}"
 			--source "${CMAKE_CURRENT_BINARY_DIR}"
 			--target "${_OutDir}"
+			${_Options}
 			# Show some information while executing te script.
 			#--verbose
 			${_SourceDirList}
@@ -535,6 +634,44 @@ function(Sf_AddTestCoverageReport _Test _SourceDirList _OutDir)
 			COMMAND_EXPAND_LISTS
 		)
 		# Ensure this test is run after the ones adding coverage information.
-		set_property(TEST "${_Test}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
+		set_property(TEST "${_TestName}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
 	endif ()
+endfunction()
+
+##!
+# Notifies all available tools from CMake.
+# Used for debugging.
+#
+function(Sf_ToolsNotice)
+	string(REPLACE ";" "\n" _Path "$ENV{PATH}")
+	message(NOTICE "
+==================================================
+ENV{PATH}=
+${_Path}
+--------------------------------------------------
+CMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+CMAKE_C_COMPILER_AR=${CMAKE_C_COMPILER_AR}
+CMAKE_C_COMPILER_RANLIB=${CMAKE_C_COMPILER_RANLIB}
+CMAKE_RC_COMPILER=${CMAKE_RC_COMPILER}
+CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+CMAKE_CXX_COMPILER_AR=${CMAKE_CXX_COMPILER_AR}
+CMAKE_CXX_COMPILER_RANLIB=${CMAKE_CXX_COMPILER_RANLIB}
+CMAKE_RANLIB=${CMAKE_RANLIB}
+CMAKE_AR=${CMAKE_AR}
+CMAKE_NM=${CMAKE_NM}
+CMAKE_ADDR2LINE=${CMAKE_ADDR2LINE}
+CMAKE_DLLTOOL=${CMAKE_DLLTOOL}
+CMAKE_OBJCOPY=${CMAKE_OBJCOPY}
+CMAKE_OBJDUMP=${CMAKE_OBJDUMP}
+CMAKE_LINKER=${CMAKE_LINKER}
+CMAKE_READELF=${CMAKE_READELF}
+CMAKE_STRIP=${CMAKE_STRIP}
+CMAKE_SYSROOT=${CMAKE_SYSROOT}
+--------------------------------------------------
+CMAKE_FIND_ROOT_PATH=${CMAKE_FIND_ROOT_PATH}
+CMAKE_FIND_ROOT_PATH_MODE_INCLUDE=${CMAKE_FIND_ROOT_PATH_MODE_INCLUDE}
+CMAKE_FIND_ROOT_PATH_MODE_LIBRARY=${CMAKE_FIND_ROOT_PATH_MODE_LIBRARY}
+CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=${CMAKE_FIND_ROOT_PATH_MODE_PROGRAM}
+==================================================
+")
 endfunction()

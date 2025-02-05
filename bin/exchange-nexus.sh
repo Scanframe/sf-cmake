@@ -5,13 +5,13 @@ set -e
 set -o pipefail
 
 # This scripts directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Credential file for testing
 cred_file=".nexus-upload-credentials"
 
 # Include the WriteLog function.
-source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
+source "${script_dir}/inc/Miscellaneous.sh"
 
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 

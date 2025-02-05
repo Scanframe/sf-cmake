@@ -110,13 +110,13 @@ endfunction()
 function(Sf_GetIncludeDirectories _var _targets)
 	set(_list "")
 	# Iterate through the passed list of build targets.
-	foreach (_target IN LISTS ${_targets})
+	foreach (_target IN LISTS _targets)
 		# Get the source directory from the target.
 		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
 		# Get all the include directories from the target.
 		get_target_property(_incdirs "${_target}" INCLUDE_DIRECTORIES)
 		# Check if there are include directories for this target.
-		if ("${_incdirs}" STREQUAL "_incdirs-NOTFOUND")
+		if (NOT _incdirs)
 			#message("The '${_target}' has no includes...")
 			continue()
 		endif ()

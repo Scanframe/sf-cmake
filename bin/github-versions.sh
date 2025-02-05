@@ -82,8 +82,8 @@ api_url="https://api.github.com/repos/${options['owner']}/${options['repo-name']
 if [[ ! -v options['find-ver'] ]]; then
 	WriteLog "-Available version of '${options['owner']}/${options['repo-name']}':"
 	curl -s "${api_url}" |
-  		jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' |
-  		sort --version-sort
+		jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' |
+		sort --version-sort
 else
 	# Get all tags formated like v1.2.3 and put only the version part 1.2.3 in a list.
 	versions="$(curl -s "${api_url}" |
