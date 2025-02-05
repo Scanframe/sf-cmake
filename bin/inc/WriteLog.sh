@@ -2,7 +2,7 @@
 # or when terminal is 'dumb' when running ctest from CLion.
 
 declare -A col_fg
-if [[ "${TERM}" == "dumb" || -n "${CI}" ]]; then
+if [[ "${TERM}" == "dumb" || -z "${TERM}" || -n "${CI}" ]]; then
 	col_fg[black]=""
 	col_fg[red]=""
 	col_fg[green]=""
@@ -33,45 +33,45 @@ else
 	#
 	function WriteLog {
 		# shellcheck disable=SC2124
-		local FIRST_CH LAST_ARG LAST_CH COLOR
-		LAST_ARG="${*: -1}"
-		LAST_CH="${LAST_ARG:0-1}"
-		# match a single non-whitespace character
-		if [[ "$(printf "%b" "${LAST_ARG}")" =~ [^[:space:]] ]]; then
-			FIRST_CH="${BASH_REMATCH[0]}"
+		local first_ch last_arg last_ch color
+		last_arg="${*: -1}"
+		last_ch="${last_arg:0-1}"
+		# Match a single non-whitespace character and suppress errors.
+		if [[ "$(printf "%b" "${last_arg}" 2>/dev/null)" =~ [^[:space:]] ]]; then
+			first_ch="${BASH_REMATCH[0]}"
 		else
-			FIRST_CH="${LAST_ARG:0:1}"
+			first_ch="${last_arg:0:1}"
 		fi
 		# Set color based on first character of the string.
-		case "${FIRST_CH}" in
+		case "${first_ch}" in
 			"-")
-				COLOR="${col_fg[cyan]}"
+				color="${col_fg[cyan]}"
 				;;
 			"~")
-				COLOR="${col_fg[blue]}"
+				color="${col_fg[blue]}"
 				;;
 			"#")
-				COLOR="${col_fg[yellow]}"
+				color="${col_fg[yellow]}"
 				;;
 			"=")
-				COLOR="${col_fg[green]}"
+				color="${col_fg[green]}"
 				;;
 			":")
-				COLOR="${col_fg[magenta]}"
+				color="${col_fg[magenta]}"
 				;;
 			"!")
-				COLOR="${col_fg[red]}"
+				color="${col_fg[red]}"
 				;;
 			*)
-				COLOR=""
+				color=""
 				;;
 		esac
-		case "${LAST_CH}" in
+		case "${last_ch}" in
 			"!")
-				COLOR="${col_fg[red]}"
+				color="${col_fg[red]}"
 				;;
 		esac
-		echo -n "${COLOR}" 1>&2
+		echo -n "${color}" 1>&2
 		echo "${@}" 1>&2
 		echo -n "${col_fg[reset]}" 1>&2
 	}

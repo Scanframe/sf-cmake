@@ -6,8 +6,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${script_dir}/inc/WriteLog.sh"
 # Prints the help.
 #
-function ShowHelp
-{
+function ShowHelp {
 	echo "Usage: ${0} [options] <name>
   Find directory or file equal to the passed name.
   Options:
@@ -30,26 +29,26 @@ unset temp
 while true; do
 	case "$1" in
 
-	-h | --help)
-		ShowHelp
-		exit 0
-		;;
+		-h | --help)
+			ShowHelp
+			exit 0
+			;;
 
-	-t | --type)
-		type="${2:0:1}"
-		shift 2
-		continue
-		;;
+		-t | --type)
+			type="${2:0:1}"
+			shift 2
+			continue
+			;;
 
-	'--')
-		shift
-		break
-		;;
+		'--')
+			shift
+			break
+			;;
 
-	*)
-		WriteLog "Internal error on argument (${1}) !" >&2
-		exit 1
-		;;
+		*)
+			WriteLog "Internal error on argument (${1}) !" >&2
+			exit 1
+			;;
 	esac
 done
 # Get the arguments in an array.
@@ -73,12 +72,12 @@ while [[ "${path}" != "" ]]; do
 	case "${type}" in
 		d)
 			if [[ -d "${path}/${name}" ]]; then
-				break;
+				break
 			fi
 			;;
 		f)
 			if [[ -f "${path}/${name}" ]]; then
-				break;
+				break
 			fi
 			;;
 		*)

@@ -6,7 +6,7 @@ macro(Sf_EnsureOutOfSourceBuild MSG)
 	get_filename_component(ParentDir ${CMAKE_SOURCE_DIR} PATH)
 	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${ParentDir}" InSourceSubdir)
 	if(InSource OR InSourceSubdir)
-		message(FATAL_ERROR "${MSG}") 
+		message(SEND_ERROR "${MSG}")
 	endif()
 endmacro()
 

@@ -4,21 +4,54 @@
 		{
 			"name": "gw-user",
 			"hidden": false,
-			"displayName": "GW Dbg Compiler",
-			"description": "GW Debug config for cross Windows GW compiler on Linux.",
+			"displayName": "User GW",
+			"description": "Debug config for Windows GW compiler on Linux.",
 			"inherits": [
+				".lnx-only",
 				".cfg-win"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/gw-user"
+			"binaryDir": "${sourceDir}/cmake-build/gw-user",
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gw"
+				},
+				"SF_OUTPUT_DIR_SUFFIX": {
+					"type": "STRING",
+					"value": "-user"
+				},
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			},
+			"environment": {
+				"--QT_VER_DIR": "$penv{HOME}/lib/qt/w64-x86_64/6.6.1"
+			}
 		},
 		{
 			"name": "gnu-user",
 			"hidden": false,
-			"displayName": "GNU Dbg Compiler",
-			"description": "GNU Debug config for Linux.",
+			"displayName": "User GNU",
+			"description": "Debug config for Linux GNU compiler.",
 			"inherits": [
-				".cfg-lnx"
+				".lnx-only",
+				".cfg"
 			],
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gnu"
+				},
+				"SF_OUTPUT_DIR_SUFFIX": {
+					"type": "STRING",
+					"value": "-user"
+				},
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			},
 			"binaryDir": "${sourceDir}/cmake-build/gnu-user"
 		}
 	],
@@ -27,26 +60,30 @@
 			"name": "gw-user",
 			"hidden": false,
 			"inherits": [
+				".lnx-only",
 				".build"
 			],
-			"displayName": "GW User Dbg",
-			"description": "GW User debug build preset.",
+			"displayName": "User GW",
+			"description": "User debug build preset GW compiler.",
 			"configurePreset": "gw-user",
 			"targets": [
-				"devops-shared-test"
+				"t_devops-shared-test-catch",
+				"t_devops-shared-test-google"
 			]
 		},
 		{
 			"name": "gnu-user",
 			"hidden": false,
 			"inherits": [
+				".lnx-only",
 				".build"
 			],
-			"displayName": "GNU User Dbg",
-			"description": "GNU User debug build preset.",
+			"displayName": "User GNU",
+			"description": "User debug build preset GNU compiler.",
 			"configurePreset": "gnu-user",
 			"targets": [
-				"devops-shared-test"
+				"t_devops-shared-test-catch",
+				"t_devops-shared-test-google"
 			]
 		}
 	],
@@ -54,22 +91,22 @@
 		{
 			"name": "gw-user",
 			"hidden": false,
-			"displayName": "GW User Dbg",
-			"description": "GW user test debug Windows cross compiler on Linux.",
+			"displayName": "User GW",
+			"description": "User test debug Windows GW compiler on Linux.",
 			"inherits": [
-				".test",
-				".lnx-only"
+				".lnx-only",
+				".test"
 			],
 			"configurePreset": "gw-user"
 		},
 		{
 			"name": "gnu-user",
 			"hidden": false,
-			"displayName": "GNU User Dbg",
-			"description": "GNU user test debug Linux.",
+			"displayName": "User GNU",
+			"description": "User test debug Linux.",
 			"inherits": [
-				".test",
-				".lnx-only"
+				".lnx-only",
+				".test"
 			],
 			"configurePreset": "gnu-user"
 		}
@@ -79,8 +116,8 @@
 	"workflowPresets": [
 		{
 			"name": "gw-user",
-			"displayName": "GW User Build & Test",
-			"description": "GW User build & test only.",
+			"displayName": "User GW",
+			"description": "User build & test only.",
 			"steps": [
 				{
 					"type": "configure",
@@ -94,12 +131,15 @@
 					"type": "test",
 					"name": "gw-user"
 				}
-			]
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
 		},
 		{
 			"name": "gnu-user",
-			"displayName": "GNU User Build & Test",
-			"description": "GNU User build & test only.",
+			"displayName": "User GNU",
+			"description": "User build & test only.",
 			"steps": [
 				{
 					"type": "configure",
@@ -113,7 +153,10 @@
 					"type": "test",
 					"name": "gnu-user"
 				}
-			]
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
 		}
 	]
 }

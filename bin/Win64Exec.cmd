@@ -3,34 +3,38 @@
 :: Keep variables localized to this script.
 setlocal
 
-:: Detect Wine and bail out since it it missing a full findstr implemention.
+:: Detect Wine and bail out since it it missing a full findstr implementation.
 if defined WINEUSERNAME (
     echo Cannot run under Linux Wine since command findstr is missing the /r regex option.
     exit /b 1
 )
 
-:: When exec_dir is not defined use this scripts directory.
-if not defined exec_dir (
-	set exec_dir=%~dp0
+:: When EXECUTABLE_DIR is not defined use this scripts directory.
+if not defined EXECUTABLE_DIR (
+	set EXECUTABLE_DIR=%~dp0\win64\
 )
 
-:: Initialize the variable
+:: Initialize the variable.
 set "qt_ver_dir="
 
-:: Loop through all drives
-for %%d in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
-	:: Check if the drive exists
-	if exist %%d:\Qt (
+:: Loop through all possible locations.
+for %%d in (
+	%EXECUTABLE_DIR%\..\..\lib\qt\w64-x86_64
+	C:\Qt D:\Qt E:\Qt F:\Qt G:\Qt H:\Qt I:\Qt J:\Qt K:\Qt L:\Qt M:\Qt N:\Qt
+	O:\Qt P:\Qt Q:\Qt R:\Qt S:\Qt T:\Qt U:\Qt V:\Qt W:\Qt X:\Qt Y:\Qt Z:\Qt
+	) do (
+	:: Check if the Directory exists
+	if exist %%d (
 		REM Seems REM is needed here since '::' FU the script in Win 11. Microsoft ^%$#^%#$$#@!!!!
 		REM :: Search for the directory in the current selected drive.
 		REM :: There is no version sort in Windows.
-		for /f "delims=" %%f in ('dir /b /ad /on %%d:\Qt\*') do (
+		for /f "delims=" %%f in ('dir /b /ad /on %%d\*') do (
 			:: Use a regular expression to match the pattern x.x.x
 			echo %%f | findstr /r "^[0-9]*\.[0-9]*\.[0-9]*.$" >nul
 			:: Check if the there was a match.
 			if not errorlevel 1 (
 				:: Assemble the path to the Qt version.
-				set "qt_ver_dir=%%d:\Qt\%%f"
+				set "qt_ver_dir=%%d\%%f"
 				:: Break the loop for search drives.
 				break
 			)
@@ -38,10 +42,9 @@ for %%d in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do (
 	)
 )
 
-
 :: Output the result
 if not defined qt_ver_dir (
-    echo No Qt version directory found on any drive.
+    echo No Qt version directory found on any of the given locations.
 	exit /b 1
 )
 
@@ -55,13 +58,16 @@ if "%~1"=="" (
 pushd
 
 :: Change the drive and path Move to the correct start directory for relative path '.lib' entry to have effect.
-cd /d %exec_dir%\win64
+cd /d %EXECUTABLE_DIR%
 
 :: Set the PATH for the found Qt library and the relative 'lib' directory.
 set PATH=%PATH%;%qt_ver_dir%\mingw_64\bin;.\lib
 
-:: Start the application in the foreground and current window.
-start /WAIT /B %exec_dir%win64\%*
+:: Start the application in the foreground and current window passing arguments 
+:: through environment variable to the test application when running ctest.
+start /WAIT /B %EXECUTABLE_DIR%\%* %CTEST_ARGS%
+
+echo Exitcode: %ERRORLEVEL%
 
 :: Restore the directory to as it was before.
 popd

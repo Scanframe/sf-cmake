@@ -4,28 +4,24 @@ set -e
 # Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
 set -o pipefail
 
-# Get the include directory which is this script's directory.
-include_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the scripts run directory weather it is a symlink or not.
+run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# When a symlink determine the script directory.
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+	include_dir="${run_dir}/$(dirname "$(readlink "$0")")"
+else
+	include_dir="${run_dir}/cmake/lib/bin"
+fi
+
 # Include the Miscellaneous functions.
 source "${include_dir}/inc/Miscellaneous.sh"
 
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
-# When the script directory is not set then
-if [[ -z "${SCRIPT_DIR}" ]]; then
-	WriteLog "Environment variable 'SCRIPT_DIR' not set!"
-	exit 1
-fi
-
-# When the script directory is not set then use the this scripts directory.
-if [[ -z "${SCRIPT_DIR}" ]]; then
-	SCRIPT_DIR="${include_dir}"
-fi
-
-# Change to the scripts directory to operated from when script is called from a different location.
-if ! cd "${SCRIPT_DIR}"; then
-	WriteLog "Change to operation directory '${SCRIPT_DIR}' failed!"
+# Change to the run directory to operated from when script is called from a different location.
+if ! cd "${run_dir}"; then
+	WriteLog "Change to operation directory '${run_dir}' failed!"
 	exit 1
 fi
 
@@ -35,28 +31,28 @@ function ShowHelp {
 	echo "Executes CMake commands using the 'CMakePresets.json' and 'CMakeUserPresets.json' files
 of which the first is mandatory to exist.
 
-Usage: ${0} [<options>] [<presets> ...]
+Usage: $(basename "${0}") [<options>] [<presets> ...]
   -h, --help       : Shows this help.
   -d, --debug      : Debug: Show executed commands rather then executing them.
   -i, --info       : Return information on all available build, test and package presets.
   -s, --submodule  : Return branch information on all Git submodules of last commit.
   -p, --package    : Create packages using a preset.
-  --required       : Install required Linux packages using debian apt package manager.
+  --required <trg> : Install required packages using the package manager under Linux.
+                     For Windows package managers apt-cyg (Cygwin) and WinGet are used.
+                     Where <trg> is the targeted system to build for like 'lnx', 'win', 'arm' on Linux
+                     and for Windows only 'win'.
   -m, --make       : Create build directory and makefiles only.
   -f, --fresh      : Configure a fresh build tree, removing any existing cache file.
   -C, --wipe       : Wipe clean build tree directory by removing all contents from the build directory.
   -c, --clean      : Cleans build targets first (adds build option '--clean-first')
   -b, --build      : Build target and make config when it does not exist.
-  -B, --build-only : Build target only and fail when the configuration does note exist.
+  -B, --build-only : Build target only and fail when the configuration does not exist.
   -t, --test       : Runs the ctest application using a test-preset.
+  -r, --regex      : Regular expression on which test names are to be executed.
   -w, --workflow   : Runs the passed work flow presets.
   -l, --list-only  : Lists the ctest test defined application by the project and selected preset.
   -n, --target     : Overrides the build targets set in the preset by a single target.
-  -r, --regex      : Regular expression on which test names are to be executed.
-  Where <sub-dir> is the directory used as build root for the CMakeLists.txt in it.
-  This is usually the current directory '.'.
-  When the <target> argument is omitted it defaults to 'all'.
-  The <sub-dir> is also the directory where cmake will create its 'cmake-build-???' directory.
+  --run -- <cmd>   : Run a command with the modified PATH for (Windows).
 
   Examples:
     Get all project presets info: ${0} -i
@@ -78,48 +74,74 @@ sf_target_os="$(uname -o)"
 #
 function InstallPackages {
 	WriteLog "About to install required packages for ($1)..."
-	if [[ "$1" == "GNU/Linux/x86_64" || "$1" == "GNU/Linux/arm64" || "$1" == "GNU/Linux/aarch64" ]]; then
-	#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then
+	if [[ "${1}" == "GNU/Linux/lnx" ]]; then
+		#if [[ "$(lsb_release -is)" == "Ubuntu" ]]; then
 		# Install packages needed for installing other packages.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
-		sudo apt --yes install wget curl gpg lsb-release software-properties-common
+		sudo apt --yes install wget curl gpg lsb-release software-properties-common ccache
+		# Some xcb related libraries for Qt6 to run.
+		sudo apt --yes install xcb libxkbcommon-x11-0 libxcb-xinput0 libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libpcre2-16-0
 		# Check if the package repository has been added.
-		if ! apt-add-repository --list | grep "llvm-toolchain">/dev/null; then
+		if ! apt-add-repository --list | grep "llvm-toolchain" >/dev/null; then
 			wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
 			sudo apt-add-repository --yes --no-update "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc) main"
 		fi
-		# Check if the package repository has been added.
+		# Check if the package repository has been added when this is an ubuntu distro only.
 		if ! apt-add-repository --list | grep "apt.kitware.com/ubuntu" >/dev/null; then
-			wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-			sudo apt-add-repository --yes --no-update "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+			if [[ "$(lsb_release -is)" == 'Ubuntu' ]]; then
+				wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+				sudo apt-add-repository --yes --no-update "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+			else
+				WriteLog "# Cannot install latest 'cmake' from Kitware since this in no Ubuntu distribution."
+			fi
 		fi
 		# Update after repositories were added.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
-		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev \
-			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless dialog dos2unix pcregrep "${LINUX_PACKAGES[@]}"; then
+		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev libxkbfile-dev libvulkan-dev \
+			libssl-dev exiftool default-jre-headless chrpath colordiff dialog dos2unix pcregrep clang-format; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
-	elif [[ "$1" == "GNU/Linux/x86_64/Cross" ]]; then
-		if ! sudo apt install mingw-w64 make cmake doxygen graphviz winbind exiftool default-jre-headless ; then
+	elif [[ "$1" == "GNU/Linux/win" ]]; then
+		if ! sudo apt install mingw-w64; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
 		# When Wine HQ is installed do not revert it back to the distro default version.
-		if ! command -v wine >/dev/null; then
-			if ! sudo apt install wine; then
+		if ! command -v "wine" >/dev/null; then
+			if ! sudo apt-get --yes install wine; then
 				WriteLog "Failed to install package wine!"
 				exit 1
 			fi
 		fi
-	elif [[ "$1" == "Cygwin/x86_64" ]]; then
+	elif [[ "$1" == "GNU/Linux/arm" ]]; then
+		if ! sudo apt-get --yes install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu; then
+			WriteLog "Failed to install 1 or more packages!"
+			exit 1
+		fi
+		# Install arm64 architecture packages when in dpkg 'arm64' is present.
+		if dpkg --print-foreign-architectures | grep --quiet '^arm64$'; then
+			if ! sudo apt-get --yes install gcc-aarch64-linux-gnu:amd64 g++-aarch64-linux-gnu:amd64 binutils-aarch64-linux-gnu:amd64 \
+				libgles-dev:arm64 libegl-dev:arm64 libgl-dev:arm64 libpcre2-16-0:arm64 libglvnd-dev:arm64 libpng16-16t64:arm64 \
+				xcb:arm64 libxkbcommon-x11-0:arm64 libxcb-xinput0:arm64 libxcb-cursor0:arm64 libxcb-shape0:arm64 \
+				libxcb-icccm4:arm64 libxcb-image0:arm64 libxcb-keysyms1:arm64 libxcb-render-util0:arm64 libdbus-1-3:arm64 \
+				libcairo-gobject2:arm64 libxkbcommon-dev:arm64 libxkbfile-dev:arm64; then
+				WriteLog "Failed to install 1 or more packages!"
+				exit 1
+			fi
+		else
+			WriteLog "Architecture 'arm64' is not enabled and packages are therefore not installed!"
+		fi
+	elif [[ "$1" == "Cygwin/win" ]]; then
 		# List of WinGet packages to install.
 		declare -A wg_pkgs
 		wg_pkgs["CMake C++ build tool"]="Kitware.CMake"
 		wg_pkgs["Ninja build system"]="Ninja-build.Ninja"
+		wg_pkgs["Nullsoft Install System"]="NSIS.NSIS"
 		wg_pkgs["Oracle JRE"]="Oracle.JavaRuntimeEnvironment"
+		wg_pkgs["LLVM Clang-Format"]="LLVM.ClangFormat"
 		#wg_pkgs["GNU Make"]="GnuWin32.Make"
 		# Iterate through the associative array of subdirectories (key) and remotes (value).
 		for name in "${!wg_pkgs[@]}"; do
@@ -139,6 +161,9 @@ function InstallPackages {
 			"graphviz"
 			"pcre"
 			"jq"
+			"unzip"
+			"colordiff"
+			"dos2unix"
 		)
 		for pkg in "${cg_pkgs[@]}"; do
 			if ! apt-cyg install "${pkg}"; then
@@ -146,6 +171,9 @@ function InstallPackages {
 				exit 1
 			fi
 		done
+	else
+		WriteLog "Invalid requirements target '$1', see help for valid ones!"
+		exit 1
 	fi
 }
 
@@ -174,8 +202,8 @@ function SelectBuildPreset {
 		cfg_name="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").displayName" "${@}")"
 		cfg_desc="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").description" "${@}")"
 		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
-		# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
-		eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+		# Expand used 'sourceDir' variable using 'run_dir' variable.
+		eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Build: ${preset} '${name}' ${desc}"
@@ -198,7 +226,7 @@ function SelectBuildPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Build Selection" --menu "Select a preset to build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection="$(dialog --backtitle "Build Selection" --menu "Select a preset to configure or build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -236,8 +264,8 @@ function SelectTestPreset {
 			if ! ctest --preset "${preset}" --show-only | grep -P "\s+Test #\d+:" | PrependAndEscape "\t\t-"; then
 				# Get the binary directory from the configuration.
 				binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${@}")"
-				# Expand used 'sourceDir' variable using 'SCRIPT_DIR' variable.
-				eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+				# Expand used 'sourceDir' variable using 'run_dir' variable.
+				eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 				# Check if the configuration step has been performed.
 				if [[ ! -f "${binary_dir}/CMakeCache.txt" ]]; then
 					WriteLog -e "\t\t:Need cmake configuration step for this information."
@@ -373,44 +401,21 @@ function SelectWorkflowPreset {
 
 # Detect windows using the cygwin 'uname' command.
 if [[ "${sf_target_os}" == "Cygwin" ]]; then
-	WriteLog "# Windows OS detected through Cygwin shell"
-	export sf_target_os="Cygwin"
-	flag_windows=true
-	# Set the directory the local QT root.
-	# shellcheck disable=SC2012
-	local_qt_root="$( (ls -d /cygdrive/?/Qt | head -n 1) 2>/dev/null)"
-	if [[ -d "$local_qt_root" ]]; then
-		WriteLog "# Found QT in '${local_qt_root}'"
+	tools_dir_file="${run_dir}/.tools-dir-$(uname -n)"
+	WriteLog "# Cygwin tools location file: $(basename "${tools_dir_file}")"
+	# Check if the tools directory file exists.
+	if [[ -f "${tools_dir_file}" ]]; then
+		# Read the first line of the file and strip the newline.
+		tools_dir="$(head -n 1 "${tools_dir_file}" | tr -d '\n' | tr -d '\n' | tr -d '\r')"
+		if [[ -d "${tools_dir}" ]]; then
+			export PATH="${tools_dir}:${PATH}"
+			WriteLog "# Tools directory added to PATH: ${tools_dir}"
+		else
+			WriteLog "# Non-existing tools directory: ${tools_dir}"
+		fi
 	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
-elif [[ "${sf_target_os}" == "Msys" ]]; then
-	WriteLog "# Windows OS detected through Msys shell"
-	export sf_target_os="Msys"
-	flag_windows=true
-	# Set the directory the local QT root.
-	# shellcheck disable=SC2012
-	local_qt_root="$( (ls -d /?/Qt | tail -n 1) 2>/dev/null)"
-	if [[ -d "$local_qt_root" ]]; then
-		WriteLog "# Found QT in '${local_qt_root}'"
-	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .bat)"
 elif [[ "${sf_target_os}" == "GNU/Linux" ]]; then
-	WriteLog "# Linux detected"
-	export sf_target_os="GNU/Linux"
-	flag_windows=false
-	# Set the directory the local QT root.
-	local_qt_root="${HOME}/lib/Qt"
-	# Check if it exists.
-	if [[ -d "${local_qt_root}" ]]; then
-		WriteLog "# QT found in '${local_qt_root}'"
-	else
-		local_qt_root=""
-	fi
-	# Create temporary file for executing cmake.
-	#EXEC_SCRIPT="$(mktemp --suffix .sh)"
-	#chmod +x "${EXEC_SCRIPT}"
+	WriteLog "# Linux $(uname -m) detected"
 else
 	WriteLog "Targeted OS '${sf_target_os}' not supported!"
 fi
@@ -421,20 +426,8 @@ if [[ $# == 0 ]]; then
 	exit 0
 fi
 
-# When in windows determine which cmake to use and where to get it including ninja and the compiler.
-if ${flag_windows}; then
-	# shellcheck disable=SC2154
-	if ! command -v cmake >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/cmake/win/x64/bin 2>/dev/null):${PATH}" || true
-	fi
-	if ! command -v ninja >/dev/null; then
-		PATH="$(ls -d "$(cygpath -u "${ProgramW6432}")/JetBrains/CLion"*/bin/ninja/win/x64 2>/dev/null):${PATH}" || true
-	fi
-	PATH="${local_qt_root}/Tools/mingw1120_64/bin:${PATH}"
-	export PATH
-fi
-
 # Initialize arguments and switches.
+flag_run=false
 flag_debug=false
 flag_config=false
 flag_build=false
@@ -462,7 +455,7 @@ test_regex=""
 
 # Parse options.
 temp=$(getopt -o 'n:hisdpfCcmbwBtlr:' \
-	--long 'target:,help,info,submodule,required,debug,fresh,wipe,clean,make,build,workflow,-B,build-only,test,package,list,regex:,gitlab-ci' \
+	--long 'target:,help,info,submodule,required:,debug,fresh,wipe,clean,make,build,workflow,-B,build-only,test,list-only,package,list,regex:,gitlab-ci,run' \
 	-n "$(basename "${0}")" -- "$@")
 if [[ "${#}" -eq 0 ]]; then
 	ShowHelp
@@ -476,6 +469,12 @@ while true; do
 		-h | --help)
 			ShowHelp
 			exit 0
+			;;
+
+		--run)
+			shift 2
+			flag_run=true
+			break
 			;;
 
 		-i | --info)
@@ -494,8 +493,7 @@ while true; do
 			;;
 
 		--required)
-			InstallPackages "${sf_target_os}/$(uname -m)/Cross"
-			InstallPackages "${sf_target_os}/$(uname -m)"
+			InstallPackages "${sf_target_os}/$2"
 			exit 0
 			;;
 
@@ -529,7 +527,7 @@ while true; do
 			script='echo "$(pwd): $(git log -n 1 --oneline --decorate | pcregrep -o1 ", ([^ ]*)\) ")";GIT_COLOR_UI="always git status" git status --short'
 			# shellcheck disable=SC2086
 			eval "${script}"
-			git -C "${SCRIPT_DIR}" submodule foreach --quiet "${script}"
+			git -C "${run_dir}" submodule foreach --quiet "${script}"
 			exit 0
 			;;
 
@@ -609,6 +607,12 @@ while true; do
 	esac
 done
 
+if ${flag_run}; then
+	echo "${*}"
+	"${@}"
+	exit 0
+fi
+
 # Check if the needed commands are installed.
 commands=("git" "jq" "cmake" "ctest" "cpack" "ninja" "doxygen")
 # Add interactive commands when running interactively.
@@ -616,7 +620,7 @@ if [[ "${CI}" != "true" ]]; then
 	commands+=("dialog" "pcregrep")
 fi
 for cmd in "${commands[@]}"; do
-	if ! command -v "${cmd}" >/dev/null ; then
+	if ! command -v "${cmd}" >/dev/null; then
 		WriteLog "Missing command '${cmd}' for this script!"
 		WriteLog "Run option with '--required' to install tool dependencies."
 		exit 1
@@ -630,8 +634,21 @@ while [ $# -gt 0 ] && ! [[ "$1" =~ ^- ]]; do
 	shift
 done
 
+# When in a docker container the Qt version directories are fixed in the user home '~/lib' directory.
+if [[ -f /.dockerenv ]]; then
+	# Only on a x86_64 machine cross compiling is possible.
+	if [[ "$(uname -m)" == 'x86_64' ]]; then
+		# shellcheck disable=SC2155
+		export QT_WIN_VER_DIR="$("${include_dir}/QtLibDir.sh" "Windows")"
+	fi
+	# shellcheck disable=SC2155
+	export QT_LNX_VER_DIR="$("${include_dir}/QtLibDir.sh" "Linux")"
+	# shellcheck disable=SC2155
+	export QT_LNX_VER_DIR_AARCH64="$("${include_dir}/QtLibDir.sh" "Linux" "aarch64")"
+fi
+
 # Form the presets file location.
-file_presets=("${SCRIPT_DIR}/CMakePresets.json")
+file_presets=("${run_dir}/CMakePresets.json")
 
 # Check if the presets file is present.
 if [[ ! -f "${file_presets[0]}" ]]; then
@@ -640,8 +657,8 @@ if [[ ! -f "${file_presets[0]}" ]]; then
 fi
 
 # Add user presets to the list.
-if [[ -f "${SCRIPT_DIR}/CMakeUserPresets.json" ]]; then
-	file_presets+=("${SCRIPT_DIR}/CMakeUserPresets.json")
+if [[ -f "${run_dir}/CMakeUserPresets.json" ]]; then
+	file_presets+=("${run_dir}/CMakeUserPresets.json")
 fi
 
 # Check if information is to be shown only.
@@ -711,8 +728,8 @@ if ${flag_build} || ${flag_config}; then
 			WriteLog "Build preset '${preset}' does not exist!"
 			cmake --list-presets build
 		else
-			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+			# Expand used 'sourceDir' variable using local 'run_dir' variable.
+			eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 			# Notify the build of the preset.
 			WriteLog "# Building preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			# When the '--fresh' option is has been passed delete the depending repository CMakeCache.txt files as well.
@@ -720,12 +737,12 @@ if ${flag_build} || ${flag_config}; then
 				while read -r cache_file; do
 					WriteLog "Deleting cache file: ${cache_file}"
 					rm "${cache_file}"
-				done < <(find "${binary_dir}/_deps" -type f -name "CMakeCache.txt")
+				done < <(find "${binary_dir}/_deps" -type f -name "CMakeCache.txt" 2>/dev/null)
 			fi
 			# When the binary directory exists and the Wipe flag is set.
 			if ${flag_wipe} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
-				if [[ "${binary_dir}" != "${SCRIPT_DIR}/"* ]]; then
+				if [[ "${binary_dir}" != "${run_dir}/"* ]]; then
 					WriteLog "Cannot wipe non subdirectory '${binary_dir}' !"
 					exit 0
 				fi
@@ -743,6 +760,7 @@ if ${flag_build} || ${flag_config}; then
 			# When the binary directory does not exists or configure is required.
 			if [[ ! -d "${binary_dir}" ]] || ${flag_config} && ! ${flag_build_only}; then
 				cmake_config+=("--preset ${cfg_preset}")
+				#cmake_config+=("--trace")
 				if ${flag_debug}; then
 					WriteLog "$(JoinBy ' ' "${cmake_config[@]}")"
 				else
@@ -754,6 +772,7 @@ if ${flag_build} || ${flag_config}; then
 			# Build when flag is set.
 			if ${flag_build}; then
 				cmake_build+=("--preset ${cfg_preset}")
+				#cmake_build+=("--parallel $(nproc)")
 				# Add flag to list targets.
 				if ${flag_list}; then
 					cmake_build+=("--target help")
@@ -763,7 +782,6 @@ if ${flag_build} || ${flag_config}; then
 						cmake_build+=("--target ${target_name}")
 					fi
 				fi
-				WriteLog "$(JoinBy " " "${cmake_build[@]}")"
 				if ! ${flag_debug}; then
 					WriteLog "# $(JoinBy " " "${cmake_build[@]}")"
 					# Run the build preset.
@@ -793,11 +811,12 @@ if ${flag_test}; then
 			# Show the available presets.
 			ctest --list-presets
 		else
-			# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-			eval "sourceDir=\"${SCRIPT_DIR}\" binary_dir=${binary_dir//\$env{/\${}"
+			# Expand used 'sourceDir' variable using local 'run_dir' variable.
+			eval "sourceDir=\"${run_dir}\" binary_dir=${binary_dir//\$env{/\${}"
 			WriteLog "# Testing preset '${preset}' with configuration '${cfg_preset}' in directory '${binary_dir}' ..."
 			ctest_build+=(--preset "${preset}")
 			ctest_build+=(--verbose)
+			ctest_build+=(--progress)
 			# Add flag to list tests.
 			if ${flag_list}; then
 				ctest_build+=(--show-only)
@@ -842,8 +861,8 @@ if ${flag_package}; then
 		cfg_preset="$(jq -r ".packagePresets[]|select(.name==\"${preset}\").configurePreset" "${file_presets[@]}")"
 		# Retrieve the configuration preset.
 		package_dir="$(jq -r ".packagePresets[]|select(.name==\"${cfg_preset}\").packageDirectory" "${file_presets[@]}")"
-		# Expand used 'sourceDir' variable using local 'SCRIPT_DIR' variable.
-		eval "sourceDir=\"${SCRIPT_DIR}\" package_dir=${package_dir//\$env{/\${}"
+		# Expand used 'sourceDir' variable using local 'run_dir' variable.
+		eval "sourceDir=\"${run_dir}\" package_dir=${package_dir//\$env{/\${}"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
 			WriteLog "Configure or Package preset '${preset}' does not exist!"

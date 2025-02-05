@@ -21,6 +21,9 @@ variables:
 workflow:
   rules:
     - when: always
+  # Cancel when there is a new commit.
+  auto_cancel:
+    on_new_commit: interruptible
 
 # Order of stages for jobs to perform in.
 stages:
@@ -50,11 +53,15 @@ stages:
 
 # Defaults for all jobs.
 default:
+  # Set a specific Docker image to execute all jobs in.
+  image: "${SF_DOCKER_IMAGE}"
   # Tags determine the selection of a runner.
   tags:
     - cplusplus
     - "${SF_TARGET_OS}"
     - "${SF_TARGET_ARCH}"
+  # Allow to be interrupted.
+  interruptible: true
 
 # Job executing CMake preset 'workflow'.
 job-coverage:

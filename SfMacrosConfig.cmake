@@ -56,9 +56,9 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 			set(_Sep "/")
 			# Make a distinction based on targeted system.
 			if (WIN32)
-				set(${_OutputDir} "${_Dir}${_Sep}win64" PARENT_SCOPE)
+				set(${_OutputDir} "${_Dir}${_Sep}win64${SF_OUTPUT_DIR_SUFFIX}" PARENT_SCOPE)
 			else ()
-				set(${_OutputDir} "${_Dir}${_Sep}lnx64" PARENT_SCOPE)
+				set(${_OutputDir} "${_Dir}${_Sep}lnx64${SF_OUTPUT_DIR_SUFFIX}" PARENT_SCOPE)
 			endif ()
 			# Stop here the directory has been found.
 			break()
@@ -67,23 +67,25 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 endfunction()
 
 ##!
-# Sets the 3 CMAKE_??????_OUTPUT_DIRECTORY variables when an output directory has been found.
-# Only when the top project is the current project.
+# Sets the CMAKE_??????_OUTPUT_DIRECTORY variables when an output directory has been found.
+# Only when the top level project is the current project.
 # Fatal error when not able to do so.
 #
 function(Sf_SetOutputDirs _DirName)
-	if (CMAKE_PROJECT_NAME STREQUAL "${PROJECT_NAME}")
+	# if (CMAKE_PROJECT_NAME STREQUAL "${PROJECT_NAME}")
+	if (PROJECT_IS_TOP_LEVEL)
 		Sf_LocateOutputDir("${_DirName}" _OutputDir)
 		# Check if the directory was found.
 		if (_OutputDir STREQUAL "")
-			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
+			message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
 		else ()
+			message(STATUS "Setting output directories for top level project '${PROJECT_NAME}'.")
 			# Set the directories accordingly in the parents scope.
 			#if (CMAKE_RUNTIME_OUTPUT_DIRECTORY STREQUAL "")
-				set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
+			set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
 			#endif ()
 			#if (CMAKE_LIBRARY_OUTPUT_DIRECTORY STREQUAL "")
-				set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
+			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
 			#endif ()
 			#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
 		endif ()
@@ -129,47 +131,6 @@ function(Sf_GetSubDirectories VarOut Directory MatchStr)
 endfunction()
 
 ##!
-# Gets the Qt directory located a defined position for Linux and Windows.
-#
-function(Sf_GetQtVersionDirectory _VarOut)
-	# Check if the environment variable has been set for the directory.
-	if (NOT "$ENV{QT_VER_DIR}" STREQUAL "")
-		if (NOT EXISTS "$ENV{QT_VER_DIR}")
-			message(FATAL_ERROR "Environment QT_VER_DIR set to non existing directory: $ENV{QT_VER_DIR} !")
-		endif ()
-		set(${_VarOut} "$ENV{QT_VER_DIR}" PARENT_SCOPE)
-	else()
-		set(_QtDir "")
-		if (NOT "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "${CMAKE_SYSTEM_NAME}" AND "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux")
-			set(_QtDir "$ENV{HOME}/lib/QtWin")
-		elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
-			set(_QtDir "$ENV{HOME}/lib/Qt")
-		elseif ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
-			set(_QtDir "")
-			# Iterate through all the most logical drives. (Drive P is preferred so put in front.)
-			set(_Drives P C D E F G H I J K L M N O P Q R S T U V W X Y Z)
-			foreach (_Drive ${_Drives})
-				if (EXISTS "${_Drive}:/Qt/")
-					set(_QtDir "${_Drive}:/Qt")
-					message(STATUS "Qt root library found in '${_QtDir}'!")
-					break()
-				endif ()
-			endforeach ()
-		endif ()
-		Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
-		list(LENGTH _SubDirs _Len)
-		if (NOT ${_Len})
-			message(STATUS "Qt versioned library not found in '${_QtDir}'!")
-			set(${_VarOut} "" PARENT_SCOPE)
-			return()
-		endif ()
-		list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
-		list(GET _SubDirs 0 _QtVerDir)
-		set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
-	endif ()
-endfunction()
-
-##!
 # Works around the cmake bug with sources and binary directory on a shared drive.
 #
 function(Sf_WorkAroundSmbShare)
@@ -183,7 +144,7 @@ function(Sf_WorkAroundSmbShare)
 		#message(STATUS ${_Result})
 		# Validate the exit code.
 		if (_ExitCode GREATER "0")
-			message(FATAL_ERROR "Failed execution of script: ${_Script}")
+			message(SEND_ERROR "Failed execution of script: ${_Script}")
 		endif ()
 	]]
 endfunction()
@@ -209,4 +170,55 @@ function(Sf_GetTargetSource _Targets _OutVar)
 	list(REMOVE_DUPLICATES _ActiveSources)
 	# Assign the passed variable.
 	set("${_OutVar}" "${_ActiveSources}" PARENT_SCOPE)
+endfunction()
+
+
+##!
+# Checks if the passed path is a symlink.
+# Sets the '_ResultVar' variable to True or False.
+# Returns false when the path does not exist.
+#
+function(Sf_IsSymlink _Path _ResultVar)
+	# When the host system is not windows.
+	if("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		# Windows doesn't have symlinks in the same way, but it has junctions and symlinks and are treated the same way.
+		execute_process(
+			COMMAND cmd /c "dir /al \"${_Path}\""
+			OUTPUT_VARIABLE _output
+			ERROR_VARIABLE _error
+			RESULT_VARIABLE _res
+		)
+		if(res EQUAL 0)
+			# Check for <JUNCTION> or <SYMLINK> in the output.
+			string(FIND "${_output}" "<JUNCTION>" is_junction)
+			string(FIND "${_output}" "<SYMLINK>" is_symlink)
+			if(is_junction GREATER -1 OR is_symlink GREATER -1)
+				set(${_ResultVar} TRUE PARENT_SCOPE)
+			else()
+				set(${_ResultVar} FALSE PARENT_SCOPE)
+			endif()
+		else()
+			set(${_ResultVar} FALSE PARENT_SCOPE)
+		endif()
+	else()
+		# Unix-like systems
+		execute_process(
+			COMMAND stat -c "%F" "${_Path}"
+			OUTPUT_VARIABLE _file_type
+			RESULT_VARIABLE _res
+			ERROR_VARIABLE _error
+		)
+		if(_res EQUAL 0)
+			string(STRIP "${_file_type}" _file_type)
+			if (_file_type STREQUAL "symbolic link")
+				set(${_ResultVar} TRUE PARENT_SCOPE)
+			else()
+				set(${_ResultVar} FALSE PARENT_SCOPE)
+			endif()
+		else()
+			message(STATUS "Error checking _Path: ${_Path} - ${_error}")
+			# When not found the path sure is not a symbolic link.
+			set(${_ResultVar} FALSE PARENT_SCOPE)
+		endif()
+	endif()
 endfunction()

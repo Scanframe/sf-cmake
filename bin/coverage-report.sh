@@ -25,6 +25,10 @@ function ShowHelp {
     -n, --name    : Report basename which defaults to 'report'.
     --gcov        : Location of the 'gcov' when a different toolchain has been used.
     --cleanup     : Remove the gcda files after the report was generated successfully.
+    --json        : Report additional JSON format file.
+    --lcov        : Report additional LCOV format file.
+    --jacoco      : Report additional Jacoco format file.
+    --html <type> : Report additional HTML formated files where type is 'nested' or 'flat'.
     --verbose     : Inform what is done.
 "
 }
@@ -39,12 +43,14 @@ working_dir="${PWD}"
 flag_cleanup=false
 flag_verbose=false
 flag_search_path=true
-flag_report_json=true
-flag_report_html=true
+flag_report_html=""
+flag_report_json=false
+flag_report_lcov=false
+flag_report_jacoco=false
 
 # Parse options.
 temp=$(getopt -o 'hs:t:n:w:' \
-	--long 'help,source:,target:,working:,name:,cleanup,verbose,gcov:' \
+	--long 'help,source:,target:,working:,name:,cleanup,verbose,gcov:,json,html:' \
 	-n "$(basename "${0}")" -- "$@")
 # No arguments, show help and bailout.
 if [[ "${#}" -eq 0 ]]; then
@@ -100,6 +106,30 @@ while true; do
 		--cleanup)
 			flag_cleanup=true
 			shift 1
+			continue
+			;;
+
+		--json)
+			flag_report_json=true
+			shift 1
+			continue
+			;;
+
+		--lcov)
+			flag_report_lcov=true
+			shift 1
+			continue
+			;;
+
+		--jacoco)
+			flag_report_jacoco=true
+			shift 1
+			continue
+			;;
+
+		--html)
+			flag_report_html="${2}"
+			shift 2
 			continue
 			;;
 
@@ -182,28 +212,40 @@ if [[ -n "${gcov_bin}" ]]; then
 fi
 # General options.
 gcovr_mcd+=(--exclude-unreachable-branches --print-summary)
-# Generate the HTML report.
-if ${flag_report_html}; then
-	gcovr_mcd+=(--json-summary-pretty --json-summary "${target_dir}/${filename}.json")
-fi
 # Generate summary json-file,
-if ${flag_report_json}; then
+if [[ -n "${flag_report_html}" ]]; then
 	gcovr_mcd+=(--html-tab-size 2)
 	# Select the theme for HTML output to be green,blue,github.blue,github.green,github.dark-green,github.dark-blue.
 	gcovr_mcd+=(--html-theme github.green)
 	#gcovr_mcd+=(--html-self-contained)
-	gcovr_mcd+=(--html-nested "${target_dir}/${filename}.html")
-	#gcovr_mcd+=(--html-details "${target_dir}/${filename}.html")
+	if [[ "${flag_report_html}" == "flat" ]]; then
+		# Single HTML file for all directories.
+		gcovr_mcd+=(--html-details "${target_dir}/${filename}.html")
+	else
+		# Multiple HTML files for each directory.
+		gcovr_mcd+=(--html-nested "${target_dir}/${filename}.html")
+	fi
+fi
+# Generate the JSON report file.
+if ${flag_report_json}; then
+	gcovr_mcd+=(--json-summary-pretty --json-summary "${target_dir}/${filename}.json")
+fi
+# Generate the Jacoco report file.
+if ${flag_report_jacoco}; then
+	gcovr_mcd+=(--jacoco "${target_dir}/${filename}.jacoco.xml")
+fi
+# Generate the Jacoco report file.
+if ${flag_report_lcov}; then
+	gcovr_mcd+=(--lcov "${target_dir}/${filename}.lcov")
 fi
 # Generate Cobertura coverage report which GitLab can handle/process.
 gcovr_mcd+=(--xml-pretty --output "${target_dir}/${filename}.xml")
 # Sort on: filename,uncovered-number,uncovered-percent
 gcovr_mcd+=(--sort uncovered-percent)
-
 # Output also additional values/columns.
 #gcovr_mcd+=(--decisions --calls)
 # Remove lines containing only an accolade.
-#gcovr_mcd+=( --exclude-lines-by-pattern '^\s*\}\s*$')
+gcovr_mcd+=(--exclude-lines-by-pattern '^\s*\}\s*$')
 
 # Add the gcda-files using file or search path(s).
 if ${flag_search_path}; then
@@ -234,16 +276,21 @@ if [[ "${#argument[@]}" -ne 0 ]]; then
 		# Now check the resulting path if it is part of the including filter paths.
 		for value in "${argument[@]}"; do
 			# When the directory of the file is a subdirectory of one of the filter values.
-			if [[ "${dir}/" == "${value}/"* && "${dir}"/ != "${value}/tests/"* ]]; then
+			# Do not remove tests from coverage since the template coverage depends on them!
+			if [[ "${dir}/" == "${value}/"* ]]; then
 				# Unmark the file to be deleted.
 				rm_file=false
 				if ${flag_verbose}; then
-					WriteLog "- Keeping: ${REPLY}"
+					WriteLog "- Keeping (${dir}): ${REPLY}"
+				fi
+			else
+				if ${flag_verbose}; then
+					WriteLog "- Removing::: ${dir}/${REPLY}"
 				fi
 			fi
 		done
 		# When file is marked for removal.
-		if ${rm_file} ; then
+		if ${rm_file}; then
 			rm "${source_dir}/${REPLY}"
 		fi
 	done < <(find "${source_dir}" -type f -name "*.gc??" -printf "%P\n")
@@ -259,13 +306,13 @@ if "${gcovr_mcd[@]}" | tee "${target_dir}/${filename}.txt"; then
 	WriteLog "Report at: file://${target_dir}/${filename}.html"
 	WriteLog "Summary at: ${target_dir}/${filename}.json"
 	# It seems '--html-tab-size 2' is not working, so add it to the stylesheet.
-	echo ".w {tab-size: 4;}" >> "${target_dir}/${filename}.css"
+	echo ".w {tab-size: 4;}" >>"${target_dir}/${filename}.css"
 	# Delete all arc files when successful.
 	if ${flag_cleanup}; then
 		# Remove all the "*.gcda" files after.
 		while IFS='' read -r -d $'\n'; do
 			if ${flag_verbose}; then
-				WriteLog "- Removing: ${REPLY}"
+				WriteLog "- Cleanup after, removing: ${REPLY}"
 			fi
 			# Do not fail this command by using '--force'.
 			rm "${REPLY}"
