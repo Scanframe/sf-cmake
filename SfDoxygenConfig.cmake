@@ -20,7 +20,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	set(_PlantUmlVer "")
 	# Check if argument 4 which is the plantuml version is passed
 	if (DEFINED ARGV5)
-		if ("${ARGV5}" STREQUAL "")
+		if (ARGV5 STREQUAL "")
 			# Set default plantuml version.
 			set(_PlantUmlVer "v1.2023.1")
 		else ()
@@ -53,11 +53,6 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	file(RELATIVE_PATH DG_LogoFile "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}/logo.png")
 	# Path to images of the document base directory.
 	file(RELATIVE_PATH DG_ImagePath "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}")
-#[[
-	# Add the top project source dir so images in the code can be referenced from the root of the project.
-	file(RELATIVE_PATH _Temp "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}")
-	list(APPEND DG_ImagePath "${_Temp}src/com/misc/gen" "${_Temp}src/com/gii/gen")
-]]
 	# Add the image directories (assumed they are relative!).
 	list(APPEND DG_ImagePath ${_ImageDirs})
 	# Multiple paths need to be SPACE separated!
