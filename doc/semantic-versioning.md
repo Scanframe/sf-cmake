@@ -1,4 +1,5 @@
-# Semantic Versioning {#semantic-versioning}
+# Semantic Versioning
+
 ## Conventional Commits Auto Version Bumping
 
 To automatically bumping the version using conventional commits
