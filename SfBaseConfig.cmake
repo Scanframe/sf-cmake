@@ -13,6 +13,7 @@ set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when dev
 set(SF_OUTPUT_DIR_SUFFIX "" CACHE STRING "Output directory suffix only used by e.g. user presets to separate builds.")
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 
+
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
 #
@@ -97,7 +98,7 @@ endfunction()
 # When the directory does not exist it bails out with a fatal error.
 #
 function(Sf_AppendCmakePrefixPath _Dir)
-	Sf_GetFilenameComponent(_RealDir "${CMAKE_CURRENT_LIST_DIR}/${_Dir}" REALPATH)
+	get_filename_component(_RealDir "${CMAKE_CURRENT_LIST_DIR}/${_Dir}" REALPATH)
 	if (EXISTS "${_RealDir}")
 		set(_path "${CMAKE_PREFIX_PATH}")
 		list(APPEND _path "${_RealDir}")
@@ -767,11 +768,11 @@ function(Sf_AddExamples _Files _Prefix)
 	endif ()
 	foreach (_file IN LISTS _Files)
 		# Extract the file name from the given file.
-		Sf_GetFilenameComponent(_filename "${_file}" NAME)
+		get_filename_component(_filename "${_file}" NAME)
 		# Make a flat name of the filename replacing the slashes with a '-' character.
 		string(REPLACE "/" "-" _filename "${_filename}")
 		# When the file is relative prepend the list dir of the current project.
-		if (NOT IS_ABSOLUTE _file)
+		if(NOT IS_ABSOLUTE _file)
 			set(_file "${CMAKE_CURRENT_LIST_DIR}/${_file}")
 		endif ()
 		# Copy the file to the destination.
