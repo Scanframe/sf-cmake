@@ -13,7 +13,6 @@ set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when dev
 set(SF_OUTPUT_DIR_SUFFIX "" CACHE STRING "Output directory suffix only used by e.g. user presets to separate builds.")
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 
-
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
 #
@@ -84,6 +83,38 @@ function(Sf_GetFilenameComponent _out_var _file_path _component)
 endfunction()
 
 ##!
+# Compatible replacement of function 'get_filename_component()'.
+# Resolves problem with Windows getting a UNC path from a drive mapped share
+# when requesting 'REALPATH' component.
+#
+function(Sf_GetFilenameComponent _out_var _file_path _component)
+	# Optional ARGS
+	set(_options)
+	set(_oneValueArgs)
+	set(_multiValueArgs)
+	cmake_parse_arguments(GFC "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
+	# Call the original.
+	if (GFC_CACHE)
+		get_filename_component(_result "${_file_path}" ${_component} CACHE)
+	else ()
+		get_filename_component(_result "${_file_path}" ${_component})
+	endif ()
+	# Log the parameters and result
+	if (_component STREQUAL "REALPATH" AND _result MATCHES "^//")
+		if (_file_path MATCHES "^[A-Z]:")
+			string(SUBSTRING "${_file_path}" 0 2 _drive)
+			string(REGEX REPLACE "^//[^/]+/[^/]+" "${_drive}" _result "${_result}")
+		else()
+			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(${_component}): ${_file_path} => ${_result}")
+		endif ()
+	endif ()
+	# Set the output variable in the parent scope.
+	set(${_out_var} "${_result}" PARENT_SCOPE)
+endfunction()
+
+
+
+##!
 # Checks if the required passed file exists.
 # When not a useful fatal message is produced.
 #
@@ -98,7 +129,7 @@ endfunction()
 # When the directory does not exist it bails out with a fatal error.
 #
 function(Sf_AppendCmakePrefixPath _Dir)
-	get_filename_component(_RealDir "${CMAKE_CURRENT_LIST_DIR}/${_Dir}" REALPATH)
+	Sf_GetFilenameComponent(_RealDir "${CMAKE_CURRENT_LIST_DIR}/${_Dir}" REALPATH)
 	if (EXISTS "${_RealDir}")
 		set(_path "${CMAKE_PREFIX_PATH}")
 		list(APPEND _path "${_RealDir}")
@@ -768,11 +799,11 @@ function(Sf_AddExamples _Files _Prefix)
 	endif ()
 	foreach (_file IN LISTS _Files)
 		# Extract the file name from the given file.
-		get_filename_component(_filename "${_file}" NAME)
+		Sf_GetFilenameComponent(_filename "${_file}" NAME)
 		# Make a flat name of the filename replacing the slashes with a '-' character.
 		string(REPLACE "/" "-" _filename "${_filename}")
 		# When the file is relative prepend the list dir of the current project.
-		if(NOT IS_ABSOLUTE _file)
+		if (NOT IS_ABSOLUTE _file)
 			set(_file "${CMAKE_CURRENT_LIST_DIR}/${_file}")
 		endif ()
 		# Copy the file to the destination.
