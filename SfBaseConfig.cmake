@@ -41,7 +41,7 @@ function(Sf_Unc2DrivePath _InPath _OutVar)
 		if (EXISTS "$ENV{ComSpec}")
 			set(_Command "PowerShell.exe")
 			string(REPLACE "/" "\\" _script "${SfMacros_DIR}/bin/Unc2DrivePath.ps1")
-			execute_process(COMMAND "${_Command}" -ExecutionPolicy Bypass "${_script}" "${_InPath}" OUTPUT_VARIABLE _result RESULT_VARIABLE _ExitCode)
+			execute_process(COMMAND "${_Command}" "${_script}" "${_InPath}" OUTPUT_VARIABLE _result RESULT_VARIABLE _ExitCode)
 		endif ()
 		# Validate the exit code.
 		if (_ExitCode GREATER "0")
@@ -81,38 +81,6 @@ function(Sf_GetFilenameComponent _out_var _file_path _component)
 	# Set the output variable in the parent scope.
 	set(${_out_var} "${_result}" PARENT_SCOPE)
 endfunction()
-
-##!
-# Compatible replacement of function 'get_filename_component()'.
-# Resolves problem with Windows getting a UNC path from a drive mapped share
-# when requesting 'REALPATH' component.
-#
-function(Sf_GetFilenameComponent _out_var _file_path _component)
-	# Optional ARGS
-	set(_options)
-	set(_oneValueArgs)
-	set(_multiValueArgs)
-	cmake_parse_arguments(GFC "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
-	# Call the original.
-	if (GFC_CACHE)
-		get_filename_component(_result "${_file_path}" ${_component} CACHE)
-	else ()
-		get_filename_component(_result "${_file_path}" ${_component})
-	endif ()
-	# Log the parameters and result
-	if (_component STREQUAL "REALPATH" AND _result MATCHES "^//")
-		if (_file_path MATCHES "^[A-Z]:")
-			string(SUBSTRING "${_file_path}" 0 2 _drive)
-			string(REGEX REPLACE "^//[^/]+/[^/]+" "${_drive}" _result "${_result}")
-		else()
-			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(${_component}): ${_file_path} => ${_result}")
-		endif ()
-	endif ()
-	# Set the output variable in the parent scope.
-	set(${_out_var} "${_result}" PARENT_SCOPE)
-endfunction()
-
-
 
 ##!
 # Checks if the required passed file exists.
