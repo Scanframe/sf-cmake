@@ -41,7 +41,7 @@ function(Sf_Unc2DrivePath _InPath _OutVar)
 		if (EXISTS "$ENV{ComSpec}")
 			set(_Command "PowerShell.exe")
 			string(REPLACE "/" "\\" _script "${SfMacros_DIR}/bin/Unc2DrivePath.ps1")
-			execute_process(COMMAND "${_Command}" "${_script}" "${_InPath}" OUTPUT_VARIABLE _result RESULT_VARIABLE _ExitCode)
+			execute_process(COMMAND "${_Command}" -ExecutionPolicy Bypass "${_script}" "${_InPath}" OUTPUT_VARIABLE _result RESULT_VARIABLE _ExitCode)
 		endif ()
 		# Validate the exit code.
 		if (_ExitCode GREATER "0")
