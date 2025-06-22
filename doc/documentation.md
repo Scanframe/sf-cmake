@@ -2,7 +2,7 @@
 
 ## Compiling
 
-The documentation is compiled by the  **'document'** target.
+The documentation is compiled by the  '**document**' target.
 
 From the command line this is:
 
