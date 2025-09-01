@@ -103,7 +103,6 @@ if [[ "${bin_file:0:1}" == '@' ]]; then
 	# Execute the command found in the path.
 	"${bin_file}" "${@}"
 else
-	pushd "${EXECUTABLE_DIR}"
 	# Execute the binary with all options.
 	"${EXECUTABLE_DIR}/${bin_file}" "${@}" "${ctest_arguments[@]}"
 fi
