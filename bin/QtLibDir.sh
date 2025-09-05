@@ -28,7 +28,7 @@ if [[ -n "${QT_VER_DIR}" ]]; then
 fi
 
 # Get the subdirectory for the OS and target.
-if [[ "$(uname -o)" == "Cygwin" ]]; then
+if [[ "$(uname -o)" == "GNU/Linux" && "$(uname -o)" == "Cygwin" ]]; then
 	qt_subdir="qt/w64-$(uname -m)"
 elif [[ "$(uname -o)" == "GNU/Linux" && "$1" == "Windows" ]]; then
 	qt_subdir="qt/win-$(uname -m)"
