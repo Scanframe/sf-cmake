@@ -57,13 +57,13 @@ if "%~1"=="" (
 :: Save the current drive and directory.
 pushd
 
-:: Change the drive and path Move to the correct start directory for relative path '.lib' entry to have effect.
+:: Change the drive and path Move to the correct start directory for relative path 'lib' entry to have effect.
 cd /d %EXECUTABLE_DIR%
 
 :: Set the PATH for the found Qt library and the relative 'lib' directory.
-set PATH=%PATH%;%qt_ver_dir%\mingw_64\bin;.\lib
+set PATH=%qt_ver_dir%\mingw_64\bin;lib;%PATH%
 
-:: Start the application in the foreground and current window passing arguments 
+:: Start the application in the foreground and current window passing arguments
 :: through environment variable to the test application when running ctest.
 start /WAIT /B %EXECUTABLE_DIR%\%* %CTEST_ARGS%
 

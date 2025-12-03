@@ -39,7 +39,7 @@
 					"type": "STRING",
 					"value": ""
 				},
-				"SF_COVERAGE_ONLY_TARGET":
+				"SF_COVERAGE_ONLY_TARGETS":
 				{
 					"type": "STRING",
 					"value": ""

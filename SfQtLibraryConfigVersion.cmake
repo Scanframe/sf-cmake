@@ -1,5 +1,5 @@
 # Define the version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 6.8.1)
+set(PACKAGE_VERSION 6.9.1)
 
 # Split the the package version string.
 string(REPLACE "." ";" _Parts "${PACKAGE_VERSION}")

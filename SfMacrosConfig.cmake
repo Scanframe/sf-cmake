@@ -8,7 +8,7 @@ find_package(SfBase CONFIG REQUIRED)
 #
 macro(Sf_PopulateTargetProperties TargetName _Configuration _LibLocation _ImplibLocation)
 	# Seems a relative directory is not working using REALPATH.
-	get_filename_component(_imported_location "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_LibLocation}" REALPATH)
+	Sf_GetFilenameComponent(_imported_location "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_LibLocation}" REALPATH)
 	# When this fails on a library which is part of the project the order of add_subdirectory(...) is incorrect.
 	Sf_CheckFileExists(${_imported_location})
 	set_target_properties(${TargetName} PROPERTIES "IMPORTED_LOCATION_${_Configuration}" ${_imported_location})
@@ -50,7 +50,7 @@ function(Sf_LocateOutputDir _DirName _OutputDir)
 		# Form the string to the parent directory.
 		string(REPEAT "/.." ${_Counter} _Sub)
 		# Get the real filepath which is looked for.
-		get_filename_component(_Dir "${CMAKE_CURRENT_LIST_DIR}${_Sub}/${_DirName}" REALPATH)
+		Sf_GetFilenameComponent(_Dir "${CMAKE_CURRENT_LIST_DIR}${_Sub}/${_DirName}" REALPATH)
 		# When the file inside is found Set the output directories and break the loop.
 		if (EXISTS "${_Dir}/__output__")
 			set(_Sep "/")
@@ -77,7 +77,7 @@ function(Sf_SetOutputDirs _DirName)
 		Sf_LocateOutputDir("${_DirName}" _OutputDir)
 		# Check if the directory was found.
 		if (_OutputDir STREQUAL "")
-			message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located")
+			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located! (missing a file '__output__'?)")
 		else ()
 			message(STATUS "Setting output directories for top level project '${PROJECT_NAME}'.")
 			# Set the directories accordingly in the parents scope.
@@ -180,7 +180,7 @@ endfunction()
 #
 function(Sf_IsSymlink _Path _ResultVar)
 	# When the host system is not windows.
-	if("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		# Windows doesn't have symlinks in the same way, but it has junctions and symlinks and are treated the same way.
 		execute_process(
 			COMMAND cmd /c "dir /al \"${_Path}\""
@@ -188,19 +188,19 @@ function(Sf_IsSymlink _Path _ResultVar)
 			ERROR_VARIABLE _error
 			RESULT_VARIABLE _res
 		)
-		if(res EQUAL 0)
+		if (res EQUAL 0)
 			# Check for <JUNCTION> or <SYMLINK> in the output.
 			string(FIND "${_output}" "<JUNCTION>" is_junction)
 			string(FIND "${_output}" "<SYMLINK>" is_symlink)
-			if(is_junction GREATER -1 OR is_symlink GREATER -1)
+			if (is_junction GREATER -1 OR is_symlink GREATER -1)
 				set(${_ResultVar} TRUE PARENT_SCOPE)
-			else()
+			else ()
 				set(${_ResultVar} FALSE PARENT_SCOPE)
-			endif()
-		else()
+			endif ()
+		else ()
 			set(${_ResultVar} FALSE PARENT_SCOPE)
-		endif()
-	else()
+		endif ()
+	else ()
 		# Unix-like systems
 		execute_process(
 			COMMAND stat -c "%F" "${_Path}"
@@ -208,17 +208,57 @@ function(Sf_IsSymlink _Path _ResultVar)
 			RESULT_VARIABLE _res
 			ERROR_VARIABLE _error
 		)
-		if(_res EQUAL 0)
+		if (_res EQUAL 0)
 			string(STRIP "${_file_type}" _file_type)
 			if (_file_type STREQUAL "symbolic link")
 				set(${_ResultVar} TRUE PARENT_SCOPE)
-			else()
+			else ()
 				set(${_ResultVar} FALSE PARENT_SCOPE)
-			endif()
-		else()
+			endif ()
+		else ()
 			message(STATUS "Error checking _Path: ${_Path} - ${_error}")
 			# When not found the path sure is not a symbolic link.
 			set(${_ResultVar} FALSE PARENT_SCOPE)
-		endif()
-	endif()
+		endif ()
+	endif ()
+endfunction()
+
+##!
+# Finds all name subdirectories in a tree.
+# @param _RootDir Root of the directory tree.
+# @param _RelativeToDir Result is relative to this directory.
+# @param _SubDir Names of the subdirectory to find.
+# @param _OutVar Variable receiving the resulting directories.
+#
+function(Sf_GetNamedSubdirectories _RootDir _RelativeToDir _SubDir _OutVar)
+	set(_Result "")
+	Sf_DoGetNamedSubdirectories("${_RootDir}" "${_SubDir}" _FullDirs)
+	foreach (_Dir ${_FullDirs})
+		file(RELATIVE_PATH _Dir "${_RelativeToDir}" "${_Dir}")
+		list(APPEND _Result "${_Dir}")
+	endforeach ()
+	set("${_OutVar}" ${_Result} PARENT_SCOPE)
+endfunction()
+
+
+function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
+	# Initialize empty list
+	set(_Result)
+	# Gather all immediate subdirectories of the root.
+	file(GLOB _Children RELATIVE "${_RootDir}" "${_RootDir}/*")
+	foreach (_Child ${_Children})
+		set(_ChildPath "${_RootDir}/${_Child}")
+		if (IS_DIRECTORY ${_ChildPath})
+			# Check if the directory name matches the target
+			if (_Child STREQUAL ${_SubDir})
+				list(APPEND _Result ${_ChildPath})
+			endif ()
+			# Recurse into the child directory.
+			Sf_DoGetNamedSubdirectories(${_ChildPath} "${_SubDir}" _SubDirs)
+			# Do not quote _SubDirs since it will add an empty entry to the list.
+			list(APPEND _Result ${_SubDirs})
+		endif ()
+	endforeach ()
+	# Set output variable with collected directories
+	set("${_OutVar}" ${_Result} PARENT_SCOPE)
 endfunction()

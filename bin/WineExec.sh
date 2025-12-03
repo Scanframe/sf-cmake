@@ -97,7 +97,7 @@ wdir_mingw_dll2="$(winepath -w "${dir_mingw_dll2}")"
 wdir_qt_dll="$(winepath -w "${dir_qt_dll}")"
 # Export the path to find the needed DLLs in where MinGW DLLs are at the beginning.
 # Correct version of 'libstdc++-6.dll' is required.
-export WINEPATH="${wdir_mingw_dll};${wdir_mingw_dll2};${WINEPATH};${wdir_qt_dll};${wdir_exe_dll};"
+export WINEPATH="${wdir_qt_dll};${wdir_mingw_dll};${wdir_mingw_dll2};${wdir_exe_dll};${WINEPATH}"
 # Suppress warnings.
 export WINEDEBUG="fixme-all"
 # Architecture is 64-bit.

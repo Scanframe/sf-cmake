@@ -1,28 +1,24 @@
 # CMake Library
 
 <!-- TOC -->
-
 * [CMake Library](#cmake-library)
 * [Introduction](#introduction)
-	* [Usage](#usage)
-		* [Fetching the Repository in CMake itself](#fetching-the-repository-in-cmake-itself)
-		* [Repository as Sub-Module](#repository-as-sub-module)
-	* [Project Directory Structure & Setup](#project-directory-structure--setup)
-		* [Structure](#structure)
-		* [Setup](#setup)
-	* [Main Project Head Start](#main-project-head-start)
-	* [Qt Library Download](#qt-library-download)
-	* [Doxygen Document](#doxygen-document)
-	* [Git Versioning](#git-versioning)
-		* [Tagging](#tagging)
-	* [Semantic Versioning](#semantic-versioning)
-	* [GitLab-CI Pipeline](#gitlab-ci-pipeline)
-		* [Debian Package Upload Scheme](#debian-package-upload-scheme)
-	* [Coverage Reporting](#coverage-reporting)
-		* [Tools](#tools)
-		* [CMake Functions](#cmake-functions)
-	* [Code Format Checking and Fixing with Clang](#code-format-checking-and-fixing-with-clang)
-
+  * [Quick start](#quick-start)
+  * [Project Directory Structure & Setup](#project-directory-structure--setup)
+    * [Structure](#structure)
+    * [Setup](#setup)
+  * [Main Project Head Start](#main-project-head-start)
+  * [Qt Library Download](#qt-library-download)
+  * [Doxygen Document](#doxygen-document)
+  * [Git Versioning](#git-versioning)
+    * [Tagging](#tagging)
+  * [Semantic Versioning](#semantic-versioning)
+  * [GitLab-CI Pipeline](#gitlab-ci-pipeline)
+    * [Debian Package Upload Scheme](#debian-package-upload-scheme)
+  * [Coverage Reporting](#coverage-reporting)
+    * [Tools](#tools)
+    * [CMake Functions](#cmake-functions)
+  * [Code Format Checking and Fixing with Clang](#code-format-checking-and-fixing-with-clang)
 <!-- TOC -->
 
 # Introduction
@@ -31,55 +27,57 @@ This repository makes using CMake in C++ projects easier and features:
 
 * Allows building from Linux for Linux & Windows and from Windows only for Windows itself.
 	Building from Windows requires Cygwin to be installed.
-* Shell script to make, build, test and package using CMake also use by CI-pipelines.
+* Shell script to make, build, test and package using CMake also used by ci-pipelines.
 * Locating the installed Qt library or downloading them.
 * Downloading build tools for Windows when needed.
-* Adding version and description to Windows DLL's EXE's as resource from the project (Linux: SO-files are versioned
+* Adding version and description to Windows DLL's EXE's as resource from the project (Linux: so-files are versioned
 	only).
-* Generating/compiling Doxygen documentation from the source with PlantUML plugin installed (downloaded by version).
-* Find the newest installed GCC compiler when more are installed and a cross Windows compiler when used.
+* Generating/compiling Doxygen documentation from the source with PlantUML plugin installed (downloaded by version
+	number).
+* Find the newest installed GCC compiler when more are installed and a cross-Windows compiler when used.
 * Creating installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
 * Uploading to a Nexus APT repository of Debian packages or raw upload for Windows packages.
 * Upload of generated HTML coverage reports of which a message containing a link is written to the GitLab merge request.
 * Version bump script to determine the next version based on which (merge-)commit is released when using conventional
 	commit messages.
-* Script to build using Docker container using a special image containing all tools needed.
+* Script to build using a Docker container using a special image containing all tools needed.
 
-## Usage
+## Quick start
 
-### Fetching the Repository in CMake itself
+Add the submodule from the private GitLab or the GitHub mirror as `cmake/lib` in your fresh git repository:
 
-Bellow an excerpt of a `CMakeLists.txt` to use the repository as CMake-package.
-Disadvantage is that the shell scripts are not accessible before CMake make has been run and a chicken-and-egg problem
-occurs.
-
-```cmake
-# Required to use the 'FetchContent_XXXX' functions. 
-include(FetchContent)
-# Download the main branch of the CMake common library.
-FetchContent_Declare(Sf_CMakeLibrary
-	GIT_REPOSITORY "https://github.com/Scanframe/sf-cmake.git"
-	GIT_TAG main # Or a version tag.
-)
-FetchContent_MakeAvailable(Sf_CMakeLibrary)
-# Add the source to the cmake file search path.
-list(APPEND CMAKE_PREFIX_PATH "${sf_cmakelibrary_SOURCE_DIR}")
+```shell
+# Initialize the local repository.
+git init --initial-branch=main
+git submodule add --branch main -- "https://git.scanframe.com/library/cmake-lib.git" cmake/lib
+git submodule add --branch main -- "https://github.com/Scanframe/sf-cmake.git" cmake/lib
 ```
 
-### Repository as Sub-Module
+Initialize the repository running the [project setup](bin/project-setup.sh) script.
 
-The preferred way is to create a Git submodule `lib` in the `<project-root>/cmake`
+```shell
+cmake/lib/bin/project-setup.sh
+```
 
-From private GitLab use:
+For building the sample project for debugging execute the `./build.sh` or `./docker-build.sh` shell script.
+The latter allows using a Docker container for building and running the project.
+Execute any of the scripts without any options to figure out what to do.
 
-```bash
-  git submodule add -b main -- https://github.com/Scanframe/sf-cmake.git cmake/lib
-```  
+Some
 
-From GitHub use:
-
-```bash
-  git submodule add -b main -- https://git.scanframe.com/library/cmake-lib.git cmake/lib
+```shell
+# Show help.
+./build.sh -h
+# Show target information using the preset in json file.
+./build.sh -i
+# Make the build project.
+./build.sh -m gnu-debug
+# Compile all default projects.
+./build.sh -b gnu-debug
+# Compile the non-default DoxGen documentation project.
+./build.sh -b gnu-debug -n document
+# Opens the Chrome browser in application mode with the generated pages.
+bin/man/open.sh
 ```
 
 ## Project Directory Structure & Setup
@@ -134,13 +132,13 @@ A project directory tree could look like this.
 | src/test      | Test application source files.                         |
 
 The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
-output directory for subprojects. Reason for building only subprojects instead of all is to speed
+output directory for subprojects. The reason for building only subprojects instead of all is to speed
 up debugging by compiling only the dynamic loaded library separately.
 When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.
 
 ### Setup
 
-To set up a project from scratch some files, directories or templates need to be copied or symlinked
+To set up a project from scratch, some files, directories or templates need to be copied or symlinked
 as shown in the next table.
 
 | Method  | Source                         | Destination                      |
@@ -157,7 +155,7 @@ as shown in the next table.
 
 ## Main Project Head Start
 
-To get a head start look into the **[tpl/root](./tpl/root)** directory for files that will
+To get a head start, look into the **[tpl/root](./tpl/root)** directory for files that will
 give a head start getting a project going.
 
 ## Qt Library Download
@@ -175,9 +173,8 @@ find_package(SfQtLibrary 6.7.2 CONFIG REQUIRED)
 
 ## Doxygen Document
 
-For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory is to be
-added.
-in the main `CMakeLists.txt`.
+For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory
+is to be added in the main `CMakeLists.txt`.
 
 ```cmake
 # Add Doxygen document project.
@@ -208,13 +205,13 @@ if (SfDoxygen_FOUND)
 endif ()
 ```
 
-Look at [Doxygen](https://www.doxygen.nl/) website for the syntax in C++ header comment blocks or Markdown files.
+Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or Markdown files.
 
 ## Git Versioning
 
 ### Tagging
 
-To create a version tag with this library there are 2 options.  
+To create a version tag with this library, there are two options.  
 Create a release tag like `v1.2.3` or a release candidate tag like `1.2.3-rc.4`.
 
 The CMake coding picks this up using function [Sf_GetGitTagVersion](SfBaseConfig.cmake "Link to file.") returns the
@@ -236,7 +233,7 @@ v1.2.3-45-g914edbb-dirty
 v1.2.3-rc.4-56-g914edbb-dirty
 ```
 
-The CMake function `Sf_GetGitTagVersion` creates a versions list from the result.
+The CMake function `Sf_GetGitTagVersion` creates a version list from the result.
 
 ```cmake
 Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_LIST_DIR}")
@@ -263,7 +260,7 @@ For this item a separate page is created so see: [Semantic Versioning](doc/seman
 
 ### Debian Package Upload Scheme
 
-There are 3 Nexus apt-repositories which can be described to:
+There are three Nexus apt-repositories that can be described to:
 
 | Name      | Usage                    |
 |-----------|--------------------------|
@@ -271,7 +268,7 @@ There are 3 Nexus apt-repositories which can be described to:
 | `staging` | Release candidates.      |
 | `develop` | Development and testing. |
 
-In order to have the latest release subscribe only to `stable`.
+To have the latest release, subscribe only to `stable`.
 To have update when a release candidate (RC) becomes available subscribe additionally to `staging`.
 When developing and testing debian packages subscribe additionally to `develop`.
 
@@ -280,7 +277,7 @@ Debian packages are deployed/uploaded to the appropriate apt-repository dependin
 * **MR**: Originates from a merge-request.
 * **PRB**: Originates from a push to the release branch which is mainly `main`.
 * **RC**: Is a Release Candidate.
-* **CMT**: Has commits since tag was create.
+* **CMT**: Has commits since tag was created.
 
 | MR  | RC  | PRB | CMT | Destination |
 |:---:|:---:|:---:|:---:|:-----------:|
@@ -311,10 +308,11 @@ The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfB
 
 ## Code Format Checking and Fixing with Clang
 
-To enable format check before a commit modify or add the script `.git/hooks/pre-commit` with the following content.
-It calls the [check-format.sh](./check-format.sh) script which in directly calls
-the [`clang-format.sh`](https://github.com/Scanframe/sf-cmake/blob/main/bin/clang-format.sh) script
-from the CMake support library. It also checks if it is a commit to the main or master branch and prevents it.
+To enable format check before a commit modify or add the script [
+`.git/hooks/pre-commit`](tpl/root/git-pre-commit-hook.sh) with the following content.
+It calls the [check-format.sh](bin/check-format.sh) script, which indirectly calls the
+[clang-format.sh`](bin/clang-format.sh) from the CMake support library.  
+It also checks if it is a commit to the main or master branch and prevents it.
 
 ```bash
 #!/bin/bash
@@ -338,6 +336,6 @@ if [[ -f check-format.sh ]]; then
 fi
 ```
 
-This same script is used in the main pipeline configuration script [`main.gitlab-ci.yml`](.gitlab/main.gitlab-ci.yml)
-in the job named '**check-env**'.  
-So when the format is incorrect the pipeline will fail.
+This same script is used in the main pipeline configuration script
+[`main.gitlab-ci.yml`](tpl/root/gitlab-ci/main.gitlab-ci.yml) in the job named '**check-env**'.  
+So when the format is incorrect, the pipeline will fail.

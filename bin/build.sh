@@ -55,10 +55,22 @@ Usage: $(basename "${0}") [<options>] [<presets> ...]
   --run -- <cmd>   : Run a command with the modified PATH for (Windows).
 
   Examples:
-    Get all project presets info: ${0} -i
-    Make/Build project: ${0} -b my-build-preset1 my-build-preset2
-    Test project: ${0} -t my-test-preset1 my-test-preset2
-    Make/Build/Test/Pack project: ${0} -w my-workflow-preset
+    Get all project presets info:
+      ${0} -i
+    Make/Build a preset:
+      ${0} -mb gnu-debug
+    Run tests on 2 presets:
+      ${0} -t gnu-debug gw-debug
+    Run specific tests using regular expression:
+      ${0} -t gnu-debug -r '^t_my-test'
+    Pass arguments to Catch2 unitest framework application for listing options:
+      CTEST_ARGS='--help' ${0} -t gnu-debug -r '^t_my-test'
+    Pass arguments to Catch2 unitest framework application for listing to a testcase:
+      CTEST_ARGS='test-case' ${0} -t gnu-debug -r '^t_my-test'
+    Adds a specific section:
+      CTEST_ARGS='test-case -c my-section' ${0} -t gnu-debug -r '^t_my-test'
+    Workflow (Make/Build/Test/Pack) 2 presets:
+      ${0} -w gnu-debug gw-debug
 	"
 }
 
@@ -81,7 +93,8 @@ function InstallPackages {
 		sudo apt-get --yes upgrade
 		sudo apt --yes install wget curl gpg lsb-release software-properties-common ccache
 		# Some xcb related libraries for Qt6 to run.
-		sudo apt --yes install xcb libxkbcommon-x11-0 libxcb-xinput0 libxcb-cursor0 libxcb-shape0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libpcre2-16-0
+		sudo apt --yes install xcb libxkbcommon-x11-0 libxcb-xinput0 libxcb-cursor0 libxcb-shape0 libxcb-icccm4 \
+			libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libpcre2-16-0
 		# Check if the package repository has been added.
 		if ! apt-add-repository --list | grep "llvm-toolchain" >/dev/null; then
 			wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
@@ -90,7 +103,8 @@ function InstallPackages {
 		# Check if the package repository has been added when this is an ubuntu distro only.
 		if ! apt-add-repository --list | grep "apt.kitware.com/ubuntu" >/dev/null; then
 			if [[ "$(lsb_release -is)" == 'Ubuntu' ]]; then
-				wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+				wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - |
+					sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
 				sudo apt-add-repository --yes --no-update "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
 			else
 				WriteLog "# Cannot install latest 'cmake' from Kitware since this in no Ubuntu distribution."
@@ -99,8 +113,9 @@ function InstallPackages {
 		# Update after repositories were added.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
-		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libxkbcommon-dev libxkbfile-dev libvulkan-dev \
-			libssl-dev exiftool default-jre-headless chrpath colordiff dialog dos2unix pcregrep clang-format; then
+		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libglu1-mesa-dev \
+			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless chrpath colordiff dialog \
+			dos2unix pcregrep clang-format; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
@@ -375,7 +390,8 @@ function SelectWorkflowPreset {
 		# When only information is requested.
 		if [[ "${action}" == "info" ]]; then
 			WriteLog "Workflow: ${preset} '${name}' ${desc}"
-			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| .type + \"(\"  + .name + \")\")" "${@}" | PrependAndEscape "\t-Step #\${counter}: " || true
+			jq -r "(.workflowPresets[]|select(.name==\"${preset}\").steps[]| .type + \"(\"  + .name + \")\")" "${@}" |
+				PrependAndEscape "\t-Step #\${counter}: " || true
 		fi
 		presets+=("${name} > ${desc}")
 		preset_names+=("${preset}")
@@ -445,7 +461,7 @@ cmake_config=("cmake")
 # Initialize the cmake build command as an array.
 cmake_build=("cmake" "--build")
 # Initialize the ctest command as an array.
-ctest_build=("ctest")
+ctest_build=("ctest" "--extra-verbose")
 # Initialize the cpack command as an array.
 cpackage_build=("cpack")
 # When empty the target is not overridden.
@@ -838,7 +854,9 @@ if ${flag_test}; then
 					0) WriteLog "CTest success." ;;
 					8)
 						# When the regex is empty the test failed.
-						if [[ -z "${test_regex}" ]]; then exit 1; else
+						if [[ -z "${test_regex}" ]]; then
+							exit 1;
+						else
 							WriteLog "CTest no tests matched '${test_regex}'."
 						fi
 						;;
