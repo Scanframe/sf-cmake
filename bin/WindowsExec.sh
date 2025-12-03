@@ -83,8 +83,7 @@ wdir_qt_dll="$(cygpath -w "${dir_qt_dll}")"
 WriteLog "- Windows PATH prefix: ${wdir_exe_dll};${wdir_qt_dll}"
 # Export the path to find the needed DLLs in where MinGW DLLs are at the beginning.
 # Correct version of 'libstdc++-6.dll' is required.
-#export PATH="$(realpath "${dir_bin_win}/lib"):$(realpath "${dir_qt_dll}"):${PATH}"
-export PATH="${dir_bin_win}/lib:${dir_qt_dll}:${PATH}"
+export PATH="${dir_qt_dll}:${dir_bin_win}/lib:${PATH}"
 
 # Create array from the ctest arguments variable.
 IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
