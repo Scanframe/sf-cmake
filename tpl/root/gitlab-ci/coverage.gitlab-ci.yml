@@ -1,4 +1,4 @@
-# Variables needed for this file where commented out values are from the parent pipeline or CI-settings.
+# Variables needed for this file where commented-out values are from the parent pipeline or CI-settings.
 variables:
   # Tag values for runner selection.
   #SF_TARGET_ARCH: "amd64"
@@ -13,7 +13,7 @@ variables:
   #SF_GCOVR_DIR: "bin/gcov"
   # Nexus exchange directory for coverage reports between child and parent pipeline.
   #SF_EXCHANGE_DIR: "gitlab-ci/${CI_PROJECT_PATH}/pipeline/${CI_PIPELINE_ID}"
-  # Other needed CI-variables: NEXUS_USER, NEXUS_PASSWORD, NEXUS_SERVER_URL, NEXUS_EXCHANGE_REPO
+  # Other necessary CI variables are: NEXUS_USER, NEXUS_PASSWORD, NEXUS_SERVER_URL, NEXUS_EXCHANGE_REPO
   # Make Git clone the submodules as well.
   GIT_SUBMODULE_STRATEGY: recursive
 

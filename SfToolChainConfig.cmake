@@ -16,7 +16,7 @@ function(Sf_FindLinuxToolChainApps _CmakeFile _Prefix)
 			return()
 		endif ()
 	endforeach ()
-	# Find the highest install gcc comppiler of this distribution.
+	# Find the highest install GCC compiler of this distribution.
 	foreach (_Version RANGE ${_GccMaxVer} 8 -1)
 		unset(_App CACHE)
 		find_program(_App "${_Prefix}gcc-${_Version}")
@@ -55,6 +55,7 @@ endfunction()
 
 ##!
 # Find the toolchain and creates a cmake toolchain file in the build directory.
+# A Function is used to have a scopen for temporary variables.
 #
 function(Sf_SetToolChain)
 	set(_GccMaxVer 16)
@@ -75,8 +76,6 @@ function(Sf_SetToolChain)
 		else ()
 			message(FATAL_ERROR "Cannot determine the host process.")
 		endif ()
-		# Cmake does not set this variable all the time.
-		#set(CMAKE_SYSTEM_PROCESSOR "${_HostArch}" CACHE STRING "Set by ${CMAKE_CURRENT_FUNCTION}().")
 	else ()
 		set(_HostArch "${CMAKE_HOST_SYSTEM_PROCESSOR}")
 	endif ()
@@ -93,14 +92,17 @@ function(Sf_SetToolChain)
 	endif ()
 	# By default the toolset for Linux is native GNU
 	if (SF_COMPILER STREQUAL "gnu" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_SystemName "Linux")
 		set(_Arch "${_HostArch}")
 		Sf_FindLinuxToolChainApps("${_CmakeFile}" "/usr/bin/${_Arch}-linux-gnu-")
 		# When set to 'ag' try to find the latest aarch64 cross compiler.
 	elseif (SF_COMPILER STREQUAL "ga" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_SystemName "Linux")
 		set(_Arch "aarch64")
 		Sf_FindLinuxToolChainApps("${_CmakeFile}" "/usr/bin/${_Arch}-linux-gnu-")
 		# When building Windows targets using GNU compiler on Windows.
 	elseif (SF_COMPILER STREQUAL "mingw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+		set(_SystemName "Windows")
 		set(_Arch "${_HostArch}")
 		find_program(_App "gcc.exe")
 		if (NOT _App)
@@ -110,7 +112,7 @@ function(Sf_SetToolChain)
 			# When the PATH has been prefixed in the 'build.sh' script with '.tools-dir-*' file or
 			# in the 'CMakePresets.json' setting the PATH not forgetting to use the ';' separator.
 			# Cygwin mingw compiler will be found when the PATH is not prefixed.
-			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"Windows\")
+			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
 # Use mingw 64-bit compilers on Windows.
 # Commented out now to have CMake find each of them.
 #set(CMAKE_C_COMPILER \"x86_64-w64-mingw32-gcc.exe\")
@@ -130,6 +132,7 @@ function(Sf_SetToolChain)
 		endif ()
 		# When building Windows targets using GNU compiler on Linux.
 	elseif (SF_COMPILER STREQUAL "gw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_SystemName "Windows")
 		set(_Arch "${_HostArch}")
 		# Find the Windows cross compiler.
 		find_program(_App "${_Arch}-w64-mingw32-c++-posix")
@@ -137,7 +140,7 @@ function(Sf_SetToolChain)
 			message(SEND_ERROR "Windows cross compiler not found. Missing package 'mingw-w64' ?")
 			return()
 		endif ()
-		file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"Windows\")
+		file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
 # Use mingw 64-bit compilers.
 set(CMAKE_C_COMPILER \"x86_64-w64-mingw32-gcc-posix\")
 set(CMAKE_CXX_COMPILER \"x86_64-w64-mingw32-c++-posix\")
@@ -158,9 +161,10 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 			file(APPEND "${_CmakeFile}" "set(CMAKE_C_COMPILER_LAUNCHER \"${_CcacheExe}\")\n")
 			file(APPEND "${_CmakeFile}" "set(CMAKE_CXX_COMPILER_LAUNCHER \"${_CcacheExe}\")\n")
 		endif ()
-		# Cygwin compilers.
+		# TODO: Cygwin compilers?
 		if (False)
-			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"Windows\")
+			set(_SystemName "Windows")
+			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
 # Use mingw 64-bit compilers on Cygwin.
 set(CMAKE_C_COMPILER \"i686-w64-mingw32-gcc\")
 set(CMAKE_CXX_COMPILER \"i686-w64-mingw32-c++\")
@@ -180,8 +184,16 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 	else ()
 		message(SEND_ERROR "Toolset '${SF_COMPILER}' is unknown for host system '${CMAKE_HOST_SYSTEM_NAME}'!")
 	endif ()
-	# Set the SF_ARCHITECTURE cache variable.
+	# Set the SF_ARCHITECTURE global variable.
 	set(SF_ARCHITECTURE "${_Arch}" PARENT_SCOPE)
+	# Set the SF_HOST_ARCHITECTURE global variable.
+	set(SF_HOST_ARCHITECTURE "${_HostArch}" PARENT_SCOPE)
+	# Determine the flag for cross compiling.
+	if (_Arch STREQUAL _HostArch AND _SystemName STREQUAL CMAKE_HOST_SYSTEM_NAME)
+		set(SF_CROSSCOMPILING FALSE PARENT_SCOPE)
+	else ()
+		set(SF_CROSSCOMPILING TRUE PARENT_SCOPE)
+	endif ()
 	# Assign the tool chain.
 	set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
 endfunction()

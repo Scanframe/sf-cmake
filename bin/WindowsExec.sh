@@ -42,7 +42,7 @@ function SelectBinary {
 		idx=$((idx + 1))
 		files[${idx}]="${REPLY}"
 		dlg_options+=("${idx}" "${REPLY}")
-	done < <(cd "${dir_bin_win}" && ls -1A *.exe && echo '@clion')
+	done < <(cd "${dir_bin_win}" && ls -1A *.exe && echo '@clion' && echo '@cmd')
 	# Create a dialog returning a selection index.
 	idx="$(dialog --backtitle "Run Windows Binary" \
 		--menu "Select a Windows binary to run on Windows $(uname -s)" \
@@ -79,13 +79,12 @@ done
 wdir_exe_dll="$(cygpath -w "${dir_bin_win}/lib")"
 # Path to QT runtime DLL's
 wdir_qt_dll="$(cygpath -w "${dir_qt_dll}")"
+# Report some useful information.
+WriteLog "- Windows PATH prefix: ${wdir_exe_dll};${wdir_qt_dll}"
 # Export the path to find the needed DLLs in where MinGW DLLs are at the beginning.
 # Correct version of 'libstdc++-6.dll' is required.
-echo "PATH prefix: ${wdir_qt_dll};${wdir_exe_dll}"
-export PATH="${wdir_qt_dll};${wdir_exe_dll};${PATH}"
+export PATH="${dir_qt_dll}:${dir_bin_win}/lib:${PATH}"
 
-# Report some useful information.
-WriteLog "- PATH prefix: ${wdir_qt_dll};${wdir_exe_dll}"
 # Create array from the ctest arguments variable.
 IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
 # Check if 'CTEST_ARGS' arguments were passed before reporting them.
@@ -94,6 +93,9 @@ if [[ -n "${CTEST_ARGS}" ]]; then
 	WriteLog "- CTEST_ARGS:" "${ctest_arguments[@]}"
 fi
 
+# Change to the directory to execute the command from since the relative 'lib' directory.
+pushd "${EXECUTABLE_DIR}"> /dev/null
+# Check if
 if [[ "${bin_file:0:1}" == '@' ]]; then
 	# Remove the first character.
 	bin_file="${bin_file:1}"
@@ -103,4 +105,7 @@ else
 	# Execute the binary with all options.
 	"${EXECUTABLE_DIR}/${bin_file}" "${@}" "${ctest_arguments[@]}"
 fi
+
+# Revert to the initial directory.
+popd> /dev/null
 

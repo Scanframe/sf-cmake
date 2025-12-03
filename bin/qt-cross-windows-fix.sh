@@ -109,7 +109,12 @@ done
 qt_lnx_ver_dir="lnx-$(uname -m)/${qt_ver}/gcc_64"
 qt_win_ver_dir="win-$(uname -m)/${qt_ver}/mingw_64"
 
-[[ -z "${cmd_pf}" ]] && WriteLog "# Running for real..." || WriteLog "# Running dry..."
+# Notify for real or dry-run mode.
+if [[ -z "${cmd_pf}" ]];  then
+	WriteLog "# Running for real..."
+else
+	WriteLog "# Running dry..."
+fi
 
 WriteLog "Proposed directories:
 Linux  : ${qt_lnx_ver_dir}

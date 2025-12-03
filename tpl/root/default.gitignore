@@ -1,0 +1,37 @@
+# Files from possible IDE's.
+/.metadata
+/.idea
+/.run
+/.vscode
+/.vs
+# Python virtual environment.
+/venv
+/.venv
+# Optional user CMake include file which is included when it exists.
+/user.cmake
+# Any cmake-build directory in the project tree.
+**/cmake-build*/*
+# Developers addition on the 'CMakePresets.json' file.
+/CMakeUserPresets.json
+# Binary directories containg build/packaged results.
+/bin/gcov/*
+/bin/pkg/*
+# Ignore all binary directories.
+/bin/lnx64*/*
+/bin/win64*/*
+/bin/man/*
+# Location of downloaded and uncompressed libraries in the project root.
+/lib/*
+# Credential files for testing CI-pipeline called scripts.
+/.nexus-upload-credentials
+/.comment-credentials
+/.gitlab-credentials.ini
+# Debug messages for testing conventinal commit.
+/.version-bump
+# Test bash scripts.
+/test-*.sh
+# Downloaded tools directory locations for machines (Windows only).
+/.tools-dir-*
+# CMake include file overrulling the cache instead of changing the CMakePresets.json file.
+# Keeps all empty directories.
+!**/.gitkeep

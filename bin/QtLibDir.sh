@@ -69,8 +69,9 @@ if [[ -z "${local_qt_dir}" ]]; then
 	WriteLog "Could not find local installed ${qt_subdir} directory."
 	exit 1
 fi
-if [[ "$(uname -o)" == "Cygwin" ]]; then
-	local_qt_dir="$(cygpath --mixed "${local_qt_dir}")"
-fi
+# Somehow this was needed somewhere using Cygwin but cannot be found any longer.
+#if [[ "$(uname -o)" == "Cygwin" ]]; then
+#	local_qt_dir="$(cygpath --mixed "${local_qt_dir}")"
+#fi
 # Return the found value.
 echo -n "${local_qt_dir}"

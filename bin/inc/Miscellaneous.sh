@@ -365,3 +365,16 @@ function VersionCompare() {
 	done
 	echo "0"
 }
+
+##
+# Asks confirmation through a question answering with 'y' or 'Y' for allowing.
+# @arg1 Question string
+# @return 0 for allowing and 1 for rejection.
+#
+function AskConfirmation {
+	local REPLY
+	read -rp "${1} [yN]" && if [[ $REPLY != [yY] ]]; then
+		return 1
+	fi
+	return 0
+}

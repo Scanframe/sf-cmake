@@ -11,6 +11,7 @@ set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI
 set(SF_TEST_NAME_PREFIX "t_" CACHE STRING "Prefix for test applications to allow skipping when packaging.")
 set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when developing locally to speed up.")
 set(SF_OUTPUT_DIR_SUFFIX "" CACHE STRING "Output directory suffix only used by e.g. user presets to separate builds.")
+set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -25,6 +26,62 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
 	endmacro()
 endif ()
 
+
+##!
+# Maps the passed UNC path to a mounted drive share when it exists.
+# It uses an external PowerShell script to perform it.
+#
+function(Sf_Unc2DrivePath _InPath _OutVar)
+	# Only Windows can use this function.
+	if (NOT "${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		# For Linux passthrough the in to out variable..
+		set(_result "${_InPath}")
+	else ()
+		# Check if the environment var exists telling us that cmake is running on Windows.
+		if (EXISTS "$ENV{ComSpec}")
+			set(_Command "PowerShell.exe")
+			string(REPLACE "/" "\\" _script "${SfMacros_DIR}/bin/Unc2DrivePath.ps1")
+			execute_process(COMMAND "${_Command}" -ExecutionPolicy Bypass "${_script}" "${_InPath}" OUTPUT_VARIABLE _result RESULT_VARIABLE _ExitCode)
+		endif ()
+		# Validate the exit code.
+		if (_ExitCode GREATER "0")
+			message(SEND_ERROR "Failed execution of script: ${_Script}")
+		endif ()
+	endif ()
+	set("${_OutVar}" "${_result}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Compatible replacement of function 'get_filename_component()'.
+# Resolves problem with Windows getting a UNC path from a drive mapped share
+# when requesting 'REALPATH' component.
+#
+function(Sf_GetFilenameComponent _out_var _file_path _component)
+	# Optional ARGS
+	set(_options)
+	set(_oneValueArgs)
+	set(_multiValueArgs)
+	cmake_parse_arguments(GFC "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
+	# Call the original.
+	if (GFC_CACHE)
+		get_filename_component(_result "${_file_path}" ${_component} CACHE)
+	else ()
+		get_filename_component(_result "${_file_path}" ${_component})
+	endif ()
+	# When the component is 'REALPATH' cmake 4.x returns the UNC path instead of the passed drive.
+	if (
+		# Issue only is in CMake v4.0.0.
+		CMAKE_VERSION VERSION_GREATER_EQUAL "4.0.0" AND
+		_component STREQUAL "REALPATH" AND
+		# This can only happen in Windows.
+		_result MATCHES "^//" AND _file_path MATCHES "^[A-Z]:"
+	)
+		Sf_Unc2DrivePath("${_result}" _result)
+	endif ()
+	# Set the output variable in the parent scope.
+	set(${_out_var} "${_result}" PARENT_SCOPE)
+endfunction()
+
 ##!
 # Checks if the required passed file exists.
 # When not a useful fatal message is produced.
@@ -32,6 +89,21 @@ endif ()
 function(Sf_CheckFileExists _File)
 	if (NOT EXISTS "${_File}")
 		message(SEND_ERROR "The file \"${_File}\" does not exist. Check order of dependent add_subdirectory(...).")
+	endif ()
+endfunction()
+
+##!
+# Appends the passed relative directory to the CMAKE_PREFIX_PATH.
+# When the directory does not exist it bails out with a fatal error.
+#
+function(Sf_AppendCmakePrefixPath _Dir)
+	Sf_GetFilenameComponent(_RealDir "${CMAKE_CURRENT_LIST_DIR}/${_Dir}" REALPATH)
+	if (EXISTS "${_RealDir}")
+		set(_path "${CMAKE_PREFIX_PATH}")
+		list(APPEND _path "${_RealDir}")
+		set(CMAKE_PREFIX_PATH "${_path}" PARENT_SCOPE)
+	else ()
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(): Directory '${_Dir}' not found! ")
 	endif ()
 endfunction()
 
@@ -56,13 +128,13 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		# Get the toplevel directory of this repository or submodule.
 		# This is faster then the other call and cache the version result to speed configuration up.
 		execute_process(COMMAND
-				"${_GitExe}" rev-parse --show-toplevel
-				# Use the current project directory to find.
-				WORKING_DIRECTORY "${_SrcDir}"
-				OUTPUT_VARIABLE _FilePath
-				RESULT_VARIABLE _ExitCode
-				ERROR_VARIABLE _ErrorText
-				OUTPUT_STRIP_TRAILING_WHITESPACE
+			"${_GitExe}" rev-parse --show-toplevel
+			# Use the current project directory to find.
+			WORKING_DIRECTORY "${_SrcDir}"
+			OUTPUT_VARIABLE _FilePath
+			RESULT_VARIABLE _ExitCode
+			ERROR_VARIABLE _ErrorText
+			OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
 		# Replace the directory separators from the filepath.
 		string(REPLACE "/" "-" _FilePath "${_FilePath}")
@@ -298,8 +370,15 @@ endfunction()
 # Adds an exif custom target for reporting the resource stored versions.
 #
 function(Sf_AddExifTarget _Target)
-	# Try finding the bash.exe from cygwin.
-	find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" REQUIRED)
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		# Try finding the bash.exe from cygwin.
+		find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" NO_DEFAULT_PATH)
+	else ()
+		find_program(_BashExe "bash")
+	endif ()
+	if (NOT _BashExe)
+		return()
+	endif ()
 	# Add "exif-<target>" custom target when main 'exif' target exist.
 	if (TARGET "exif")
 		if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
@@ -406,7 +485,7 @@ function(Sf_GetAllTargets _result _dir _inc_deps)
 endfunction()
 
 ##!
-# Gets the include directories from all targets in the list.
+# Gets the include directories from the given targets.
 # When not found it returns "${_VarOut}-NOTFOUND"
 # @param _var Variable receiving resulting list of include directories.
 # @param _targets Build targets to get the include directories from.
@@ -427,7 +506,7 @@ function(Sf_GetIncludeDirectories _var _targets)
 		# Get for each include directory...
 		foreach (_incdir IN LISTS _incdirs)
 			# The real path by combining the source dir and in dir.
-			get_filename_component(_dir "${_incdir}" REALPATH)
+			Sf_GetFilenameComponent(_dir "${_incdir}" REALPATH)
 			# Append the real directory to the resulting list.
 			list(APPEND _list "${_dir}/")
 		endforeach ()
@@ -437,6 +516,44 @@ function(Sf_GetIncludeDirectories _var _targets)
 	list(REMOVE_DUPLICATES _list)
 	# Assign the list to the passed resulting variable.
 	set(${_var} ${_list} PARENT_SCOPE)
+endfunction()
+
+##!
+# Gets the header files the given targets.
+# When not found it returns "${_VarOut}-NOTFOUND"
+# @param _var Variable receiving resulting list of include directories.
+# @param _targets Build targets to get the include directories from.
+# @param _targets Build targets to get the include directories from.
+# @param _rel_to_dir Build targets to get the include directories from.
+#
+function(Sf_GetSourceFiles _var _targets #[[_rel_to_dir]])
+	set(_list)
+	# Iterate through the passed list of build targets.
+	foreach (_target IN LISTS _targets)
+		# Get the source directory from the target.
+		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
+		# Get all the include directories from the target.
+		get_target_property(_sources "${_target}" SOURCES)
+		get_target_property(_source_dir "${_target}" SOURCE_DIR)
+		# Check if there are sources for this target '_sources-NOTFOUND'.
+		if (NOT _sources)
+			continue()
+		endif ()
+		# Prepend source directory for each source file.
+		foreach (_file IN LISTS _sources)
+			if (DEFINED ARGV2)
+				file(RELATIVE_PATH _file "${ARGV2}" "${_source_dir}/${_file}")
+			else ()
+				set(_file "${_source_dir}/${_file}")
+			endif ()
+			list(APPEND _list "${_file}")
+		endforeach ()
+	endforeach ()
+	# Remove any duplicates from the list but sorting is needed first before removing duplicates.
+	list(SORT _list)
+	list(REMOVE_DUPLICATES _list)
+	# Assign the list to the passed resulting variable.
+	set(${_var} "${_list}" PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -528,8 +645,8 @@ function(Sf_AddTest _Target _RunTimeDir)
 		# When the host is Windows use a command script.
 		if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
 			set(_Script "win-exec.cmd")
-		# When the host is Linux use a shell script executing Wine.
-		else()
+			# When the host is Linux use a shell script executing Wine.
+		else ()
 			set(_Script "win-exec.sh")
 		endif ()
 	else ()
@@ -560,7 +677,7 @@ endfunction()
 # Adds the passed target for coverage only when the build type is 'Coverage'.
 #
 function(Sf_AddTargetForCoverage _Target)
-	# Set options only when the build type is coverage and the SF_COVERAGE_ONLY_TARGET is empty.
+	# Set options only when the build type is coverage and the variable 'SF_COVERAGE_ONLY_TARGETS' is empty.
 	if (CMAKE_BUILD_TYPE STREQUAL "Coverage" AND
 	(
 		SF_COVERAGE_ONLY_TARGETS STREQUAL "" OR _Target IN_LIST SF_COVERAGE_ONLY_TARGETS
@@ -611,7 +728,7 @@ endfunction()
 #
 function(Sf_AddTestCoverageReport _TestName _OutDir _Options _SourceDirList)
 	# Get the actual output directory.
-	get_filename_component(_OutDir "${_OutDir}" REALPATH)
+	Sf_GetFilenameComponent(_OutDir "${_OutDir}" REALPATH)
 	# Check if the resulting directory exists.
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
@@ -636,6 +753,30 @@ function(Sf_AddTestCoverageReport _TestName _OutDir _Options _SourceDirList)
 		# Ensure this test is run after the ones adding coverage information.
 		set_property(TEST "${_TestName}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
 	endif ()
+endfunction()
+
+##!
+# Adds a file to be accessible by Doxygen which allows a single directory for examples and no subdirectories.
+# _Files  : List of file used as examples.
+# _Prefix : Prefix for the destination filename to prevent naming collisions.
+#
+function(Sf_AddExamples _Files _Prefix)
+	# Create the sample directory if it does not exists yet.
+	if (NOT EXISTS "${SF_EXAMPLE_DIR}/${_Prefix}")
+		file(MAKE_DIRECTORY "${SF_EXAMPLE_DIR}/${_Prefix}")
+	endif ()
+	foreach (_file IN LISTS _Files)
+		# Extract the file name from the given file.
+		Sf_GetFilenameComponent(_filename "${_file}" NAME)
+		# Make a flat name of the filename replacing the slashes with a '-' character.
+		string(REPLACE "/" "-" _filename "${_filename}")
+		# When the file is relative prepend the list dir of the current project.
+		if (NOT IS_ABSOLUTE _file)
+			set(_file "${CMAKE_CURRENT_LIST_DIR}/${_file}")
+		endif ()
+		# Copy the file to the destination.
+		file(COPY_FILE "${_file}" "${SF_EXAMPLE_DIR}/${_Prefix}/${_filename}")
+	endforeach ()
 endfunction()
 
 ##!

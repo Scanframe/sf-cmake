@@ -1,0 +1,2 @@
+# This file is included in the root CMakeLists.txt and has a function like the 'CMakeUserPresets.json'.
+# It allows to make configuration changes for the current source tree but is not part of the project.

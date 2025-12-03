@@ -169,6 +169,9 @@ fi
 cfg_file="$("${script_dir}/find-up.sh" --type f ".clang-format")" || exit 1
 # Report the format configuration file.
 if ! "${flag_quiet}"; then
+	if [[ "$(uname -o)" == "Cygwin" ]]; then
+		cfg_file="$(cygpath -w "${cfg_file}")"
+	fi
 	WriteLog "# Format config file: ${cfg_file}"
 	if ${flag_git_staged}; then
 		WriteLog "# Git diff staged files are added."

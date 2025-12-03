@@ -1,25 +1,15 @@
-# Semantic Versioning
-
-<!-- TOC -->
-* [Semantic Versioning](#semantic-versioning)
-  * [Conventional Commits Auto Version Bumping](#conventional-commits-auto-version-bumping)
-  * [Commit Message Format](#commit-message-format)
-  * [Type of Commits](#type-of-commits)
-  * [Examples of Message Headers](#examples-of-message-headers)
-  * [Examples of Full Messages](#examples-of-full-messages)
-<!-- TOC -->
-
+# Semantic Versioning {#semantic-versioning}
 ## Conventional Commits Auto Version Bumping
 
 To automatically bumping the version using conventional commits
-the script [VersionBump.sh](bin/VersionBump.sh) can be called indirect by creating
+the script [VersionBump.sh](../bin/version-bump.sh) can be called indirect by creating
 bash script in the project root called `version-bump.sh` like:
 
 ```bash
 #!/bin/bash
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_DIR="${DIR}" "${DIR}/cmake/lib/bin/VersionBump.sh" "${@}"
+dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="${dir}" "${dir}/cmake/lib/bin/version-bump.sh" "${@}"
 ```
 
 The script analyses the commit messages up-to a certain commit and computes a new semantic version.

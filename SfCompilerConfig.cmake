@@ -10,14 +10,14 @@ if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
 	message(STATUS "Host System: ${CMAKE_HOST_SYSTEM}")
 	message(STATUS "System Info File: ${CMAKE_SYSTEM_INFO_FILE}")
 	message(STATUS "System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
-	# Remove the indentation of the message() function.
-	list(POP_BACK CMAKE_MESSAGE_INDENT)
 	# Make the target property 'CXX_STANDARD' a requirement.
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
 	# Report when the global C++ standard has not been set.
 	if ("${CMAKE_CXX_STANDARD}" STREQUAL "")
 		message(SEND_ERROR "Global C++ standard using 'CMAKE_CXX_STANDARD' has not been set!")
 	endif ()
+	message(STATUS "C   Launcher: ${CMAKE_C_COMPILER_LAUNCHER}")
+	message(STATUS "C++ Launcher: ${CMAKE_CXX_COMPILER_LAUNCHER}")
 	message(STATUS "C   Compiler: ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION} ${CMAKE_C_COMPILER}")
 	message(STATUS "C++ Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} ${CMAKE_CXX_COMPILER}")
 	message(STATUS "RC  Compiler: ${CMAKE_RC_COMPILER}")
@@ -26,5 +26,14 @@ if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
 	message(STATUS "Ar     : ${CMAKE_AR}")
 	message(STATUS "Linker : ${CMAKE_LINKER}")
 	message(STATUS "Strip  : ${CMAKE_STRIP}")
+	# Remove the indentation of the message() function.
+	list(POP_BACK CMAKE_MESSAGE_INDENT)
+	#
+	list(APPEND CMAKE_MESSAGE_INDENT "Sf ")
+	message(STATUS "Host Architecture: ${SF_HOST_ARCHITECTURE}")
+	message(STATUS "Architecture: ${SF_ARCHITECTURE}")
+	message(STATUS "Cross Compiling: ${SF_CROSSCOMPILING}")
+	# Remove the indentation of the message() function.
+	list(POP_BACK CMAKE_MESSAGE_INDENT)
 endif ()
 
