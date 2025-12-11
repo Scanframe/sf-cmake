@@ -52,7 +52,7 @@ find_package(SfMacros CONFIG REQUIRED)
 find_package(SfBuildCheck CONFIG REQUIRED)
 if (SF_BUILD_QT)
 	# Install/fetch the Qt Libraries when ENV{QT_VER_DIR} is not set.
-	find_package(SfQtLibrary 6.9.1 CONFIG REQUIRED)
+	find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
 endif ()
 
 # Set the C++ standard to 20 for all projects which is required for the SfCompiler package.
@@ -63,6 +63,8 @@ find_package(SfCompiler CONFIG REQUIRED)
 Sf_SetOutputDirs("bin")
 
 if (SF_BUILD_TESTING)
+	# Sets the version for SfCatch2 package other then the default.
+	find_package(SfCatch2 3.11.0 CONFIG)
 	# Prevents Catch2 from adding targets.
 	set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
 	# Enable the tests added with add_test.

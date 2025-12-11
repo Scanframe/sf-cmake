@@ -47,6 +47,6 @@ if (SfDoxygen_FOUND)
 	list(JOIN _SourceList "\n\t" _Files)
 	message(NOTICE "Target Files:\n\t${_Files}")
 ]]
-	# Adds the actual manual target .
-	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" "v1.2025.0")
+	# Adds the actual manual target and the last 2 optional arguments are awesome theming flag and plantuml version.
+	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}")
 endif ()

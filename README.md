@@ -200,8 +200,8 @@ if (SfDoxygen_FOUND)
 	list(FILTER _SourcesListTmp EXCLUDE REGEX ".*Private\\.h$")
 	# Append the list with headers.
 	list(APPEND _SourceList ${_SourceListTmp})
-	# Adds the actual manual target and the last argument is the optional PlantUML jar version to download use.
-	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" "v1.2023.0")
+	# Adds the actual manual target and the last 2 optional arguments are awesome theming flag and plantuml version.
+	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}")
 endif ()
 ```
 

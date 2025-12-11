@@ -8,37 +8,51 @@ include(FetchContent)
 # @param _ImageDirs Document directories for searching images.
 # @param _OutDir Directory for the HTML output.
 # @param _SourceList List of files to process which could be markdown, html and C++ header files.
+# @param [_FlagTheme] Flag for using Awesome theming plugin.
+# @param [_PlantUmlVer] Version to use for PlantUML like '1.2025.10'.
 #
 function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _SourceList)
+	# Get the first optional argument which is the version.
+	Sf_GetOptionalArgument(_FlagTheme 0 "${ARGN}")
+	Sf_GetOptionalArgument(_PlantUmlVer 1 "${ARGN}")
 	# Get the actual output directory.
 	Sf_GetFilenameComponent(_OutDir "${_OutDir}" REALPATH)
 	# Check if the resulting directory exists.
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
 	endif ()
-	# Initialize plantuml version with empty string.
-	set(_PlantUmlVer "")
-	# Check if argument 4 which is the plantuml version is passed
-	if (DEFINED ARGV5)
-		if (ARGV5 STREQUAL "")
-			# Set default plantuml version.
-			set(_PlantUmlVer "v1.2023.1")
-		else ()
-			set(_PlantUmlVer "${ARGV5}")
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		set(_TlsCheck FALSE)
+	else ()
+		set(_TlsCheck TRUE)
+	endif ()
+	# Check if the version was passed in the optional argument.
+	if (NOT DEFINED _PlantUmlVer)
+		# Get the latest release version number from 'https://github.com/plantuml/plantuml/tags' through the API.
+		Sf_GetGitHubVersion(_Version "plantuml" "plantuml")
+		# When found override the default.
+		if (_Version)
+			set(_PlantUmlVer "${_Version}")
 		endif ()
+	endif ()
+	# Check if the version still isn't defined.
+	if (NOT DEFINED _PlantUmlVer)
+		# Set default plantuml version to the known latest.
+		set(_PlantUmlVer "1.2025.10")
+	endif ()
+	# Download only when a version was set.
+	if (NOT _PlantUmlVer STREQUAL "")
 		message(STATUS "Doxygen > PlantUML version to download: '${_PlantUmlVer}'")
 		# Check GitHub for latest releases at 'https://github.com/plantuml/plantuml/releases'.
 		FetchContent_Declare(PlantUmlJar
-			URL "https://github.com/plantuml/plantuml/releases/download/${_PlantUmlVer}/plantuml.jar"
-			DOWNLOAD_NO_EXTRACT true
-			TLS_VERIFY true
+			URL "https://github.com/plantuml/plantuml/releases/download/v${_PlantUmlVer}/plantuml.jar"
+			DOWNLOAD_NO_EXTRACT TRUE
+			TLS_VERIFY ${_TlsCheck}
 		)
 		# Download it.
 		FetchContent_MakeAvailable(PlantUmlJar)
 		# Set the variable used in the configuration template.
 		set(DG_PlantUmlJar "${plantumljar_SOURCE_DIR}")
-	else ()
-		message(STATUS "PlantUML version not set and is not downloaded.")
 	endif ()
 	# Add doxygen project when doxygen was found
 	find_package(Doxygen QUIET)
@@ -63,16 +77,38 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	file(RELATIVE_PATH DG_MainPage "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}/mainpage.md")
 	# Replace the list separator ';' with a space and a double quotes in the list to allow names with spaces in it.
 	list(JOIN _SourceList "\" \"" DG_Source)
+	unset(_SourceList)
 	set(DG_Source "\"${DG_Source}\"")
-	# Enable when generating Zen styling output.
-	if (FALSE)
-		set(DG_HtmlHeader "${SfDoxygen_DIR}/theme/zen/header.html")
-		set(DG_HtmlFooter "${SfDoxygen_DIR}/theme/zen/footer.html")
-		set(DG_HtmlExtra "${SfDoxygen_DIR}/theme/zen/stylesheet.css")
-		set(DG_HtmlExtraStyleSheet "")
+	# Enable when generating Awesome styling output.
+	if (DEFINED _FlagTheme AND _FlagTheme)
+		#[[
+		Required for this theme to work
+		GENERATE_TREEVIEW      = YES # optional. Also works without treeview
+		DISABLE_INDEX = NO
+		FULL_SIDEBAR = NO
+		HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css
+		HTML_COLORSTYLE        = LIGHT # required with Doxygen >= 1.9.5
+		]]
+		FetchContent_Declare(doxygen_awesome
+			GIT_REPOSITORY "https://github.com/jothepro/doxygen-awesome-css.git"
+			GIT_TAG "v2.4.1"
+			TLS_VERIFY ${_TlsCheck}
+		)
+		# Download it.
+		FetchContent_MakeAvailable(doxygen_awesome)
+		# Header
+		#file(RELATIVE_PATH DG_HtmlHeader "${CMAKE_CURRENT_BINARY_DIR}" "${doxygen_awesome_SOURCE_DIR}/doxygen-custom/header.html")
+		# CSS files.
+		file(RELATIVE_PATH DG_HtmlExtraStyleSheet "${CMAKE_CURRENT_BINARY_DIR}" "${doxygen_awesome_SOURCE_DIR}/doxygen-awesome.css")
+		# Javascript files.
+		file(GLOB _JsFiles LIST_DIRECTORIES FALSE RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "${doxygen_awesome_SOURCE_DIR}/*.js")
+		list(JOIN _JsFiles "\" \"" DG_HtmlExtraFiles)
+		unset(_JsFiles)
+		set(DG_HtmlExtraFiles "\"${DG_HtmlExtraFiles}\"")
 	else ()
 		# Fixes source file viewing.
 		file(RELATIVE_PATH DG_HtmlExtraStyleSheet "${CMAKE_CURRENT_BINARY_DIR}" "${SfDoxygen_DIR}/tpl/doxygen/custom.css")
+		file(RELATIVE_PATH DG_HtmlExtraFiles "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}/favicon.ico")
 	endif ()
 	# Set the example path for this project it currently only accepts a single directory.
 	file(RELATIVE_PATH DG_ExamplePath "${CMAKE_CURRENT_BINARY_DIR}" "${SF_EXAMPLE_DIR}")

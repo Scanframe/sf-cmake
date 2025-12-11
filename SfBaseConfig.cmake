@@ -26,6 +26,21 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
 	endmacro()
 endif ()
 
+##!
+# Fix for an optional argument in a nested function where a variable ARGV4 when not passed
+# as an argument has the value of the parent function.
+#  @param _OutVar Name of the output variable returning the value which is not defined in the parent scope when
+#     the index is out of range. Use 'if (DEFINED _MyArg)' to check it.
+#  @param _Index Index value into the list of additional arguments.
+#  @param _Argn List of additional arguments of set with "${ARGN}" by the calling function.
+#
+function(Sf_GetOptionalArgument _VarOut _Index _Argn)
+	list(LENGTH _Argn _Length)
+	if (_Index LESS _Length)
+		list(GET _Argn ${_Index} _Value)
+		set(${_VarOut} "${_Value}" PARENT_SCOPE)
+	endif ()
+endfunction()
 
 ##!
 # Maps the passed UNC path to a mounted drive share when it exists.
@@ -458,7 +473,7 @@ function(Sf_AddVersionResource _Target)
 	Sf_CheckFileExists("${_FileIn}")
 	# Assemble the file out.
 	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
-	# Generate the configure the file for doxygen.
+	# Generate the configure the file for the resource.
 	configure_file("${_FileIn}" "${_FileOut}" @ONLY NEWLINE_STYLE LF)
 	#
 	target_sources("${_Target}" PRIVATE "${_FileOut}")
@@ -759,8 +774,15 @@ endfunction()
 
 ##!
 # Adds a file to be accessible by Doxygen which allows a single directory for examples and no subdirectories.
+# In a markdown the file is referenced as '[\@]snippet <prefix>/<file> <visible-name>'.
 # _Files  : List of file used as examples.
 # _Prefix : Prefix for the destination filename to prevent naming collisions.
+#
+# Code example for creating a by 'Data' referencable snipped:
+#
+# //! [Data]
+#	int my_example_var = 0;
+# //! [Data]
 #
 function(Sf_AddExamples _Files _Prefix)
 	# Create the sample directory if it does not exists yet.

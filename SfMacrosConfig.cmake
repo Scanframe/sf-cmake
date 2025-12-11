@@ -175,7 +175,7 @@ endfunction()
 
 ##!
 # Checks if the passed path is a symlink.
-# Sets the '_ResultVar' variable to True or False.
+# Sets the '_ResultVar' variable to TRUE or FALSE.
 # Returns false when the path does not exist.
 #
 function(Sf_IsSymlink _Path _ResultVar)
@@ -266,44 +266,57 @@ function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
 endfunction()
 
 ##!
-# Gets version from a GitHub repository.
-# @param _Owner
-# @param _Repository Result is relative to this directory.
+# Gets release versions from a GitHub repository.
+# @param _Owner Name of owner of the repository.
+# @param _Repository Name of the owners repository.
+# @param Optional boolean true for latest version only.
 #
 function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
+	# Get the first optional argument.
+	Sf_GetOptionalArgument(_arg3 0 "${ARGN}")
+	if (DEFINED _arg3 AND _arg3)
+		# Set default plantuml version to the latest.
+		set(_Options "--latest --owner ${_Owner} --repo ${_Repository}")
+	else ()
+		set(_Options "--join --owner ${_Owner} --repo ${_Repository}")
+	endif ()
+	# Determine if calling is made from Cygwin/Windows.
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		# Try finding the bash.exe from cygwin.
 		find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" NO_DEFAULT_PATH)
-		if (_BashExe)
-			execute_process(
-				COMMAND "${_BashExe}" -c "bin/github-versions.sh --join --url https://github.com/${_Owner}/${_Repository}.git"
-				#COMMAND "${_BashExe}" -c "ls -la"
-				WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-				OUTPUT_VARIABLE _Versions
-				OUTPUT_STRIP_TRAILING_WHITESPACE
-				COMMAND_ERROR_IS_FATAL ANY
-				ECHO_OUTPUT_VARIABLE
-				ECHO_ERROR_VARIABLE
-			)
-		endif()
 	else ()
 		find_program(_BashExe "bash")
-		if (_BashExe)
-			set(_Command "bin/github-versions.sh --join --url https://github.com/${_Owner}/${_Repository}.git")
-			execute_process(
-				COMMAND "${_BashExe}" -lc "${_Command}"
-				WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-				OUTPUT_VARIABLE _Versions
-				OUTPUT_STRIP_TRAILING_WHITESPACE
-				COMMAND_ERROR_IS_FATAL ANY
-				ECHO_ERROR_VARIABLE
-			)
-		endif()
+	endif ()
+	if (_BashExe)
+		execute_process(
+			COMMAND "${_BashExe}" -c "bin/github-versions.sh ${_Options}"
+			WORKING_DIRECTORY "${CMAKE_CURRENT_FUNCTION_LIST_DIR}"
+			OUTPUT_VARIABLE _Versions
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			COMMAND_ERROR_IS_FATAL ANY
+			ECHO_OUTPUT_VARIABLE
+			ECHO_ERROR_VARIABLE
+		)
 	endif ()
 	if (_Versions STREQUAL "")
 		set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
 		return()
-	else()
+	else ()
 		set(${_VarOut} "${_Versions}" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
+# Gets latest release version from a GitHub repository.
+# @param _Owner Name of owner of the repository.
+# @param _Repository Name of the owners repository.
+#
+function(Sf_GetGitHubVersion _VarOut _Owner _Repository)
+	Sf_GetGitHubVersions(_Version "${_Owner}" "${_Repository}" TRUE)
+	if (_Version STREQUAL "")
+		set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
+		return()
+	else ()
+		set(${_VarOut} "${_Version}" PARENT_SCOPE)
 	endif ()
 endfunction()

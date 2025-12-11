@@ -125,13 +125,14 @@ api_url="https://api.github.com/repos/${options['owner']}/${options['repo']}/tag
 cache_file="$(GetTemporaryDirectory)/${USER}-github-tags-catchorg-Catch2.json"
 if [[ -f "${cache_file}" ]]; then
 	cache_age="$(FileAgeInSeconds "${cache_file}")"
-	if [[ "${cache_age}" -gt 600 ]]; then
+	# Renew after half an hour.
+	if [[ "${cache_age}" -gt 1800 ]]; then
 		WriteLog "~ Removing the cache file (${cache_age}s): ${cache_file}"
 		rm "${cache_file}"
 	fi
 fi
 if [[ ! -f "${cache_file}" ]]; then
-	curl --fail --silent "${api_url}" > "${cache_file}"
+	curl --fail --silent "${api_url}" >"${cache_file}"
 	WriteLog "# Updating cache file (${cache_age}s): ${cache_file}"
 else
 	WriteLog "# Using cache file (${cache_age}s): ${cache_file}"
@@ -139,26 +140,19 @@ fi
 
 # When find version is requested.
 if [[ ! -v options['find-ver'] ]]; then
-	WriteLog "- Available versions of '${options['owner']}/${options['repo']}':"
 	if [[ "${options['json']}" -ne 0 ]]; then
-		cat "${cache_file}"
+		jq . "${cache_file}"
 	elif [[ "${options['latest']}" -ne 0 ]]; then
-		cat "${cache_file}" |
-			jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' |
-			sort --version-sort |
-			tail -n 1
+		jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' "${cache_file}" | sort --version-sort | tail -n 1
 	elif [[ "${options['joined']}" -ne 0 ]]; then
-		cat "${cache_file}" |
-			jq -r '[.[] | (select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";""))] | join(";")'
+		jq -r '[.[] | (select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";""))] | join(";")' "${cache_file}"
 	else
-		cat "${cache_file}" |
-			jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' |
-			sort --version-sort --reverse
+		WriteLog "- Available versions of '${options['owner']}/${options['repo']}':"
+		jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' "${cache_file}" | sort --version-sort --reverse
 	fi
 else
 	# Get all tags formated like v1.2.3 and put only the version part 1.2.3 in a list.
-	versions="$(cat "${cache_file}" |
-		jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' |
+	versions="$(jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name | sub("^.";"")' "${cache_file}" |
 		sort --version-sort)"
 	# Iterate through all versions
 	for version in ${versions}; do

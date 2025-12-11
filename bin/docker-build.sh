@@ -22,11 +22,11 @@ flag_build_dir=true
 if [[ "$(uname -m)" == 'aarch64' ]]; then
 	platform="arm64"
 	# Qt default version
-	qt_ver="6.9.1"
+	qt_ver="6.10.1"
 else
 	platform="amd64"
 	# Qt default version
-	qt_ver="6.9.1"
+	qt_ver="6.10.1"
 fi
 
 # Set container name to be used.
