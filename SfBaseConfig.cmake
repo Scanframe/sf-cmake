@@ -159,11 +159,11 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			endif ()
 			# Write the cache file.
 			file(WRITE "${_FilePath}" "${_Version}")
+			# Notify the that a cache version is used.
+			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Creating cache version (${_Version})")
 		else ()
 			# Read the cache file.
 			file(READ "${_FilePath}" _Version)
-			# Notify the that a cache version is used.
-			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Using cached version (${_Version})")
 		endif ()
 	else ()
 		# Only annotated tags so no '--tags' option.
@@ -326,8 +326,10 @@ function(Sf_SetTargetVersion _Target)
 			if (_Type STREQUAL "EXECUTABLE")
 				set_target_properties("${_Target}" PROPERTIES SOVERSION "${_Version}")
 			else ()
+				# Get the major version
+				string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" _MajorVersion "${_Version}")
 				# Set the target version properties for Linux.
-				set_target_properties("${_Target}" PROPERTIES VERSION "${_Version}" SOVERSION "${_Version}")
+				set_target_properties("${_Target}" PROPERTIES VERSION "${_Version}" SOVERSION "${_MajorVersion}")
 			endif ()
 		else ()
 			# Set the target version properties for Windows.

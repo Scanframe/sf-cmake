@@ -55,10 +55,8 @@ if "%~1"=="" (
 )
 
 :: Save the current drive and directory.
-pushd
-
 :: Change the drive and path Move to the correct start directory for relative path 'lib' entry to have effect.
-cd /d %EXECUTABLE_DIR%
+pushd %EXECUTABLE_DIR%
 
 :: Set the PATH for the found Qt library and the relative 'lib' directory.
 set PATH=%qt_ver_dir%\mingw_64\bin;lib;%PATH%

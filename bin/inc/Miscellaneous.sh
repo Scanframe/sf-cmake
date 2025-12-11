@@ -268,6 +268,24 @@ function CompareIncrements {
 }
 
 ##
+# Escapes characters for a Basic Regular Expression (BRE)
+#
+EscapeRegularExpression() {
+	local input_string
+	input_string="$1"
+	## Escape the backslashes first.
+	input_string=${input_string//\\/\\\\}
+	# Backslash-escape all known BRE meta-characters: . * [ ] ^ $ \
+	input_string=${input_string//./\\.}
+	input_string=${input_string//\*/\\\*}
+	input_string=${input_string//[/\\\[}
+	input_string=${input_string//]/\\\]}
+	input_string=${input_string//^/\\^}
+	input_string=${input_string//$ /\\$}
+	echo "$input_string"
+}
+
+##
 # Escapes the markdown passed string.
 #
 function EscapeMarkdown {
@@ -377,4 +395,31 @@ function AskConfirmation {
 		return 1
 	fi
 	return 0
+}
+
+##
+# Gets the temporary directory.
+#
+function GetTemporaryDirectory {
+	echo "${TMPDIR:-${TEMP:-${TMP:-/tmp}}}"
+}
+
+##
+# Gets the age of a file in seconds.
+#
+function FileAgeInSeconds {
+	local file_time cur_time
+	# Check if the file exists.
+	if [[ -f "$1" ]]; then
+		cur_time="$(date +%s)"
+		file_time="$(stat -c %Y "$1" 2>/dev/null)"
+		if [[ -z "${file_time}" ]]; then
+			WriteLog "Error: Could not determine file modification time using 'stat -c %Y'. Check your OS compatibility!"
+			return 1
+		fi
+		echo "$((cur_time - file_time))"
+		return 0
+	else
+		return 1
+	fi
 }

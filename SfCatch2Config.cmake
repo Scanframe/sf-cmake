@@ -3,7 +3,7 @@ include(FetchContent)
 # Import Catch2 library for testing.
 FetchContent_Declare(
 	"Catch2-${SfCatch2_VERSION}"
-	GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+	GIT_REPOSITORY "https://github.com/catchorg/Catch2.git"
 	GIT_TAG "v${SfCatch2_VERSION}"
 )
 # Adds Catch2::Catch2

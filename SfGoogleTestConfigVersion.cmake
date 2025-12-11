@@ -13,8 +13,8 @@ endif ()
 
 # Optionally, provide detailed information about the version match
 if (PACKAGE_VERSION_COMPATIBLE)
-	message(STATUS "Package '${PACKAGE_FIND_NAME}' version ${PACKAGE_VERSION}")
+	message(STATUS "Project '${PROJECT_NAME}' using '${PACKAGE_FIND_NAME}' version ${PACKAGE_VERSION}")
 else ()
 	set(PACKAGE_VERSION_UNSUITABLE TRUE)
-	message(STATUS "Package '${PACKAGE_FIND_NAME}' version ${PACKAGE_VERSION} is not compatible with the requested version ${PACKAGE_FIND_VERSION}")
+	message(WARNING "Project '${PROJECT_NAME}' package '${PACKAGE_FIND_NAME}' version ${PACKAGE_VERSION} is incompatible with the requested version ${PACKAGE_FIND_VERSION}")
 endif ()

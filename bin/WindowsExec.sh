@@ -82,8 +82,7 @@ wdir_qt_dll="$(cygpath -w "${dir_qt_dll}")"
 # Report some useful information.
 WriteLog "- Windows PATH prefix: ${wdir_exe_dll};${wdir_qt_dll}"
 # Export the path to find the needed DLLs in where MinGW DLLs are at the beginning.
-# Correct version of 'libstdc++-6.dll' is required.
-export PATH="${dir_qt_dll}:${dir_bin_win}/lib:${PATH}"
+export PATH="${dir_qt_dll}:${dir_bin_win}/lib:${PATH}:${script_dir}"
 
 # Create array from the ctest arguments variable.
 IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
@@ -95,7 +94,7 @@ fi
 
 # Change to the directory to execute the command from since the relative 'lib' directory.
 pushd "${EXECUTABLE_DIR}"> /dev/null
-# Check if
+# Check if the binary file is not actually a command.
 if [[ "${bin_file:0:1}" == '@' ]]; then
 	# Remove the first character.
 	bin_file="${bin_file:1}"

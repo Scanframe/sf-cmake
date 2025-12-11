@@ -240,7 +240,9 @@ function(Sf_GetNamedSubdirectories _RootDir _RelativeToDir _SubDir _OutVar)
 	set("${_OutVar}" ${_Result} PARENT_SCOPE)
 endfunction()
 
-
+##!
+# Used by Sf_GetNamedSubdirectories()
+#
 function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
 	# Initialize empty list
 	set(_Result)
@@ -261,4 +263,47 @@ function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
 	endforeach ()
 	# Set output variable with collected directories
 	set("${_OutVar}" ${_Result} PARENT_SCOPE)
+endfunction()
+
+##!
+# Gets version from a GitHub repository.
+# @param _Owner
+# @param _Repository Result is relative to this directory.
+#
+function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+		# Try finding the bash.exe from cygwin.
+		find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" NO_DEFAULT_PATH)
+		if (_BashExe)
+			execute_process(
+				COMMAND "${_BashExe}" -c "bin/github-versions.sh --join --url https://github.com/${_Owner}/${_Repository}.git"
+				#COMMAND "${_BashExe}" -c "ls -la"
+				WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+				OUTPUT_VARIABLE _Versions
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				COMMAND_ERROR_IS_FATAL ANY
+				ECHO_OUTPUT_VARIABLE
+				ECHO_ERROR_VARIABLE
+			)
+		endif()
+	else ()
+		find_program(_BashExe "bash")
+		if (_BashExe)
+			set(_Command "bin/github-versions.sh --join --url https://github.com/${_Owner}/${_Repository}.git")
+			execute_process(
+				COMMAND "${_BashExe}" -lc "${_Command}"
+				WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+				OUTPUT_VARIABLE _Versions
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				COMMAND_ERROR_IS_FATAL ANY
+				ECHO_ERROR_VARIABLE
+			)
+		endif()
+	endif ()
+	if (_Versions STREQUAL "")
+		set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
+		return()
+	else()
+		set(${_VarOut} "${_Versions}" PARENT_SCOPE)
+	endif ()
 endfunction()

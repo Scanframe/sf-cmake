@@ -127,6 +127,17 @@ if [[ -n "${GDBSERVER_BIN}" ]]; then
 		WriteLog "Exit code ($?)!"
 	done
 else
+# Check if the binary file is actually a command.
+if [[ "${bin_file:0:1}" == '@' ]]; then
+	# Append this scripts directory for finding commands.
+	export PATH="${PATH}:${script_dir}"
+	# Remove the first character.
+	bin_file="${bin_file:1}"
+	# Execute the command found in the path.
+	"${bin_file}" "${@}"
+else
 	# Execute the binary with all options.
-	"${wine_bin}" "${bin_file}" "$@" "${ctest_arguments[@]}"
+	"${wine_bin}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
 fi
+fi
+

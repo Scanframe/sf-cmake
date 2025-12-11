@@ -4,9 +4,10 @@
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
 source "${script_dir}/inc/WriteLog.sh"
+
 # Prints the help.
 #
-function ShowHelp {
+function show_help {
 	echo "Usage: ${0} [options] <name>
   Find directory or file equal to the passed name.
   Options:
@@ -21,7 +22,7 @@ type=""
 temp=$(getopt -o 'ht:' --long 'help,type:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 if [[ $? -ne 0 ]]; then
-	ShowHelp
+	show_help
 	exit 1
 fi
 eval set -- "$temp"
@@ -30,7 +31,7 @@ while true; do
 	case "$1" in
 
 		-h | --help)
-			ShowHelp
+			show_help
 			exit 0
 			;;
 
@@ -61,7 +62,7 @@ done
 name="${argument[0]}"
 # When no argument passed show help.
 if [[ -z "${name}" ]]; then
-	ShowHelp
+	show_help
 	exit 0
 fi
 # Get the current working directory.

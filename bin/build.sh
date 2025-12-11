@@ -21,7 +21,7 @@ trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
 # Change to the run directory to operated from when script is called from a different location.
 if ! cd "${run_dir}"; then
-	WriteLog "Change to operation directory '${run_dir}' failed!"
+	WriteLog "! Change to operation directory '${run_dir}' failed."
 	exit 1
 fi
 
@@ -405,7 +405,7 @@ function SelectWorkflowPreset {
 		done
 		# Check if the 'dialog' command exists.
 		if ! command -v "dialog" >/dev/null; then
-			WriteLog "Missing command 'dialog', use a package preset on the command line instead!"
+			WriteLog "! Missing command 'dialog', use a package preset on the command line instead."
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
@@ -427,13 +427,14 @@ if [[ "${sf_target_os}" == "Cygwin" ]]; then
 			export PATH="${tools_dir}:${PATH}"
 			WriteLog "# Tools directory added to PATH: ${tools_dir}"
 		else
-			WriteLog "# Non-existing tools directory: ${tools_dir}"
+			WriteLog "! Non-existing tools directory: ${tools_dir}"
+			exit 1
 		fi
 	fi
 elif [[ "${sf_target_os}" == "GNU/Linux" ]]; then
 	WriteLog "# Linux $(uname -m) detected"
 else
-	WriteLog "Targeted OS '${sf_target_os}' not supported!"
+	WriteLog "! Targeted OS '${sf_target_os}' not supported."
 fi
 
 # No arguments at show help and bailout.
@@ -637,7 +638,7 @@ if [[ "${CI}" != "true" ]]; then
 fi
 for cmd in "${commands[@]}"; do
 	if ! command -v "${cmd}" >/dev/null; then
-		WriteLog "Missing command '${cmd}' for this script!"
+		WriteLog "! Missing command '${cmd}' for this script."
 		WriteLog "Run option with '--required' to install tool dependencies."
 		exit 1
 	fi
@@ -668,7 +669,7 @@ file_presets=("${run_dir}/CMakePresets.json")
 
 # Check if the presets file is present.
 if [[ ! -f "${file_presets[0]}" ]]; then
-	WriteLog "File '${file_presets[0]}' is missing!"
+	WriteLog "! File '${file_presets[0]}' is missing."
 	exit 1
 fi
 
@@ -726,7 +727,7 @@ fi
 # Check if wiping can be performed.
 if [[ "${target_name}" == @(help|install) && ${flag_wipe} == true ]]; then
 	flag_wipe=false
-	WriteLog "Wiping clean with target '${target_name}' not possible!"
+	WriteLog "! Wiping clean with target '${target_name}' not possible."
 fi
 
 # When configure and/or build is requested.
@@ -803,7 +804,7 @@ if ${flag_build} || ${flag_config}; then
 					# Run the build preset.
 					# shellcheck disable=SC2091
 					if ! eval "$(JoinBy " " "${cmake_build[@]}")"; then
-						WriteLog "CMake failed!"
+						WriteLog "! CMake failed."
 						exit 1
 					fi
 				fi
@@ -823,7 +824,7 @@ if ${flag_test}; then
 		binary_dir="$(jq -r ".configurePresets[]|select(.name==\"${cfg_preset}\").binaryDir" "${file_presets[@]}")"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
-			WriteLog "Configure or Test preset '${preset}' does not exist!"
+			WriteLog "! Configure or Test preset '${preset}' does not exist"
 			# Show the available presets.
 			ctest --list-presets
 		else
@@ -861,7 +862,7 @@ if ${flag_test}; then
 						fi
 						;;
 					*)
-						WriteLog "CTest failed [${exitcode}]!"
+						WriteLog "! CTest failed [${exitcode}]."
 						exit 1
 						;;
 				esac
@@ -883,7 +884,7 @@ if ${flag_package}; then
 		eval "sourceDir=\"${run_dir}\" package_dir=${package_dir//\$env{/\${}"
 		# Check if preset exists by checking the configuration preset value.
 		if [[ -z "${cfg_preset}" ]]; then
-			WriteLog "Configure or Package preset '${preset}' does not exist!"
+			WriteLog "! Configure or Package preset '${preset}' does not exist."
 			# Show the available presets.
 			cmake --list-presets configure
 		else

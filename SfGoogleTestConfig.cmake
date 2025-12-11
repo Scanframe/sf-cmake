@@ -3,7 +3,7 @@ include(FetchContent)
 # Import GoogleTest library for testing.
 FetchContent_Declare(
 	"GoogleTest-${SfGoogleTest_VERSION}"
-	GIT_REPOSITORY https://github.com/google/googletest.git
+	GIT_REPOSITORY "https://github.com/google/googletest.git"
 	GIT_TAG "v${SfGoogleTest_VERSION}"
 )
 # Prevent GoogleTest from overriding options like BUILD_SHARED_LIBS

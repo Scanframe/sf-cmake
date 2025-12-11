@@ -70,8 +70,13 @@ fi
 
 # Get the local variable for the binary directory.
 dir_bin="${EXECUTABLE_DIR}"
-# Get the architecture from the binary file.
-architecture_file="$(file "${dir_bin}/${bin_file}" | grep -oE 'x86-64|aarch64' | head -n 1)"
+
+if [[ "${bin_file:0:1}" == '@' ]]; then
+	architecture_file="$(uname -p)"
+else
+	# Get the architecture from the binary file.
+	architecture_file="$(file "${dir_bin}/${bin_file}" | grep -oE 'x86-64|aarch64' | head -n 1)"
+fi
 # Replace the '-' in the file architecture. Meaning replacing it in x86-64.
 architecture="${architecture_file/-/_}"
 # Check if the architecture could be detected.
@@ -123,25 +128,37 @@ if [[ "$(uname -m | head -n 1)" != "${architecture}" ]]; then
 	export QEMU_LD_PREFIX="/usr/${architecture_file}-linux-gnu"
 	WriteLog "- QEMU_LD_PREFIX: ${QEMU_LD_PREFIX}"
 fi
+
 WriteLog "- LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
-WriteLog "- $(chrpath --list "${dir_bin}/${bin_file}" | sed 's/.*: //')"
-# Create array from the ctest arguments variable.
-IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
-# Check if 'CTEST_ARGS' arguments were passed before reporting them.
-if [[ -n "${CTEST_ARGS}" ]]; then
-	# Argument CTEST_ARGS allows passing arguments to a ctest call.
-	WriteLog "- CTEST_ARGS[${#ctest_arguments[@]}]:" "${ctest_arguments[@]}"
-fi
 
-# When the path is relative add './' to it.
-if [[ "${bin_file:0:1}" != "/" ]]; then
-	bin_file="./${bin_file}"
-fi
-
-# Execute it in its own directory.
-cd "${dir_bin}"
-if [[ -n "${qemu_static}" ]]; then
-	"${qemu_static}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
+# Check if the binary file is not actually a command.
+if [[ "${bin_file:0:1}" == '@' ]]; then
+	# Append this scripts directory for finding commands.
+	export PATH="${PATH}:${script_dir}"
+	# Remove the first character.
+	bin_file="${bin_file:1}"
+	# Execute it in its own directory.
+	cd "${dir_bin}"
+	# Execute the command found in the path.
+	"${bin_file}" "${@}"
 else
-	"${bin_file}" "${@}" "${ctest_arguments[@]}"
+	WriteLog "- $(chrpath --list "${dir_bin}/${bin_file}" | sed 's/.*: //')"
+	# Create array from the ctest arguments variable.
+	IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
+	# Check if 'CTEST_ARGS' arguments were passed before reporting them.
+	if [[ -n "${CTEST_ARGS}" ]]; then
+		# Argument CTEST_ARGS allows passing arguments to a ctest call.
+		WriteLog "- CTEST_ARGS[${#ctest_arguments[@]}]:" "${ctest_arguments[@]}"
+	fi
+	# When the path is relative add './' to it.
+	if [[ "${bin_file:0:1}" != "/" ]]; then
+		bin_file="./${bin_file}"
+	fi
+	# Execute it in its own directory.
+	cd "${dir_bin}"
+	if [[ -n "${qemu_static}" ]]; then
+		"${qemu_static}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
+	else
+		"${bin_file}" "${@}" "${ctest_arguments[@]}"
+	fi
 fi
