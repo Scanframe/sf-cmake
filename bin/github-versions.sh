@@ -122,7 +122,7 @@ fi
 # GitHub API URL for fetching tags.
 api_url="https://api.github.com/repos/${options['owner']}/${options['repo']}/tags"
 # Cache file reducing the amount of calls  to GitHub.
-cache_file="$(GetTemporaryDirectory)/${USER}-github-tags-catchorg-Catch2.json"
+cache_file="$(GetTemporaryDirectory)/${USER}-github-tags-${options['owner']}-${options['repo']}.json"
 if [[ -f "${cache_file}" ]]; then
 	cache_age="$(FileAgeInSeconds "${cache_file}")"
 	# Renew after half an hour.

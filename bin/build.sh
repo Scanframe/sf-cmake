@@ -157,6 +157,7 @@ function InstallPackages {
 		wg_pkgs["Nullsoft Install System"]="NSIS.NSIS"
 		wg_pkgs["Oracle JRE"]="Oracle.JavaRuntimeEnvironment"
 		wg_pkgs["LLVM Clang-Format"]="LLVM.ClangFormat"
+		wg_pkgs["Doxygen"]="DimitriVanHeesch.Doxygen"
 		#wg_pkgs["GNU Make"]="GnuWin32.Make"
 		# Iterate through the associative array of subdirectories (key) and remotes (value).
 		for name in "${!wg_pkgs[@]}"; do
@@ -171,7 +172,6 @@ function InstallPackages {
 		cg_pkgs=(
 			"dialog"
 			"recode"
-			"doxygen"
 			"perl-Image-ExifTool"
 			"graphviz"
 			"pcre"
