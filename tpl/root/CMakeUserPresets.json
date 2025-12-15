@@ -26,7 +26,7 @@
 				}
 			},
 			"environment": {
-				"--QT_VER_DIR": "$penv{HOME}/lib/qt/w64-x86_64/6.6.1"
+				"--QT_VER_DIR": "$penv{HOME}/lib/qt/w64-x86_64/6.8.1"
 			}
 		},
 		{

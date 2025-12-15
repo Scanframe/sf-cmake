@@ -1,27 +1,23 @@
 #include <QApplication>
-#include <QDebug>
 #include <QPushButton>
 #include <hwl/hello.h>
-#include <iostream>
 
 int main(int argc, char* argv[])
 {
-	std::cout << "PATH:" << getenv("PATH") << std::endl;
-	QApplication const app(argc, argv);
+	auto app = new QApplication(argc, argv);
 	QPushButton HelloWorld(
 		QString::fromStdString(getHello(0)) + "\nTimestamp: " + QString::fromStdString(utcTimeString()) +
-		"\nGCC Version: " + QString::fromStdString(getGCCVersion()) + "\nStandard: " + QString::fromStdString(getCppStandardVersion()) + "\nQt Library: v" +
-		qVersion() + "\nQt Build  : v" + QT_VERSION_STR
+		QString("\nQemu Virtualization: ").append(isQemu() ? "Yes" : "No") + QString("\nWine Compatibility Layer: ").append(isWine() ? "Yes" : "No") +
+		"\nCPU Architecture: " + QString::fromStdString(getCpuArchitecture()) + "\nGCC Version: " + QString::fromStdString(getGCCVersion()) +
+		"\nStandard: " + QString::fromStdString(getCppStandardVersion()) + "\nQt Library: v" + qVersion() + "\nQt Build  : v" + QT_VERSION_STR
 	);
-	HelloWorld.resize(300, 120);
+	HelloWorld.resize(300, 150);
 	HelloWorld.show();
-	auto rv = QApplication::exec();
-#if IS_WIN
-	// Need to call exit since the QApplication does not exit normally.
-	//std::exit(rv);
-	// Kill the other threads so the will not hang.
+	auto rv = app->exec();
+	// Fix for hanging Qt threads in Wine since 6.9.1
+	#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
 	killOtherThreads();
-#endif
-	qInfo() << "Exiting with code:" << rv;
+	#endif
+	delete app;
 	return rv;
 }

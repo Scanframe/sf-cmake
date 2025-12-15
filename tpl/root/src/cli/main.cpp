@@ -5,6 +5,9 @@
 int main(int argc, char** argv)
 {
 	std::cout << "Timestamp: " + utcTimeString() << std::endl;
+	std::cout << "Qemu Virtualization: " << (isQemu() ? "Yes" : "No") << std::endl;
+	std::cout << "Wine Compatibility Layer: " << (isWine() ? "Yes" : "No") << std::endl;
+	std::cout << "CPU Architecture: " << getCpuArchitecture() << std::endl;
 	std::cout << "GCC Version: " << getGCCVersion() << std::endl;
 	std::cout << "Standard: " << getCppStandardVersion() << std::endl;
 	std::cout << getHello(0) << std::endl;

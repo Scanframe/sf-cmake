@@ -52,7 +52,7 @@ stages:
     - echo "..."
 
 # Fetches tags and checks if a tag describes the current state of the repository.
-# If not, unshallow is tried and exits when a tag is still not found.
+# If not, unshallow is tried and exits when still no tag is found.
 .script-tags: &tags-script
   - |
     # Prevent error when fetching.

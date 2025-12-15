@@ -53,18 +53,9 @@ if AskConfirmation "Create project directories?"; then
 		touch "${prj_dir}/${dir}/.gitkeep"
 		git add --force "${prj_dir}/${dir}/.gitkeep"
 	done
-	cat <<'EOD' >"${prj_dir}/bin/man/open.sh"
-#!/usr/bin/env bash
-
-# shellcheck disable=SC2034
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-if [[ "$(uname -o)" == "Cygwin" ]]; then
-	"$(ls -f /cygdrive/*/Program\ Files*/Google/Chrome/Application/chrome.exe | head -n 1)" --app="file://$(cygpath --mixed "${script_dir}/html/index.html")"
-else
-	google-chrome --app="file://${script_dir}/html/index.html"
-fi
-EOD
+	# Copy the files to open the generated manual/document.
+	cp "${tpl_dir}/bin/man-open.sh" "${prj_dir}/bin/man/open.sh"
+	cp "${tpl_dir}/bin/man-open.cmd" "${prj_dir}/bin/man/open.cmd"
 	# Make the script executable.
 	chmod +x "${prj_dir}/bin/man/open.sh"
 	cat <<'EOD' >"${prj_dir}/bin/__output__"

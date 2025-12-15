@@ -1,6 +1,18 @@
 #include "hello.h"
 #include <array>
-#include <ctime>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <thread>
+#if IS_WIN
+	#if IS_GNU
+		#include <windows.h>
+	#else
+		#include <Windows.h>
+	#endif
+	#include <tlhelp32.h>
+#endif
 
 std::string utcTimeString()
 {
@@ -12,12 +24,57 @@ std::string utcTimeString()
 	return s_time.data();
 }
 
+bool isQemu()
+{
+#if !IS_WIN
+	// QEMU often uses virtio devices.
+	if (std::filesystem::exists("/sys/bus/virtio"))
+		return true;
+#endif
+	return false;
+}
+
+bool isWine()
+{
+#if IS_WIN
+	HMODULE handle = ::GetModuleHandleA("ntdll.dll");
+	if (handle && ::GetProcAddress(handle, "wine_get_version"))
+	{
+		return true;
+	}
+#endif
+	return false;
+}
+
+std::string getCpuArchitecture()
+{
+#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64)
+	return "x86-64/amd64";
+#elif defined(__i386__) || defined(_M_IX86)
+	return "i386/i32";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	return "aarch/arm64";
+#elif defined(__arm__) || defined(__ARM__) || defined(_M_ARM)
+	return "arm/arm32";
+#elif defined(__riscv) || defined(__riscv__)
+	#if __riscv_xlen == 64
+	return "riscv64";
+	#else
+	return "riscv32";
+	#endif
+#elif defined(__powerpc64__)
+	return "ppc64";
+#elif defined(__powerpc__)
+	return "ppc32";
+#else
+	return "Unknown/generic";
+#endif
+}
+
 std::string getGCCVersion()
 {
 #ifdef __GNUC__
-	return std::to_string(__GNUC__) + "." +
-		std::to_string(__GNUC_MINOR__) + "." +
-		std::to_string(__GNUC_PATCHLEVEL__);
+	return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
 #else
 	return "?.?.?";
 #endif
@@ -54,4 +111,32 @@ std::string getHello(int how)
 		rv = std::string("Hello World!");
 	}
 	return rv;
+}
+
+void killOtherThreads()
+{
+#if IS_WIN
+	if (isWine())
+	{
+		const auto pid = ::GetCurrentProcessId();
+		auto snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+		THREADENTRY32 te;
+		te.dwSize = sizeof(te);
+		if (::Thread32First(snapshot, &te) != 0)
+		{
+			do
+			{
+				if (te.th32OwnerProcessID == pid && te.th32ThreadID != ::GetCurrentThreadId())
+				{
+					if (auto hThread = ::OpenThread(THREAD_TERMINATE, FALSE, te.th32ThreadID))
+					{
+						::TerminateThread(hThread, 0);
+						::CloseHandle(hThread);
+					}
+				}
+			} while (::Thread32Next(snapshot, &te) != 0);
+		}
+		CloseHandle(snapshot);
+	}
+#endif
 }

@@ -2,6 +2,8 @@
 
 # Bail out on first error.
 set -e
+# Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
+set -o pipefail
 
 # Get the scripts run directory weather it is a symlink or not.
 run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,6 +16,10 @@ fi
 
 # Include the Miscellaneous functions.
 source "${include_dir}/inc/Miscellaneous.sh"
+
+## Trap script exit with function.
+trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
+
 # Get the project root and subdirectory.
 project_subdir="$(basename "${run_dir}")"
 # Determines if the build is in the 'cmake-build/docker' directory or not.
@@ -113,7 +119,7 @@ else
 
 			--no-build-dir)
 				flag_build_dir=false
-				shift 2
+				shift 1
 				continue
 				;;
 
@@ -130,7 +136,7 @@ else
 				;;
 
 			'--')
-				shift
+				shift 1
 				break
 				;;
 
@@ -181,7 +187,7 @@ else
 	# Check if the build directory offset has been set for separate build dir offset.
 	if ${flag_build_dir}; then
 		# Build directory used for Docker builds.
-		build_dir="${run_dir}/cmake-build/docker-${platform}"
+		build_dir="${run_dir}/cmake-build/docker-${platform}-${qt_ver}"
 		# Create the special docker binary build directory.
 		mkdir --parents "${build_dir}"
 		if [[ "$(uname -o)" == "Cygwin" ]]; then

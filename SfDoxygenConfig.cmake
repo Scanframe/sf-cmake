@@ -92,6 +92,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 		FetchContent_Declare(doxygen_awesome
 			GIT_REPOSITORY "https://github.com/jothepro/doxygen-awesome-css.git"
 			GIT_TAG "v2.4.1"
+			GIT_SHALLOW 1
 			TLS_VERIFY ${_TlsCheck}
 		)
 		# Download it.

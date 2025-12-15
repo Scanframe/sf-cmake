@@ -5,6 +5,7 @@ FetchContent_Declare(
 	"Catch2-${SfCatch2_VERSION}"
 	GIT_REPOSITORY "https://github.com/catchorg/Catch2.git"
 	GIT_TAG "v${SfCatch2_VERSION}"
+	GIT_SHALLOW 1
 )
 # Adds Catch2::Catch2
 FetchContent_MakeAvailable("Catch2-${SfCatch2_VERSION}")

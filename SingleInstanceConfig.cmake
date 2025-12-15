@@ -4,6 +4,7 @@ include(FetchContent)
 FetchContent_Declare(
 	SingleInstance
 	GIT_REPOSITORY "https://github.com/Scanframe/SingleInstance.git"
+	GIT_SHALLOW 1
 	#TLS_VERIFY TRUE
 )
 # Adds SingleInstance::SingleInstance
