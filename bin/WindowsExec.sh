@@ -42,7 +42,7 @@ function SelectBinary {
 		idx=$((idx + 1))
 		files[${idx}]="${REPLY}"
 		dlg_options+=("${idx}" "${REPLY}")
-	done < <(cd "${dir_bin_win}" && ls -1A *.exe && echo '@clion' && echo '@cmd')
+	done < <(cd "${dir_bin_win}" && ls -1A *.exe ; echo '@clion' ; echo '@cmd')
 	# Create a dialog returning a selection index.
 	idx="$(dialog --backtitle "Run Windows Binary" \
 		--menu "Select a Windows binary to run on Windows $(uname -s)" \

@@ -149,6 +149,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			OUTPUT_VARIABLE _FilePath
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
+			ECHO_ERROR_VARIABLE
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
 		# Replace the directory separators from the filepath.
@@ -167,15 +168,15 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 				RESULT_VARIABLE _ExitCode
 				ERROR_VARIABLE _ErrorText
 				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_STRIP_TRAILING_WHITESPACE
 			)
-			# Report solution for specific Windows issue when using a share file system.
-			if (_ExitCode EQUAL 128)
-				message(SEND_ERROR "Solve this Windows only issue: git config --global --add safe.directory '*'")
+			# Do not cache an empty version to file.
+			if (NOT _Version STREQUAL "")
+				# Write the cache file.
+				file(WRITE "${_FilePath}" "${_Version}")
+				# Notify the that a cache version is used.
+				message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Creating cache version (${_Version})")
 			endif ()
-			# Write the cache file.
-			file(WRITE "${_FilePath}" "${_Version}")
-			# Notify the that a cache version is used.
-			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Creating cache version (${_Version})")
 		else ()
 			# Read the cache file.
 			file(READ "${_FilePath}" _Version)
@@ -189,13 +190,13 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
 			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_STRIP_TRAILING_WHITESPACE
 		)
 	endif ()
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)
-		message(NOTICE "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
-		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}).")
-		message(VERBOSE "${_ErrorText}")
+		message(VERBOSE "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
+		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}). '${_ErrorText}'")
 		# Set an initial version to allow continuing.
 		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
@@ -216,7 +217,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	]]
 	string(REGEX MATCH "${_RegEx}" _Dummy_ "${_Version}")
 	if ("${CMAKE_MATCH_1}" STREQUAL "")
-		message(SEND_ERROR "Git returned tag '${_Version}' does not match regex '${_RegEx}' !")
+		message(WARNING "Git returned tag '${_Version}' does not match regex '${_RegEx}' !")
 		set(${_VarOut} "0;0;0;0" PARENT_SCOPE)
 	else ()
 		# Make a list of the versions.

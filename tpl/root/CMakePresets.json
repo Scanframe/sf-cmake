@@ -166,7 +166,7 @@
 				}
 			},
 			"environment": {
-				"PATH": "${sourceDir}/lib/qt/w64-x86_64/Tools/mingw1120_64/bin;$penv{PATH}"
+				"PATH": "${sourceDir}/cmake/lib/bin:$penv{PATH}"
 			}
 		},
 		{

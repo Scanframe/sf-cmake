@@ -424,8 +424,17 @@ if [[ "${sf_target_os}" == "Cygwin" ]]; then
 		# Read the first line of the file and strip the newline.
 		tools_dir="$(head -n 1 "${tools_dir_file}" | tr -d '\n' | tr -d '\n' | tr -d '\r')"
 		if [[ -d "${tools_dir}" ]]; then
-			export PATH="${tools_dir}:${PATH}"
+			# Report when a gcc.exe is already in the path.
+			if command -v "gcc.exe" >/dev/null; then
+				WriteLog "! Found GCC already in the path at $(command -v "gcc.exe")."
+			fi
+			# Add the tools directory to the end since an older cmake is also in there for Windows.
+			export PATH="${PATH}:${tools_dir}"
 			WriteLog "# Tools directory added to PATH: ${tools_dir}"
+			# Report when a gcc.exe is not found in the path after appending.
+			if ! command -v "gcc.exe" >/dev/null; then
+				WriteLog "! GCC not found in the path after appending it with a tools directory."
+			fi
 		else
 			WriteLog "! Non-existing tools directory: ${tools_dir}"
 			exit 1
@@ -856,7 +865,7 @@ if ${flag_test}; then
 					8)
 						# When the regex is empty the test failed.
 						if [[ -z "${test_regex}" ]]; then
-							exit 1;
+							exit 1
 						else
 							WriteLog "CTest no tests matched '${test_regex}'."
 						fi
