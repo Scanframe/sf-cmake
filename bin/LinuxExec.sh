@@ -9,67 +9,20 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # Include WriteLog function.
 source "${script_dir}/inc/WriteLog.sh"
 
-# Check if the executable directory has been set.
-if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
-	WriteLog "Environment variable 'EXECUTABLE_DIR' does not exist or has not been set!"
+# Form the binary target directory for Linux builds.
+dir_bin="$(realpath "${SF_EXECUTABLE_DIR:-${PWD}}")"
+#
+qemu_static=''
+
+# When nothing is passed bailout.
+if [[ -z "${1}" ]]; then
+	WriteLog "! No executable was passed."
 	exit 1
 fi
 
-# Form the binary target directory for Linux builds.
-dir_bin="$(realpath "${EXECUTABLE_DIR}")"
-qemu_static=''
-
-function GetExecutablesFiles {
-	for fn in "${EXECUTABLE_DIR}"/*; do
-		if [[ "$(file -ib "${fn}")" =~ ^application/x-pie-executable ]]; then
-			basename "${fn}"
-		fi
-	done
-}
-
-##
-# Select executable from the available ones using a dialog.
-#
-function SelectBinary {
-	local files
-	declare -A files
-	local dlg_options=("0" "<None>")
-	local idx=0
-	# 'None' as first entry.
-	files[0]=""
-	# Split the output into an array using the newline character as the delimiter
-	while IFS= read -r -d $'\n'; do
-		idx=$((idx + 1))
-		files[${idx}]="${REPLY}"
-		dlg_options+=("${idx}" "${REPLY}")
-	done < <(GetExecutablesFiles)
-	# Create a dialog returning a selection index.
-	idx="$(dialog --backtitle "Run Linux Binary" \
-		--menu "Select a Linux binary to run" \
-		22 60 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
-	# Echoing the binary filename as the return value.
-	echo "${files[${idx}]}"
-}
-
-# When nothing is passed show help and wine version.
-if [[ -z "${1}" ]]; then
-	bin_file="$(SelectBinary)"
-else
-	# Selected binary file from command line.
-	bin_file="${1}"
-	shift 1
-fi
-
-# When no selection made exit.
-if [[ -z "${bin_file}" ]]; then
-	WriteLog "- No selection made."
-	exit 0
-else
-	WriteLog "- Selected binary: ${EXECUTABLE_DIR}/${bin_file}"
-fi
-
-# Get the local variable for the binary directory.
-dir_bin="${EXECUTABLE_DIR}"
+# Selected binary file from command line.
+bin_file="${1}"
+shift 1
 
 if [[ "${bin_file:0:1}" == '@' ]]; then
 	architecture_file="$(uname -p)"

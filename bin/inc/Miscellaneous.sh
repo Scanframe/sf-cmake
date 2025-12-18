@@ -423,3 +423,55 @@ function FileAgeInSeconds {
 		return 1
 	fi
 }
+
+## Function to read a configuration file and set environment variables.
+# Arg1: Filepath to read from.
+#
+GetEnvironmentFromFile() {
+	local filepath="$1"
+	local counter=0
+	# Check if file exists
+	if [[ ! -f "$filepath" ]]; then
+		echo "Error: File '$filepath' not found."
+		return 1
+	fi
+	# Read the file line by line.
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		# The ((counter++)) is not working in this loop.
+		counter="$((counter + 1))"
+		# Trim leading/trailing whitespace, uses extended globbing for trimming
+		local line="${line#"${line%%[![:space:]]*}"}"
+		line="${line%"${line##*[![:space:]]}"}"
+		# Check for only the path in the first line.
+		if [[ "${counter}" -eq 1 && "${line:0:1}" != "#" ]]; then
+			# Convert the path to a cygwin one.
+			[[ "$(uname -o)" == "Cygwin" ]] && line="$(cygpath -u "${line}")"
+			PATH="${line}:${PATH}"
+			export PATH
+			break
+		fi
+		# Ignore empty lines and lines starting with '#'.
+		if [[ -z "${line}" || "${line}" == "#"* ]]; then
+			continue
+		fi
+		# Handle Macro Expansion
+		name="${line%=*}"
+		value="${line#*=}"
+		# Cygwin handles the PATH separately.
+		if [[ "${name}" == "PATH" ]]; then
+			# shellcheck disable=SC2034
+			WINPATH="$(cygpath --path --windows "${PATH}")"
+			value="${value//\$\{PATH\}/\$\{WINPATH\}}"
+			value="${value//\\/\\\\}"
+			eval "WINPATH=\"${value}\""
+			PATH="$(cygpath --unix --path "${WINPATH}")"
+			eval export "${name}"
+		else
+			value="${value//\$\{PATH\}/\$\{WINPATH\}}"
+			value="${value//\\/\\\\}"
+			eval "${name}=\"${value}\""
+			eval export "${name}"
+		fi
+	done < <(cat "${filepath}")
+	return 0
+}

@@ -10,7 +10,7 @@ find_package(SfGoogleTest 1.17.0 CONFIG)
 ]]
 
 # Default version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 1.15.2)
+set(PACKAGE_VERSION 1.17.0)
 
 # Check if a certain version is requested.
 if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")

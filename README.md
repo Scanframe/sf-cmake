@@ -4,10 +4,11 @@
 * [CMake Library](#cmake-library)
 * [Introduction](#introduction)
   * [Quick start](#quick-start)
+    * [Using: Debian Linux:](#using-debian-linux)
+    * [Using: Windows](#using-windows)
   * [Project Directory Structure & Setup](#project-directory-structure--setup)
     * [Structure](#structure)
-    * [Setup](#setup)
-  * [Main Project Head Start](#main-project-head-start)
+    * [Project Setup Information](#project-setup-information)
   * [Qt Library Download](#qt-library-download)
   * [Doxygen Document](#doxygen-document)
   * [Git Versioning](#git-versioning)
@@ -25,60 +26,132 @@
 
 This repository makes using CMake in C++ projects easier and features:
 
-* Allows building from Linux for Linux & Windows and from Windows only for Windows itself.
-	Building from Windows requires Cygwin to be installed.
-* Shell script to make, build, test and package using CMake also used by ci-pipelines.
-* Locating the installed Qt library or downloading them.
-* Downloading build tools for Windows when needed.
-* Adding version and description to Windows DLL's EXE's as resource from the project (Linux: so-files are versioned
-	only).
-* Generating/compiling Doxygen documentation from the source with PlantUML plugin installed (downloaded by version
-	number).
-* Find the newest installed GCC compiler when more are installed and a cross-Windows compiler when used.
-* Creating installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
-* Uploading to a Nexus APT repository of Debian packages or raw upload for Windows packages.
-* Upload of generated HTML coverage reports of which a message containing a link is written to the GitLab merge request.
-* Version bump script to determine the next version based on which (merge-)commit is released when using conventional
-	commit messages.
-* Script to build using a Docker container using a special image containing all tools needed.
+* Allows building Qt and non-Qt projects from Linux and Windows from a fresh installed OS from scratch.
+* The project can be setup on a Linux system and shared with Windows using Samba ((`follow symlinks = yes`))
+  or with VirtualBox shared folders.
+* Supports building using the compilers GNU, MinGW and MSVC on Linux and MinGW and MSVC on Windows.
+* Provides a Python [`build.py`](bin/build.py) script to:
+  * Set up the required packages for the used OS (Linux/Debian and Windows).
+  * CMake configure, build, test and package or combined in a workflow for in CI pipelines.
+  * Set up an environment for running a nested version of the script in Linux/Wine for the MSVC compiler.
+  * Run the nested script in a Docker container using
+    a [dedicated image](https://hub.docker.com/repository/docker/avolphen/amd64-gnu-cpp/general "Link to Docker Hub.")
+    also used for pipelines.
+  * Downloading build tools and compiler for Windows or Linux/Wine.
+* Provides a skeleton CMake [project](tpl/root/src) and [CMake presets](tpl/root/CMakePresets.json) which:
+  * Find the newest installed GCC compiler or cross-compiler when more are installed on a system. (Linux only)
+  * For Windows adds version and description to Windows DLL's and EXE's using an auto-created resource file using the
+    CMake project information and current Git version tag.
+  * Create source documentation in a smart way using Doxygen with a PlantUML (a version can be set) plugin installed.
+  * Create installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
+  * A coverage build that reports the percentage of coverage as well as a detailed HTML-report. (GNU compiler only)
+  * Locates the required Qt library version and downloads it when it does not exist.
+* Provides a skeleton [`gitlab-ci`](tpl/root/gitlab-ci) configuration directory which:
+  * Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
+  * Uploads the coverage HTML-report to a MinIO server and accessible from the GitLab merge request.
+* A version bump bash script to determine the next version based on which (merge-)commit is released
+  when using conventional commit messages.
 
 ## Quick start
 
-Add the submodule from the private GitLab or the GitHub mirror as `cmake/lib` in your fresh git repository:
+Create an empty project directory like `cpp-project`.  
+Download the [`build.py`](bin/build.py) script the project directory.
+
+Sources where to download from are:
+- https://www.scanframe.com/export/build.py
+- https://git.scanframe.com/library/cmake-lib/-/raw/main/bin/build.py
+- https://raw.githubusercontent.com/Scanframe/sf-cmake/refs/heads/main/bin/build.py
+
+For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, 
+use `curl -O <url>`.
+
+### Using: Debian Linux:
+
+For using only the GNU compiler:
 
 ```shell
-# Initialize the local repository.
-git init --initial-branch=main
-git submodule add --branch main -- "https://git.scanframe.com/library/cmake-lib.git" cmake/lib
-git submodule add --branch main -- "https://github.com/Scanframe/sf-cmake.git" cmake/lib
+# Show the help.
+./build.py
+# Installs required packages for GNU compiler.
+./build.py install --required lnx
+# Install the skeleton project by Git cloning and sets up a git repository with this repository as submodule.
+./build.py install --project
+# Make the build and run tests.
+./build.py --build --test gnu-debug
 ```
 
-Initialize the repository running the [project setup](bin/project-setup.sh) script.
+For cross-compiling, install more packages:
 
 ```shell
-cmake/lib/bin/project-setup.sh
+# Installs required packages for Windows MingW x86_64 cross-compiler and Wine. (only when needed, must be preceded by 'lnx')
+./build.py install --required win 
+# Installs required packages for GNU aarch64/arm64 cross-compiler. (only when needed, must be preceded by 'lnx')
+./build.py install --required arm  
+````
+
+For MSVC compiling:
+
+```shell
+# Installs required packages for Windows MingW x86_64 cross-compiler and Wine. (must be preceded by 'lnx')
+./build.py install --required win
+# Installs Multiple tools as CMake, Ninja, NSIS and Git client for Wine in subdirectory '<project>/lib/toolchain'.
+./build.py install --toolchain tools
+# Install the MSVC toolchain in subdirectory '<project>/lib/toolchain'.
+./build.py install --toolchain msvc
+ ````
+
+### Using: Windows
+
+Windows is more challenging to start since many of the Linux-ready available tools are not available on Windows.
+
+A prerequisite is Python 3.12 or later. Python `.py` scripts are executable on Windows.
+
+```shell
+winget install --exact --id Python.Python.3.12
 ```
 
-For building the sample project for debugging execute the `./build.sh` or `./docker-build.sh` shell script.
-The latter allows using a Docker container for building and running the project.
-Execute any of the scripts without any options to figure out what to do.
-
-Some
+For MinGW/MSVC compiling: 
 
 ```shell
-# Show help.
-./build.sh -h
-# Show target information using the preset in json file.
-./build.sh -i
-# Make the build project.
-./build.sh -m gnu-debug
-# Compile all default projects.
-./build.sh -b gnu-debug
+# Install WinGet packages for the required buildtools.
+build.py install --required win
+```
+
+When Git was not installed yet, reopen the console app to have the `git` command available.
+
+```shell
+# Install the skeleton project by Git cloning and sets up a git repository with this repository as submodule.
+build.py install --project
+build.py install --toolchain tools
+```
+
+For MinGW compiling: 
+
+```shell
+# Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
+build.py install --toolchain mingw
+# Compile the project which can download the appropriate Qt library.
+build.py install --build mingw-debug
+```
+
+For MSVC compiling: 
+
+```shell
+# Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
+build.py install --toolchain msvc
+# Compile the project which can download the appropriate Qt library.
+build.py install --build msvc-debug
+```
+
+For compiling a document with DoxyGen: 
+
+```shell
 # Compile the non-default DoxGen documentation project.
-./build.sh -b gnu-debug -n document
+./build.py -b gnu-debug -n document
 # Opens the Chrome browser in application mode with the generated pages.
 bin/man/open.sh
 ```
+> For Windows use preset `mingw-debug` or `mingw-debug`.
 
 ## Project Directory Structure & Setup
 
@@ -91,15 +164,15 @@ A project directory tree could look like this.
     ├── .gitlab
     ├── bin
     │   ├── gcov
-    │   ├── lnx64
+    │   ├── lnx64 (a suffixed could be applied)
     │   │   └── lib
     │   ├── pkg
     │   ├── man
-    │   └── win64
+    │   └── win64 (a suffixed could be applied)
     │       └── lib
     ├── cmake
     │   ├── cpack
-    │   └── lib (Repository location)
+    │   └── lib (This repository location)
     ├── cmake-build
     │   ├── gnu-debug (Linux GNU)
     │   ├── gw-debug (Linux MinGW)
@@ -136,76 +209,35 @@ output directory for subprojects. The reason for building only subprojects inste
 up debugging by compiling only the dynamic loaded library separately.
 When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.
 
-### Setup
+> The `build.ini` and the `CMakePresets.json` provides a way to extend the `bin/lnx64` or `bin/win64` directory
+> by an environment variable (`SF_EXEC_DIR_SUFFIX`).
 
-To set up a project from scratch, some files, directories or templates need to be copied or symlinked
-as shown in the next table.
-
-| Method  | Source                         | Destination                      |
-|---------|--------------------------------|----------------------------------|
-| Copy    | tpl/root/CMakeLists.tpl.cmake  | <prj-root>/CMakeLists.txt        | 
-| Copy    | tpl/root/CMakePresets.json     | <prj-root>/CMakePresets.json     |
-| Copy    | tpl/root/CMakeUserPresets.json | <prj-root>/CMakeUserPresets.json |
-| Copy    | tpl/gitlab-ci/*                | <prj-root>/.gitlab               |
-| Symlink | bin/build.sh                   | <prj-root>/build.sh              |
-| Symlink | bin/docker-build.sh            | <prj-root>/docker-build.sh       |
-| Symlink | bin/tools.sh                   | <prj-root>/tools.sh              |
-| Symlink | bin/version-bump.sh            | <prj-root>/version-bump.sh       |
-| Symlink | bin/check-format.sh            | <prj-root>/check-format.sh       |
-
-## Main Project Head Start
-
-To get a head start, look into the **[tpl/root](./tpl/root)** directory for files that will
-give a head start getting a project going.
+### Project Setup Information
 
 ## Qt Library Download
 
 Instead of installing Qt with the "Qt Maintenance Tool" this CMake command will download the library
-in `lib/Qt`, `lib/QtWin` or `lib/QtW64` depending on the host and target OS.
-
-The tools for building on a Windows OS can also be installed using the symlink `./tools` in the project
-root created from  `cmake/lib/bin/tools.sh`. A file `.tools-dir-<hostname>` is created where the tools
-are installed and used by the `./build.sh` to add it to the `PATH` when executing CMake commands.
+in the subdirectory `<project-dir>/lib/qt` depending on the target specified host OS.
 
 ```cmake
-find_package(SfQtLibrary 6.7.2 CONFIG REQUIRED)
+find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
 ```
 
 ## Doxygen Document
 
 For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory
-is to be added in the main `CMakeLists.txt`.
+is added to the main `CMakeLists.txt` file.
 
 ```cmake
 # Add Doxygen document project.
 add_subdirectory(doc)
 ```
 
-The `doc` directory `CMakeLists.txt` looks like this where header files are added to the config file.
+See the `doc` directory [`CMakeLists.txt`](tpl/root/doc/CMakeLists.txt) to see how files are automatically 
+included in the manual.
 
-```cmake
-# Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.18)
-# Set the global project name.
-project("document")
-# Add doxygen project when SfDoxygen was found.
-# On Windows this is only possible when doxygen is installed in Cygwin.
-find_package(SfDoxygen QUIET)
-if (SfDoxygen_FOUND)
-	# Get the markdown files in this project directory including the README.md.
-	file(GLOB _SourceList RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "*.md" "../*.md")
-	# Get all the header files from the application.
-	file(GLOB_RECURSE _SourceListTmp RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "../src/*.h" "../src/*.md")
-	# Remove unwanted header file(s) ending on 'Private.h'.
-	list(FILTER _SourcesListTmp EXCLUDE REGEX ".*Private\\.h$")
-	# Append the list with headers.
-	list(APPEND _SourceList ${_SourceListTmp})
-	# Adds the actual manual target and the last 2 optional arguments are awesome theming flag and plantuml version.
-	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}")
-endif ()
-```
-
-Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or Markdown files.
+Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or 
+Markdown files.
 
 ## Git Versioning
 
@@ -308,7 +340,7 @@ The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfB
 
 ## Code Format Checking and Fixing with Clang
 
-To enable format check before a commit modify or add the script [
+To enable format check before a commit, modify or add the script [
 `.git/hooks/pre-commit`](tpl/root/git-pre-commit-hook.sh) with the following content.
 It calls the [check-format.sh](bin/check-format.sh) script, which indirectly calls the
 [clang-format.sh`](bin/clang-format.sh) from the CMake support library.  
@@ -338,4 +370,4 @@ fi
 
 This same script is used in the main pipeline configuration script
 [`main.gitlab-ci.yml`](tpl/root/gitlab-ci/main.gitlab-ci.yml) in the job named '**check-env**'.  
-So when the format is incorrect, the pipeline will fail.
+When the formatting of changed files is incorrect, the first job in the pipeline will fail.

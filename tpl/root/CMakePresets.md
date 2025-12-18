@@ -40,29 +40,61 @@ ctest --list-presets
 cpack --list-presets
 ```  
 
-> The [build.sh](../build.sh) script option `--info` lists all available presets and also all the workflows.
+> The [build.py](../build.py) script option `--info` lists all available presets and also all the workflows.
 
-To limit a preset for a host a condition is added and listing and availability of a preset depends on it. 
+A condition is added to the preset configuration to hide it when not applicable for the host. 
 
 ```json
-  ...
   "condition": {
     "type": "equals",
     "lhs": "${hostSystemName}",
     "rhs": "Linux"
   }
-  ...
 ```
 
-## Use a Different Output Directory
+## Set an Output Directory for Executables and Dynamic Libraries
 
-To use a different output directory for a user-preset e.g. 
+In the `configurePresets` of the `CMakePresets.json` or `CMakeUserPresets.json` file the enviroment variables
+`SF_EXECUTABLE_DIR` and `SF_LIBRARY_DIR` are used to change the binaries destinations.
+They determine `CMAKE_RUNTIME_OUTPUT_DIRECTORY` and `CMAKE_LIBRARY_OUTPUT_DIRECTORY` cache variables.
+Also sets the `LD_LIBRARY_PATH` environment variable when the target is compiled from a Docker container
+and the `RUNPATH` in the binary is incorrect.
 
-The CMake cache variable `SF_OUTPUT_DIR_SUFFIX` is used for that in the `configurePresets` section of 
-the `CMakePresets.json` or `CMakeUserPresets.json` file.  
-
-When running a test using `ctest` which calls an intermediate shell script also the environment 
-variable named `SF_OUTPUT_DIR_SUFFIX` has to be set. This appends the directory name with that value.
-
-When running **CTest** from **CLion** add the environment variable `SF_OUTPUT_DIR_SUFFIX` to 
-the designated **Run/Debug configuration**. 
+```json
+    {
+      "name": ".cfg-lnx",
+      "inherits": [
+        ".lnx-only",
+        ".cfg"
+      ],
+      "hidden": true,
+      "displayName": "Debug Linux Template",
+      "description": "Debug config Linux template.",
+      "environment": {
+        "SF_EXECUTABLE_DIR" : "${sourceDir}/bin/lnx64",
+        "SF_LIBRARY_DIR" : "$env{SF_EXECUTABLE_DIR}/lib",
+        "LD_LIBRARY_PATH": "$env{SF_LIBRARY_DIR}:$penv{LD_LIBRARY_PATH}"
+      },
+      "cacheVariables": {
+        "SF_BUILD_TESTING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "SF_COMPILER": {
+          "type": "STRING",
+          "value": "gnu"
+        },
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+          "type": "STRING",
+          "value": "$env{SF_EXECUTABLE_DIR}"
+        },
+        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
+          "type": "STRING",
+          "value": "$env{SF_LIBRARY_DIR}"
+        }
+      },
+      "vendor": {
+        "compiler": "gnu"
+      }
+    }
+```

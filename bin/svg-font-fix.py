@@ -2,7 +2,7 @@
 # Needed for this script is pip library 'pip install python-gitlab'
 # Quoted strings are ignored by python.
 # noinspection PySingleQuotedDocstring
-"exec" "python" "$0" "$@"
+"exec" "python3" "$0" "$@"
 
 import xml.etree.ElementTree as ET
 import sys

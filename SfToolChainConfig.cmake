@@ -106,22 +106,23 @@ function(Sf_SetToolChain)
 		set(_Arch "${_HostArch}")
 		find_program(_App "gcc.exe")
 		if (NOT _App)
-			message(SEND_ERROR "GNU Windows compiler for ${_HostArch} not found!")
+			message(SEND_ERROR "GNU Windows compiler for ${_HostArch} not found!\nPATH=$ENV{PATH}")
 			return()
 		else ()
-			# When the PATH has been prefixed in the 'build.sh' script with '.tools-dir-*' file or
-			# in the 'CMakePresets.json' setting the PATH not forgetting to use the ';' separator.
-			# Cygwin mingw compiler will be found when the PATH is not prefixed.
-			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
+			find_program(_GccExe x86_64-w64-mingw32-gcc.exe REQUIRED)
+			get_filename_component(_BinDir "${_GccExe}" DIRECTORY)
+			get_filename_component(_SysRootDir "${_BinDir}" DIRECTORY)
+			# Do not set the CMAKE_SYSTEM_NAME since it will set the CMAKE_CROSSCOMPILING flag.
+			file(APPEND "${_CmakeFile}" "##
 # Use mingw 64-bit compilers on Windows.
 # Commented out now to have CMake find each of them.
-#set(CMAKE_C_COMPILER \"x86_64-w64-mingw32-gcc.exe\")
-#set(CMAKE_CXX_COMPILER \"x86_64-w64-mingw32-g++.exe\")
-#set(CMAKE_RC_COMPILER \"windres.exe\")
-#set(CMAKE_AR \"x86_64-w64-mingw32-gcc-ar.exe\")
-#set(CMAKE_RANLIB \"x86_64-w64-mingw32-gcc-ranlib.exe\")
-#set(CMAKE_NM \"x86_64-w64-mingw32-gcc-nm.exe\")
-#set(CMAKE_LINKER \"ld.exe\")
+#set(CMAKE_C_COMPILER \"${_BinDir}/x86_64-w64-mingw32-gcc.exe\")
+#set(CMAKE_CXX_COMPILER \"${_BinDir}/x86_64-w64-mingw32-g++.exe\")
+#set(CMAKE_RC_COMPILER \"${_BinDir}/windres.exe\")
+#set(CMAKE_AR \"${_BinDir}/x86_64-w64-mingw32-gcc-ar.exe\")
+#set(CMAKE_RANLIB \"${_BinDir}/x86_64-w64-mingw32-gcc-ranlib.exe\")
+#set(CMAKE_NM \"${_BinDir}/x86_64-w64-mingw32-gcc-nm.exe\")
+#set(CMAKE_LINKER \"${_BinDir}/ld.exe\")
 ## Adjust the default behavior of the find commands:
 ## search headers and libraries in the target environment
 #set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
@@ -164,7 +165,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 		# TODO: Cygwin compilers?
 		if (False)
 			set(_SystemName "Windows")
-			file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
+			file(APPEND "${_CmakeFile}" "
 # Use mingw 64-bit compilers on Cygwin.
 set(CMAKE_C_COMPILER \"i686-w64-mingw32-gcc\")
 set(CMAKE_CXX_COMPILER \"i686-w64-mingw32-c++\")
@@ -179,6 +180,19 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 # Search programs in the host environment
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 ")
+		endif ()
+		# When building Windows targets using MSVC compiler on Windows.
+	elseif (SF_COMPILER STREQUAL "msvc" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+		set(_SystemName "Windows")
+		set(_Arch "${_HostArch}")
+		find_program(_App "cl.exe")
+		if (NOT _App)
+			message(SEND_ERROR "MSVC Windows compiler for ${_HostArch} not found!\nPATH=$ENV{PATH}")
+			return()
+		else ()
+			file(APPEND "${_CmakeFile}" "# CMake uses the environment to find MSVC.
+# Make `__cplusplus` have the same value as in other compilers.
+add_compile_options(/Zc:__cplusplus)")
 		endif ()
 		# Report that a toolset was given but not
 	else ()

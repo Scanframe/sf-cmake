@@ -10,7 +10,7 @@ find_package(SfCatch2 3.9.1 CONFIG)
 ]]
 
 # Default version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 3.8.1)
+set(PACKAGE_VERSION 3.12.0)
 
 # Check if a certain version is requested.
 if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")

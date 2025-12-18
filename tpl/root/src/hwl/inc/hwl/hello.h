@@ -33,7 +33,7 @@ _HWL_FUNC std::string getHello(int how);
 /**
  * @brief Gets the GNU compiler version.
  */
-_HWL_FUNC std::string getGCCVersion();
+_HWL_FUNC std::string getCompilerVersion();
 
 /**
  * @brief Gets the C++ standard used when compiling.

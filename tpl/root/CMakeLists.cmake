@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.29)
 
 # Make it so our own packages are found and also the ones in the sub-module library.
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" "${CMAKE_CURRENT_LIST_DIR}/cmake/lib")
@@ -18,6 +18,9 @@ list(GET _Versions 0 SF_GIT_TAG_VERSION)
 list(GET _Versions 1 SF_GIT_TAG_RC)
 list(GET _Versions 2 SF_GIT_TAG_COMMITS)
 
+
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lucrt -lucrtbase")
+
 # Set the global project name.
 project("devops-shared"
 	VERSION "${SF_GIT_TAG_VERSION}"
@@ -34,17 +37,10 @@ endif ()
 # Add top target for displaying info on the compiled target where Sf_AddExifTarget() is called on.
 add_custom_target("exif" ALL)
 
-# Use faster linker for Windows maybe?
-if (WIN32)
-	# Adding option '-mwindows' as a linker flag will remove the console.
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=bfd")
-	# Prevent error when configuring for cross compile for Windows in Linux.
-	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-		# Make some cmake files happy so they do report "Not found".
-		set(Vulkan_INCLUDE_DIR "/tmp")
-	endif ()
-	# Needed to be able to set debug breaks using MSVC
-	set(CMAKE_C_FLAGS_DEBUG "-D_DEBUG")
+# Prevent error when configuring for cross compile for Windows in Linux.
+if (WIN32 AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+	# Make some cmake files happy so they do report "Not found".
+	set(Vulkan_INCLUDE_DIR "/tmp")
 endif ()
 
 # Make sure builds do not wind up in the source directory.
@@ -59,12 +55,9 @@ endif ()
 set(CMAKE_CXX_STANDARD 17)
 find_package(SfCompiler CONFIG REQUIRED)
 
-# Set the 3 CMAKE_?????_OUTPUT_DIRECTORY variables.
-Sf_SetOutputDirs("bin")
-
 if (SF_BUILD_TESTING)
 	# Sets the version for SfCatch2 package other then the default.
-	find_package(SfCatch2 3.11.0 CONFIG)
+	find_package(SfCatch2 3.12.0 CONFIG)
 	# Prevents Catch2 from adding targets.
 	set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
 	# Enable the tests added with add_test.

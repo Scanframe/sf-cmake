@@ -10,15 +10,10 @@
 				".lnx-only",
 				".cfg-win"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/gw-user",
 			"cacheVariables": {
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "gw"
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
-					"type": "STRING",
-					"value": "-user"
 				},
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
@@ -27,32 +22,27 @@
 			},
 			"environment": {
 				"--QT_VER_DIR": "$penv{HOME}/lib/qt/w64-x86_64/6.8.1"
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MinGW"
+				}
 			}
 		},
 		{
-			"name": "gnu-user",
+			"name": "msvc-debug-local",
 			"hidden": false,
-			"displayName": "User GNU",
-			"description": "Debug config for Linux GNU compiler.",
+			"displayName": "Debug Local MSVC",
+			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
-				".lnx-only",
-				".cfg"
+				"msvc-debug"
 			],
-			"cacheVariables": {
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "gnu"
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
-					"type": "STRING",
-					"value": "-user"
-				},
-				"SF_BUILD_TESTING": {
-					"type": "BOOL",
-					"value": "ON"
+			"binaryDir": "$env{TEMP}/cmake-build$penv{SF_BIN_DIR_SUFFIX}/${presetName}",
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MSVC"
 				}
-			},
-			"binaryDir": "${sourceDir}/cmake-build/gnu-user"
+			}
 		}
 	],
 	"buildPresets": [
@@ -72,15 +62,13 @@
 			]
 		},
 		{
-			"name": "gnu-user",
-			"hidden": false,
+			"name": "msvc-debug-local",
+			"displayName": "Debug Local MSVC",
+			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
-				".lnx-only",
-				".build"
+				"msvc-debug"
 			],
-			"displayName": "User GNU",
-			"description": "User debug build preset GNU compiler.",
-			"configurePreset": "gnu-user",
+			"configurePreset": "msvc-debug-local",
 			"targets": [
 				"t_devops-shared-test-catch",
 				"t_devops-shared-test-google"
@@ -100,15 +88,13 @@
 			"configurePreset": "gw-user"
 		},
 		{
-			"name": "gnu-user",
-			"hidden": false,
-			"displayName": "User GNU",
-			"description": "User test debug Linux.",
+			"name": "msvc-debug-local",
+			"displayName": "Debug Local MSVC",
+			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
-				".lnx-only",
-				".test"
+				"msvc-debug"
 			],
-			"configurePreset": "gnu-user"
+			"configurePreset": "msvc-debug-local"
 		}
 	],
 	"packagePresets": [
@@ -137,25 +123,25 @@
 			}
 		},
 		{
-			"name": "gnu-user",
-			"displayName": "User GNU",
-			"description": "User build & test only.",
+			"name": "msvc-debug-local",
+			"displayName": "Debug Local MSVC",
+			"description": "Debug local config for MSVC compiler.",
 			"steps": [
 				{
 					"type": "configure",
-					"name": "gnu-user"
+					"name": "msvc-debug-local"
 				},
 				{
 					"type": "build",
-					"name": "gnu-user"
+					"name": "msvc-debug-local"
 				},
 				{
 					"type": "test",
-					"name": "gnu-user"
+					"name": "msvc-debug-local"
 				}
 			],
 			"vendor": {
-				"target_os": "GNU/Linux"
+				"target_os": "Cygwin"
 			}
 		}
 	]

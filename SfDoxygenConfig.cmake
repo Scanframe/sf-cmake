@@ -26,6 +26,12 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	else ()
 		set(_TlsCheck TRUE)
 	endif ()
+	# Add doxygen project when doxygen was found
+	find_package(Doxygen QUIET)
+	if (NOT Doxygen_FOUND)
+		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Doxygen package has not been found!")
+		return()
+	endif ()
 	# Check if the version was passed in the optional argument.
 	if (NOT DEFINED _PlantUmlVer)
 		# Get the latest release version number from 'https://github.com/plantuml/plantuml/tags' through the API.
@@ -54,15 +60,28 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 		# Set the variable used in the configuration template.
 		set(DG_PlantUmlJar "${plantumljar_SOURCE_DIR}")
 	endif ()
-	# Add doxygen project when doxygen was found
-	find_package(Doxygen QUIET)
-	if (NOT Doxygen_FOUND)
-		message(NOTICE "${CMAKE_CURRENT_FUNCTION}(): Cannot Doxygen package is missing!")
-		return()
-	endif ()
 	# Just a copy of the current project version and description.
 	set(DG_ProjectVersion "${CMAKE_PROJECT_VERSION}")
 	set(DG_ProjectDescription "${CMAKE_PROJECT_DESCRIPTION}")
+	if (WIN32)
+		find_program(_DotExe
+			NAMES dot
+			PATHS
+				"C:/Program Files/Graphviz/bin"
+				"C:/Program Files (x86)/Graphviz/bin"
+				"$ENV{ProgramFiles}/Graphviz/bin"
+				"$ENV{ProgramFiles\(x86\)}/Graphviz/bin"
+			DOC "Graphviz dot executable"
+			REQUIRED
+		)
+	else ()
+		find_program(_DotExe
+			NAMES dot
+			DOC "Graphviz dot executable"
+			REQUIRED
+		)
+	endif ()
+	set(DG_GraphizDotPath "${_DotExe}")
 	# For cygwin only relative path are working.
 	file(RELATIVE_PATH DG_LogoFile "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}/logo.png")
 	# Path to images of the document base directory.

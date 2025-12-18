@@ -56,27 +56,36 @@ function(Sf_QtLibraryDownload _Version)
 	if (NOT SF_COMMON_LIB_DIR)
 		message(SEND_ERROR "Cache variable SF_COMMON_LIB_DIR has not been set!")
 	endif ()
-	# Check if the required library exists locally and otherwise unpack it.
-	# Form the Qt version directory for the project.
-	if (EXISTS "${SF_COMMON_LIB_DIR}/${_QtSubDir}/${_Version}")
-		# Form the Qt version project directory.
-		set(_QtVerDir "${SF_COMMON_LIB_DIR}/${_QtSubDir}/${_Version}")
-		message(VERBOSE "Found Qt Library at: ${_QtVerDir}")
-		# Check the users library path for a docker container.
-	elseif (EXISTS "$ENV{HOME}/lib/${_QtSubDir}/${_Version}")
-		# Form the Qt version local directory.
-		set(_QtVerDir "$ENV{HOME}/lib/${_QtSubDir}/${_Version}")
-		message(VERBOSE "Found Qt Library at: ${_QtVerDir}")
-	else ()
+	# Form the Qt version possible directories for the project.
+	set(_QtDirs "")
+	list(APPEND _QtDirs "${SF_COMMON_LIB_DIR}/${_QtSubDir}/${_Version}")
+	if (DEFINED ENV{HOME})
+		list(APPEND _QtDirs "$ENV{HOME}/lib/${_QtSubDir}/${_Version}")
+	endif ()
+	if (DEFINED ENV{WINE_HOST_HOME})
+		list(APPEND _QtDirs "Z:$ENV{WINE_HOST_HOME}/lib/${_QtSubDir}/${_Version}")
+	endif ()
+	# Initialize the variable.
+	set(_QtVerDir "_QtVerDir-NOTFOUND")
+	# Do some conversion to be sure.
+	foreach (_Dir IN LISTS _QtDirs)
+		message(STATUS "Looking for Qt library at: ${_Dir}")
+		if (EXISTS "${_Dir}")
+			set(_QtVerDir "${_Dir}")
+			message(STATUS "Found Qt Library at: ${_QtVerDir}")
+			break()
+		endif ()
+	endforeach ()
+	if (SF_DOCKER AND NOT _QtVerDir)
+		message(FATAL_ERROR "Docker container '${SF_ARCHITECTURE}' is missing required Qt version '${_Version}'!")
+	elseif (NOT _QtVerDir)
 		# Check if the depend directory exists and when not bailout.
 		if (DEFINED _DependQtSubDir AND NOT EXISTS "${SF_COMMON_LIB_DIR}/${_DependQtSubDir}/${_Version}")
 			message(FATAL_ERROR "Dependent directory '${_DependQtSubDir}' is not present.")
 		endif ()
 		# Sanity check if the qt subdirectory is not a symbolic link.
 		Sf_IsSymlink("${SF_COMMON_LIB_DIR}/qt" _IsSymLink)
-		if (EXISTS "/.dockerenv")
-			message(FATAL_ERROR "Docker container '${SF_ARCHITECTURE}' is missing required Qt version '${_Version}'!")
-		elseif (_IsSymLink)
+		if (_IsSymLink)
 			# Check if required 'yad' app exists.
 			find_program(_YadApp "yad")
 			if (_YadApp)
@@ -115,10 +124,13 @@ function(Sf_QtLibraryDownload _Version)
 		endif ()
 		# Extract the ZIP file using external command unzip.
 		message(VERBOSE "Unzipping to: ${SF_COMMON_LIB_DIR}/${_QtSubDir}")
-		find_program(_ZipExe "unzip" REQUIRED)
+		find_program(_7zExe
+			NAMES 7z 7z.exe 7za.exe
+			PATHS "$ENV{ProgramFiles}/7-Zip" "$ENV{ProgramFiles\(x86\)}/7-Zip"
+			DOC "Path a 7-Zip executable")
 		file(MAKE_DIRECTORY "${SF_COMMON_LIB_DIR}/${_QtSubDir}")
 		execute_process(
-			COMMAND "${_ZipExe}" -qd "${SF_COMMON_LIB_DIR}/${_QtSubDir}" "${_ZipFile}"
+			COMMAND "${_7zExe}" x "${_ZipFile}" "-o${SF_COMMON_LIB_DIR}/${_QtSubDir}"
 			RESULT_VARIABLE _ExitCode
 			ECHO_OUTPUT_VARIABLE
 			ECHO_ERROR_VARIABLE
@@ -171,18 +183,20 @@ function(Sf_FindQtVersionDirectory _VarOut)
 	endforeach ()
 	if (_QtDir STREQUAL "")
 		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt library for architecture '${SF_ARCHITECTURE}' not found!")
+		set(${_VarOut} "" PARENT_SCOPE)
+	else ()
+		Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+		list(LENGTH _SubDirs _Len)
+		if (NOT ${_Len})
+			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt versioned library not found in '${_QtDir}'!")
+			# Set the value to allow boolean evaluation of the value.
+			set(${_VarOut} "${_OutVar}-NOTFOUND" PARENT_SCOPE)
+			return()
+		endif ()
+		list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
+		list(GET _SubDirs 0 _QtVerDir)
+		set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
 	endif ()
-	Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
-	list(LENGTH _SubDirs _Len)
-	if (NOT ${_Len})
-		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt versioned library not found in '${_QtDir}'!")
-		# Set the value to allow boolean evaluation of the value.
-		set(${_VarOut} "${_OutVar}-NOTFOUND" PARENT_SCOPE)
-		return()
-	endif ()
-	list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
-	list(GET _SubDirs 0 _QtVerDir)
-	set(${_VarOut} "${_QtDir}/${_QtVerDir}" PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -219,3 +233,22 @@ function(Sf_GetQtVersionDirectory _VarOut)
 	endif ()
 endfunction()
 
+##!
+# Gets the Qt compiler subdirectory in the QT version directory base on SF_COMPILER.
+# @param _VarOut Out: Resolved subdirectory.
+#
+function(Sf_GetQtCompilerSubdirectory _VarOut)
+	set(_QtCompileName "")
+	if (SF_COMPILER STREQUAL "gnu" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_QtCompileName "gcc_64")
+	elseif (SF_COMPILER STREQUAL "ga" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_QtCompileName "gcc_64")
+	elseif (SF_COMPILER STREQUAL "mingw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+		set(_QtCompileName "mingw_64")
+	elseif (SF_COMPILER STREQUAL "gw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+		set(_QtCompileName "mingw_64")
+	elseif (SF_COMPILER STREQUAL "msvc" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+		set(_QtCompileName "msvc_64")
+	endif ()
+	set(${_VarOut} "${_QtCompileName}" PARENT_SCOPE)
+endfunction()

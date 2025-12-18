@@ -1,11 +1,18 @@
 # FetchContent added in CMake 3.11, downloads during the configure step
 include(FetchContent)
+
 # Import GoogleTest library for testing.
+#[[
 FetchContent_Declare(
 	"GoogleTest-${SfGoogleTest_VERSION}"
 	GIT_REPOSITORY "https://github.com/google/googletest.git"
 	GIT_TAG "v${SfGoogleTest_VERSION}"
 	GIT_SHALLOW 1
+)
+]]
+FetchContent_Declare(
+	"GoogleTest-${SfGoogleTest_VERSION}"
+	URL "https://github.com/google/googletest/releases/download/v${SfGoogleTest_VERSION}/googletest-1.17.0.tar.gz"
 )
 # Prevent GoogleTest from overriding options like BUILD_SHARED_LIBS
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

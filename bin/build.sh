@@ -27,7 +27,7 @@ fi
 
 # Prints the help to stderr.
 #
-function ShowHelp {
+function show_help {
 	echo "Executes CMake commands using the 'CMakePresets.json' and 'CMakeUserPresets.json' files
 of which the first is mandatory to exist.
 
@@ -98,7 +98,7 @@ function InstallPackages {
 		# Check if the package repository has been added.
 		if ! apt-add-repository --list | grep "llvm-toolchain" >/dev/null; then
 			wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
-			sudo apt-add-repository --yes --no-update "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc) main"
+			sudo apt-add-repository --yes --no-update "deb https://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc) main"
 		fi
 		# Check if the package repository has been added when this is an ubuntu distro only.
 		if ! apt-add-repository --list | grep "apt.kitware.com/ubuntu" >/dev/null; then
@@ -113,9 +113,9 @@ function InstallPackages {
 		# Update after repositories were added.
 		sudo apt-get update
 		sudo apt-get --yes upgrade
-		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz libopengl0 libgl1-mesa-dev libglu1-mesa-dev \
+		if ! sudo apt-get --yes install make cmake ninja-build gcc g++ doxygen graphviz jq libopengl0 libgl1-mesa-dev libglu1-mesa-dev \
 			libxkbcommon-dev libxkbfile-dev libvulkan-dev libssl-dev exiftool default-jre-headless chrpath colordiff dialog \
-			dos2unix pcregrep clang-format; then
+			dos2unix pcregrep clang-format python3 python3-venv python3-dev python3-pefile python3-pyelftools python3-requests python-is-python3; then
 			WriteLog "Failed to install 1 or more packages!"
 			exit 1
 		fi
@@ -198,7 +198,7 @@ function InstallPackages {
 # @param: Json file.
 #
 function SelectBuildPreset {
-	local action preset name desc presets preset_names cfg_preset cfg_name cfg_name dlg_options idx selection binary_dir
+	local action preset name desc presets preset_names cfg_preset cfg_name cfg_name idx selection binary_dir dlg_options dlg_width dlg_height
 	# Action is the first argument.
 	action="${1}"
 	# Remove the first argument from the list.
@@ -236,12 +236,13 @@ function SelectBuildPreset {
 			dlg_options+=("${presets[$idx]} ")
 		done
 		# Check if the 'dialog' command exists.
-		if ! command -v "dialog" >/dev/null; then
-			WriteLog "Missing command 'dialog', use a build preset on the command line instead!"
+		if ! command -v "whiptail" >/dev/null; then
+			WriteLog "Missing command 'whiptail', use a build preset on the command line instead!"
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection="$(dialog --backtitle "Build Selection" --menu "Select a preset to configure or build" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
+		selection="$(whiptail --backtitle "Build Selection" --menu "Select a preset to configure or build" \
+			0 0 0 "${dlg_options[@]}" 3>&1 1>&2 2>&3 3>&-)"
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -303,7 +304,7 @@ function SelectTestPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for testing" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Test Selection" --menu "Select a preset for testing" 20 100 80 "${dlg_options[@]}" 3>&1 1>&2 2>&3 3>&-)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -354,7 +355,7 @@ function SelectPackagePreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Package Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Package Selection" --menu "Select a preset for packaging" 20 100 80 "${dlg_options[@]}" 3>&1 1>&2 2>&3 3>&-)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -409,7 +410,7 @@ function SelectWorkflowPreset {
 			exit 1
 		fi
 		# Create a dialog returning a selection index.
-		selection=$(dialog --backtitle "Workflow Selection" --menu "Select a preset workflow" 20 100 80 "${dlg_options[@]}" 2>&1 >/dev/tty)
+		selection=$(dialog --backtitle "Workflow Selection" --menu "Select a preset workflow" 20 100 80 "${dlg_options[@]}" 3>&1 1>&2 2>&3 3>&-)
 		# Return by echoing the value.
 		echo "${preset_names[$selection]}"
 	fi
@@ -417,29 +418,10 @@ function SelectWorkflowPreset {
 
 # Detect windows using the cygwin 'uname' command.
 if [[ "${sf_target_os}" == "Cygwin" ]]; then
-	tools_dir_file="${run_dir}/.tools-dir-$(uname -n)"
-	WriteLog "# Cygwin tools location file: $(basename "${tools_dir_file}")"
-	# Check if the tools directory file exists.
-	if [[ -f "${tools_dir_file}" ]]; then
-		# Read the first line of the file and strip the newline.
-		tools_dir="$(head -n 1 "${tools_dir_file}" | tr -d '\n' | tr -d '\n' | tr -d '\r')"
-		if [[ -d "${tools_dir}" ]]; then
-			# Report when a gcc.exe is already in the path.
-			if command -v "gcc.exe" >/dev/null; then
-				WriteLog "! Found GCC already in the path at $(command -v "gcc.exe")."
-			fi
-			# Add the tools directory to the end since an older cmake is also in there for Windows.
-			export PATH="${PATH}:${tools_dir}"
-			WriteLog "# Tools directory added to PATH: ${tools_dir}"
-			# Report when a gcc.exe is not found in the path after appending.
-			if ! command -v "gcc.exe" >/dev/null; then
-				WriteLog "! GCC not found in the path after appending it with a tools directory."
-			fi
-		else
-			WriteLog "! Non-existing tools directory: ${tools_dir}"
-			exit 1
-		fi
-	fi
+	# Only a Windows has a .toolchain-* file.
+	toolchain_file="${run_dir}/.toolchain-${sf_target_os,,}-$(uname -n)"
+	WriteLog "# Toolchain environment file: ${toolchain_file}"
+	[[ -f "${toolchain_file}" ]] && GetEnvironmentFromFile "${toolchain_file}"
 elif [[ "${sf_target_os}" == "GNU/Linux" ]]; then
 	WriteLog "# Linux $(uname -m) detected"
 else
@@ -448,7 +430,7 @@ fi
 
 # No arguments at show help and bailout.
 if [[ $# == 0 ]]; then
-	ShowHelp
+	show_help
 	exit 0
 fi
 
@@ -484,7 +466,7 @@ temp=$(getopt -o 'n:hisdpfCcmbwBtlr:' \
 	--long 'target:,help,info,submodule,required:,debug,fresh,wipe,clean,make,build,workflow,-B,build-only,test,list-only,package,list,regex:,gitlab-ci,run' \
 	-n "$(basename "${0}")" -- "$@")
 if [[ "${#}" -eq 0 ]]; then
-	ShowHelp
+	show_help
 	exit 1
 fi
 eval set -- "${temp}"
@@ -493,7 +475,7 @@ while true; do
 	case $1 in
 
 		-h | --help)
-			ShowHelp
+			show_help
 			exit 0
 			;;
 
@@ -769,8 +751,8 @@ if ${flag_build} || ${flag_config}; then
 			if ${flag_wipe} && [[ -d "${binary_dir}" ]]; then
 				# Sanity check to see if to be wiped directory is a sub-directory.
 				if [[ "${binary_dir}" != "${run_dir}/"* ]]; then
-					WriteLog "Cannot wipe non subdirectory '${binary_dir}' !"
-					exit 0
+					WriteLog "Wipe non subdirectory '${binary_dir}' !"
+					AskConfirmation "Are you sure to delete it?" || exit 1
 				fi
 				WriteLog "# Wiping clean build-dir '${binary_dir}'"
 				# When the directory exists only.
