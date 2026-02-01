@@ -139,7 +139,7 @@ job-check:
   script:
     - echo "..."
 
-# Job for creating the make-file using the build.sh script calling CMake with appropriate arguments.
+# Job for creating the make-file using the build.py script calling CMake with appropriate arguments.
 # Wiping the build directory is not needed due to the push policy.
 job-config:
   stage: configure
@@ -153,7 +153,7 @@ job-config:
     # The make stage needs tags for versioning of shared libraries and packaging.
     - *tags-script
     # Execute the build script to CMake the makefiles.
-    - '"${SF_DIR_MOUNT}/build.sh" --make "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
+    - '${SF_BUILD_CMD} --make "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
     - *unbind-script
 
 job-build:
@@ -167,7 +167,7 @@ job-build:
     - *tags-script
     - *bind-script
     # Execute the build script to actually build the running target and libraries.
-    - '"${SF_DIR_MOUNT}/build.sh" --build-only "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
+    - '${SF_BUILD_CMD} --build-only "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
     - *unbind-script
 
 job-test:
@@ -180,7 +180,7 @@ job-test:
   script:
     - *bind-script
     # Run the test which in Linux can have absolute path dependencies to dynamic libraries.
-    - '"${SF_DIR_MOUNT}/build.sh" --test "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
+    - '${SF_BUILD_CMD} --test "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
     - *unbind-script
 
 job-pack:
@@ -193,8 +193,8 @@ job-pack:
   script:
     - *bind-script
     # Build the 'install' target which enables cpack to pick them up.
-    - '"${SF_DIR_MOUNT}/build.sh" --build-only "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}" --target install'
-    - '"${SF_DIR_MOUNT}/build.sh" --package "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}" '
+    - '${SF_BUILD_CMD} --build-only "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}" --target install'
+    - '${SF_BUILD_CMD} --package "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}" '
     - *unbind-script
 
 # Template for all 'deploy' jobs.

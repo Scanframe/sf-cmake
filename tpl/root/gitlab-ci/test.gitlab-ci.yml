@@ -19,7 +19,7 @@ stages:
   - second-check
   - deploy
 
-# Template to configure the cache for CMake generated files for the compiler.
+# Template to configure a cache for CMake generated files for the compiler.
 .cache:
   cache:
     key: "${CI_COMMIT_REF_NAME}.${CI_COMMIT_SHORT_SHA}-${SF_TOOLCHAIN}"
