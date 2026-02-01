@@ -1,7 +1,8 @@
 # Required first entry checking the cmake version.
 cmake_minimum_required(VERSION 3.29)
 
-# This the also the default for variale CPACK_DEBIAN_PACKAGE_MAINTAINER.
+set(CPACK_VERBATIM_VARIABLES YES)
+# This the also the default for variable CPACK_DEBIAN_PACKAGE_MAINTAINER.
 set(CPACK_PACKAGE_CONTACT "Arjan van Olphen <a.v.olphen@scanframe.nl>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_DESCRIPTION
@@ -11,6 +12,19 @@ having more then one line.")
 # Variable for all types of packages to set the individual package name.
 # This name could get a suffix like '-staging' when it is not a release.
 set(SF_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
+
+# Add toolchain information to package name
+if (CMAKE_CXX_COMPILER_ID)
+	string(TOLOWER "${CMAKE_CXX_COMPILER_ID}" SF_TOOLCHAIN_ID)
+	if (CMAKE_CXX_COMPILER_VERSION)
+		string(REGEX REPLACE "([0-9]+)\\.[0-9]+.*" "\\1" SF_TOOLCHAIN_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
+		set(SF_TOOLCHAIN_STRING "${SF_TOOLCHAIN_ID}${SF_TOOLCHAIN_VERSION}")
+	else ()
+		set(SF_TOOLCHAIN_STRING "${SF_TOOLCHAIN_ID}")
+	endif ()
+	# Set custom package filename including toolchain
+	set(SF_PACKAGE_NAME "${SF_PACKAGE_NAME}-${SF_TOOLCHAIN_STRING}")
+endif ()
 
 # Seems to have no effect at the moment...
 #if (NOT WIN32)
@@ -67,7 +81,7 @@ if (NOT SF_PACKAGE_RELEASE STREQUAL "")
 endif ()
 
 # Notify the package release produced.
-message(STATUS "Package version: ${CPACK_PACKAGE_VERSION}")
+message(STATUS "Package name/version: ${SF_PACKAGE_NAME} / ${CPACK_PACKAGE_VERSION}")
 
 # Don't make the 'install' target depend on the 'all' target.
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
@@ -81,6 +95,10 @@ if (NOT WIN32)
 else ()
 	include("${CMAKE_CURRENT_LIST_DIR}/CPackConfig-NSIS.cmake")
 	include("${CMAKE_CURRENT_LIST_DIR}/CPackConfig-ARCHIVE.cmake")
+	# The NSIS does not use the CPACK_NSIS_PACKAGE_NAME as a filename but only CPACK_PACKAGE_FILE_NAME.
+	if (NOT CPACK_NSIS_PACKAGE_NAME STREQUAL "")
+		set(CPACK_PACKAGE_FILE_NAME "${CPACK_NSIS_PACKAGE_NAME}")
+	endif ()
 endif ()
 
 # Retrieve all targets from this project.

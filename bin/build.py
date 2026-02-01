@@ -144,8 +144,11 @@ RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
 __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-mingw
 ; Only the path is required. Notice that some of the distributed MinGW compiler include older versions of Ninja and CMake.
-PATH=${RUN_DIR}\lib\toolchain\mingw64\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
+PATH=${RUN_DIR}\lib\toolchain\w64-x86_64-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
 ;PATH=P:\toolchain\mingw1320_64-posix\bin;${PATH}
+
+[env.mingw.wine@]
+__inherit__=env.mingw@
 
 ; Environment added before running the 'ga' compiler in Docker.
 [env.ga.docker@]
@@ -169,6 +172,7 @@ __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gnu
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 ;LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
+
 """.replace('\r', '')
 
 
@@ -1850,7 +1854,7 @@ Choices are depended on the host platform:
 				logger.info("# Installing MinGW x86_64 v13.2.0 posix + msvcrt compiler compatible with the Qt library.")
 				zip_file = get_file_from_url(
 					# This exact one is required in combination with Qt since it is build using this version.
-					url="https://github.com/niXman/mingw-builds-binaries/releases/download/13.2.0-rt_v11-rev1/x86_64-13.2.0-release-posix-seh-msvcrt-rt_v11-rev1.7z",
+					url="https://nexus.scanframe.com/repository/shared/library/toolchain/w64-x86_64-mingw-1320-posix.zip",
 					suffix=".7z")
 				if run_command([get_7z_exe(), "x", zip_file, f"-o{install_dir}", "-aos"],
 					dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
@@ -1934,7 +1938,7 @@ Choices are depended on the host platform:
 					if repo:
 						if repo[-4:] == ".git":
 							cmd = ["git", "clone", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
-							#cmd = ["git", "submodule", "add", "--branch", "main", "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
+							# cmd = ["git", "submodule", "add", "--branch", "main", "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							if run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
 								logger.error(f"! Failed to add submodule in '{'/'.join(CMAKE_LIB_SUBDIR)}'!")
 								return False

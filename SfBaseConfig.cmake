@@ -660,7 +660,8 @@ endfunction()
 #
 function(Sf_AddTest _Target)
 	# Invoke a script when cross-compiling which makes normal test debugging not possible which is the case anyway.
-	if (CMAKE_CROSSCOMPILING)
+	# Somehow CMAKE_CROSSCOMPILING is not having the correct value at this point so SF_CROSSCOMPILING is used.
+	if (SF_CROSSCOMPILING)
 		# When target is a Windows build.
 		if (WIN32)
 			set(_Script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/WineExec.sh")
