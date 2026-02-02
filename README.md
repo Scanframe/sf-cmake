@@ -122,7 +122,6 @@ When Git was not installed yet, reopen the console app to have the `git` command
 ```shell
 # Install the skeleton project by Git cloning and sets up a git repository with this repository as submodule.
 build.py install --project
-build.py install --toolchain tools
 ```
 
 For MinGW compiling: 
