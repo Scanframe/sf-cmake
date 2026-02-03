@@ -48,5 +48,5 @@ if (SfDoxygen_FOUND)
 	message(NOTICE "Target Files:\n\t${_Files}")
 ]]
 	# Adds the actual manual target and the last 2 optional arguments are awesome theming flag and plantuml version.
-	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}")
+	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" TRUE)
 endif ()

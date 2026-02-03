@@ -130,7 +130,7 @@ For MinGW compiling:
 # Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
 build.py install --toolchain mingw
 # Compile the project which can download the appropriate Qt library.
-build.py install --build mingw-debug
+build.py --build mingw-debug
 ```
 
 For MSVC compiling: 
@@ -139,7 +139,7 @@ For MSVC compiling:
 # Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
 build.py install --toolchain msvc
 # Compile the project which can download the appropriate Qt library.
-build.py install --build msvc-debug
+build.py --build msvc-debug
 ```
 
 For compiling a document with DoxyGen: 

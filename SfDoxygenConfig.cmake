@@ -21,6 +21,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
 	endif ()
+	# Disable TLS check in windows.
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		set(_TlsCheck FALSE)
 	else ()
@@ -134,6 +135,8 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	file(RELATIVE_PATH DG_ExamplePath "${CMAKE_CURRENT_BINARY_DIR}" "${SF_EXAMPLE_DIR}")
 	# Set PlantUML the include path.
 	set(DG_PlantUmlIncPath "${_DocBaseDir}")
+	# Extend the output directory with a 'html' directory.
+	set(_HtmlDir "${_OutDir}/html")
 	# Set input and output files for the generation of the actual config file.
 	set(_FileIn "${SfDoxygen_DIR}/tpl/doxygen/doxyfile.conf")
 	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/doxyfile.conf")
@@ -142,7 +145,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	# Note the option ALL which allows to build the docs together with the application.
 	add_custom_target("${_Target}"
 		# Remove previous resulting 'html' directory.
-		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_OutDir}/html/"
+		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_HtmlDir}/"
 		# Execute Doxygen and generate the document.
 		COMMAND ${DOXYGEN_EXECUTABLE} "${_FileOut}"
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
@@ -152,12 +155,14 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	)
 	# Only applicable when plantuml is available.
 	if (NOT "${DG_PlantUmlJar}" STREQUAL "")
-		# Remove plantuml cache file which prevent changes in the include file to propagate.
+		# Fix Doxygen not able to generate image from pu-file with '!include' statement to a puml-file..
+		list(APPEND _Options "--jar" "${DG_PlantUmlJar}/plantuml.jar" "--base-dir" "${_DocBaseDir}" "${_HtmlDir}/inline_\*.pu")
 		add_custom_command(
 			TARGET ${_Target}
-			PRE_BUILD
-			COMMAND ${CMAKE_COMMAND} -E rm -f "${_OutDir}/inline_*.pu"
-			COMMENT "Cleanup plantuml files for next build."
+			POST_BUILD
+			COMMAND ${_PythonExe} "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/fix-doxygen-pu.py" ${_Options}
+			WORKING_DIRECTORY "${CMAKE_CURRENT_FUNCTION_LIST_DIR}"
+			COMMENT "Fix plantuml image generation when include files are used."
 		)
 	endif ()
 endfunction()
