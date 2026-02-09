@@ -65,7 +65,18 @@ Sources where to download from are:
 For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, 
 use `curl -O <url>`.
 
-### Using: Debian Linux:
+### Using: Ubuntu/Debian flavor of Linux:
+
+For using only the Docker contained compilers:
+
+```shell
+# Show the help.
+./build.py
+# Installs the 'docker.io' package from the distro.
+./build.py install --required dio
+# Installs the 'docker-ce' from an external source.
+./build.py install --required dce
+```
 
 For using only the GNU compiler:
 

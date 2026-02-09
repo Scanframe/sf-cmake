@@ -68,6 +68,13 @@ ParsedArguments = argparse.Namespace
 INI_TEMPLATE = r"""
 ; File for adding environment during the nested calls of the script.
 
+[config]
+; File for running an executable with the cmake environment.
+cmake-run-file=cmake/lib/run-executable.cmake
+; Override the default docker image using a smaller one without the QT libraries.
+;docker-image=nexus.scanframe.com/amd64/gnu-cpp:24.04
+;docker-image=avolphen/amd64-gnu-cpp:24.04
+
 ; Section for optional include file which is merged.
 [__include__]
 user=user.ini
@@ -458,14 +465,14 @@ DEBUG_FLAG = False
 CONFIG_PRESET = None
 # Default container name for detached operations.
 CONTAINER_NAME = "cpp_builder"
-# Default Qt version for the Docker image selection.
-QT_VER = "6.10.1"
 # Default SSH port for ssh daemon.
 SSHD_PORT = 8022
 # Name of the project subdirectory.
 PROJECT_SUBDIR = os.path.basename(RUN_DIR)
 # Get the configuration of the script.
 CONFIG = create_config_parser(os.path.join(RUN_DIR, str(os.path.splitext(os.path.basename(__file__))[0] + ".ini")))
+# Default Qt version for the Docker image selection.
+QT_VER = "6.10.1"
 # Directory to store the CMake library files.
 CMAKE_LIB_SUBDIR = ["cmake", "lib"]
 
@@ -911,7 +918,7 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 	return value
 
 
-def run_command(cmd_list: List[str], shell: bool = False, capture_output: bool = False, check: bool = True,
+def run_command(cmd_list: List[str], input_data: bytes = None, shell: bool = False, capture_output: bool = False, check: bool = True,
 	cwd: str = None, dbg_mode: DebugMode = DebugMode.REPORT
 ) -> subprocess.CompletedProcess | None:
 	"""
@@ -931,7 +938,7 @@ def run_command(cmd_list: List[str], shell: bool = False, capture_output: bool =
 		logger.info(f"~ Executing from({cwd}): {cmd_str}")
 	# Raises a 'CalledProcessError' exception on error.
 	try:
-		return subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV, capture_output=capture_output)
+		return subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV, capture_output=capture_output, input=input_data)
 	except Exception as ex:
 		ex.add_note(f"Subprocess: {' '.join(cmd_list)}")
 		raise ex
@@ -1599,12 +1606,13 @@ class SubCommandDocker(SubCommand):
 		# Platform detection logic based on machine architecture.
 		machine = platform.machine()
 		default_platform = "arm64" if machine == 'aarch64' else "amd64"
+		cfg = get_config_section("config", fail=True)
 		# Define Epilog for the help message.
 		parser.epilog = f"""Examples:
-		Show the targets using the {default_platform} platform docker image and Qt version {QT_VER}:
-			{self.script} --platform {default_platform} --qt-ver '{QT_VER}' -- --info
-		Show the uname information of the arm64 container without QT libraries:
-			{self.script} --platform arm64 --qt-ver '' run -- uname -a
+  Show the targets using the {default_platform} platform docker image and Qt version {QT_VER}:
+    {self.script} --platform {default_platform} --qt-ver '{QT_VER}' -- --info
+  Show the uname information of the arm64 container without QT libraries:
+    {self.script} --platform arm64 --qt-ver '' run -- uname -a
 	"""
 		parser.add_argument("command", type=str, nargs="?",
 			choices=["pull", "run", "start", "wstart", "stop", "kill", "prune", "attach", "status", "sshd", "versions"],
@@ -1615,12 +1623,17 @@ start        - Starts a container named '{CONTAINER_NAME}' in the background.
 wstart       - Starts a container named '{CONTAINER_NAME}' in the background and a wineserver for speed.
 attach       - Attaches to the running container named '{CONTAINER_NAME}'.
 status       - Returns info of the running container '{CONTAINER_NAME}'.
-wineserver   - Starts the 'wineserver' for a faster command response.
 prune        - Remove unused data and anonymous volumes.
 stop/kill    - Stops/Kills the container named '{CONTAINER_NAME}'.
 versions     - Shows versions of most installed applications within the container.
 sshd         - Starts sshd service on port {SSHD_PORT} to allow remote control.
 """)
+		# Check if a fixed docker image is set.
+		if "docker-image" in cfg.keys():
+			parser.description = f"""
+Docker image from configuration: {cfg["docker-image"]}
+This ignores the options: --qt-ver, --platform'
+"""
 		parser.add_argument("-q", "--qt-ver", default=QT_VER, metavar="<qt-ver>",
 			help=f"Qt version forming the Docker image name (default: '{QT_VER}').")
 		parser.add_argument("-p", "--platform", default=default_platform, choices=['amd64', 'arm64'],
@@ -1649,23 +1662,26 @@ sshd         - Starts sshd service on port {SSHD_PORT} to allow remote control.
 
 		# Construct the Docker image name.
 		img_name = f"nexus.scanframe.com/{args.platform}/gnu-cpp:24.04-{args.qt_ver}".rstrip('-')
+		# Check if the image name is overridden.
+		img_name = get_config_section("config", fail=True).get("docker-image", img_name)
 		logger.info(f"# Docker image used: {img_name}")
 		# Prepare standard Docker options for running the container.
 		docker_opts = ["--platform", f"linux/{args.platform}", "--rm", "--tty", "--interactive", "--device", "/dev/fuse",
 			"--cap-add", "SYS_ADMIN", "--security-opt", "apparmor:unconfined", "--hostname", platform.node(), "--user", "0:0",
 			"--env", f"LOCAL_USER={os.getuid()}:{os.getgid()}", "--network", "host"]
 		# Handle X11 Display forwarding if available on the host.
-		display = os.environ.get("DISPLAY")
 		# noinspection SpellCheckingInspection
-		xauth = Path.home() / ".Xauthority"
-		if display and xauth.exists():
+		if os.environ.get("DISPLAY"):
+			xauth = os.environ.get("XAUTHORITY")
+			if not xauth:
+				xauth = Path.home() / ".Xauthority"
 			# noinspection SpellCheckingInspection
 			docker_opts += ["--env", "DISPLAY", "--volume", f"{xauth}:/home/user/.Xauthority:ro"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
 		# Configure a specific build directory volume if requested.
 		if args.flag_build_dir:
-			build_dir = Path(RUN_DIR) / "cmake-build" / f"docker-{args.platform}-{args.qt_ver}"
+			build_dir = Path(RUN_DIR) / "cmake-build" / f"docker-{args.platform}-{args.qt_ver}".strip("-")
 			build_dir.mkdir(parents=True, exist_ok=True)
 			docker_opts += ["--volume", f"{build_dir}:/mnt/project/{PROJECT_SUBDIR}/cmake-build:rw"]
 		# Set the working directory within the container.
@@ -1735,7 +1751,7 @@ sshd         - Starts sshd service on port {SSHD_PORT} to allow remote control.
 				return 1
 			# Form the path for execution inside the container.
 			target_script = f"/mnt/project/{PROJECT_SUBDIR}/{'/'.join(script)}"
-			return run_command(docker_command(docker_opts, img_name, [target_script]),
+			return run_command(docker_command(docker_opts, img_name, ["bash", target_script]),
 				dbg_mode=DebugMode.REPORT_ONLY).returncode
 		else:
 			# The default behavior is to execute the discovered build script.
@@ -1776,16 +1792,18 @@ Choices are:
 		if sys.platform == "win32":
 			choices.append("win")
 		else:
-			choices = ["lnx", "win"]
+			choices = ["dce", "dio", "lnx", "win"]
 			if platform.processor() == 'x86_64':
 				choices.append("arm")
 		parser.add_argument("-r", "--required", type=str, choices=choices,
 			help="""Install required packages using the Debian 'apt' package manager on Linux or 'WinGet' for Windows.
 Choices are depended on the host platform:
-  Linux: 
-    lnx - Linux packages for architecture x86_64 or aarch64.
-    arm - Linux packages x86_64 for aarch64 GCC x86_64 cross-compile.
-    win - Linux packages x86_64 for Windows MinGW x86_64 cross-compile.
+  Linux:
+    dce - Install 'docker-ce' latest version using an external source.
+    dio - Install 'docker.io' package bundled with the distro.
+    lnx - Packages for architecture x86_64 or aarch64.
+    arm - Packages x86_64 for aarch64 GCC x86_64 cross-compile.
+    win - Packages x86_64 for Windows MinGW x86_64 cross-compile.
   Windows: 
     win - Windows WinGet packages for build tools except a compiler(s).
 """)
@@ -1945,8 +1963,18 @@ Choices are depended on the host platform:
 						elif repo[-4:] == ".zip":
 							with urlopen(repo) as response:
 								# Use BytesIO to treat the downloaded bytes as a file-like object
-								with ZipFile(io.BytesIO(response.read())) as zip_file:
-									zip_file.extractall(RUN_DIR)
+								with zipfile.ZipFile(io.BytesIO(response.read()), 'r') as zf:
+									for info in zf.infolist():
+										extracted_path = zf.extract(info, RUN_DIR)
+										# Only attempt to restore Unix permissions if on a Unix-like system
+										if sys.platform != "win32" and info.create_system == 3:
+											unix_attributes = info.external_attr >> 16
+											if unix_attributes > 0:
+												try:
+													os.chmod(extracted_path, unix_attributes)
+												except OSError:
+													# Handle cases where chmod might fail (e.g., read-only filesystem)
+													pass
 					else:
 						logger.info("# Breaking by skipping git submodule '{'/'.join(CMAKE_LIB_SUBDIR)}' installation.")
 						return False
@@ -2017,7 +2045,7 @@ Choices are depended on the host platform:
 		return True
 
 	@staticmethod
-	def install_packages(target: str):
+	def install_packages(target: str) -> None:
 		"""Installs the necessary packages depending on the environment Linux or Windows."""
 		logger.info(f"About to install required packages for ({target})...")
 		# Prefix the target with the system name.
@@ -2028,32 +2056,82 @@ Choices are depended on the host platform:
 			if target == "linux/wine":
 				with zipfile.ZipFile('r') as zip_object:
 					zip_object.extractall(path="dest-dir")
+			elif target == "linux/dio":
+				# noinspection PyDeprecation
+				if shutil.which("docker"):
+					logger.warning(f"# Command 'docker' command is already available.")
+					return
+				run_command(
+					["sudo", "apt-get", "--yes", "install", "docker.io"], dbg_mode=DebugMode.REPORT_ONLY)
+			elif target == "linux/dce":
+				# Check if the 'docker' command exists.
+				# noinspection PyDeprecation
+				if shutil.which("docker"):
+					logger.warning(f"# Command 'docker' command is already available.")
+					return
+				# Destination of the Docker sources-file.
+				sources_file = "/etc/apt/sources.list.d/docker-ce.sources"
+				if os.path.exists(sources_file):
+					logger.warning(f"# Docker source-file '{sources_file}' already exists?!")
+					return
+				#
+				logger.info(f"# Installing docker target.")
+				# Get distribution information
+				distro = run_command(["lsb_release", "-is"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip().lower()
+				codename = run_command(["lsb_release", "-cs"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
+				arch = run_command(["dpkg", "--print-architecture"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
+				# Download GPG key
+				gpg_url = f"https://download.docker.com/linux/{distro}/gpg"
+				gpg_result = run_command(["wget", "-qO-", gpg_url], capture_output=True, dbg_mode=DebugMode.SILENT)
+				if gpg_result.returncode != 0:
+					logger.error(f"! Failed to download Docker GPG key from {gpg_url}")
+				else:
+					gpg_key = gpg_result.stdout.decode("utf-8")
+					# Indent GPG key lines with a space
+					gpg_key_indented = "\n".join(" " + line for line in gpg_key.splitlines())
+					# Create Docker sources file content
+					docker_sources = f"""Types: deb
+URIs: https://download.docker.com/linux/{distro}
+Suites: {codename}
+Components: stable
+Architectures: {arch}
+Signed-By:
+{gpg_key_indented}
+"""
+					run_command(["sudo", "tee", sources_file], input_data=docker_sources.encode(), dbg_mode=DebugMode.REPORT_ONLY)
+					run_command(["sudo", "apt-get", "update"], dbg_mode=DebugMode.REPORT_ONLY)
+					run_command(["sudo", "apt-get", "--yes", "upgrade"], dbg_mode=DebugMode.REPORT_ONLY)
+					# Install Docker CE and add the user to the 'docker' group.
+					run_command(["sudo", "apt", "install", "-y", "docker-ce"], dbg_mode=DebugMode.REPORT_ONLY)
+					if username := os.environ.get("USER", ""):
+						run_command(["sudo", "usermod", "-aG", "docker", username], dbg_mode=DebugMode.REPORT_ONLY)
+						logger.info(f"# Added user '{username}' to the 'docker' group.")
 
 			elif target == "linux/lnx":
 				# Initial updates and prerequisites
 				run_command(["sudo", "apt-get", "update"], dbg_mode=DebugMode.REPORT_ONLY)
 				run_command(["sudo", "apt-get", "--yes", "upgrade"], dbg_mode=DebugMode.REPORT_ONLY)
 				run_command(
-					["sudo", "apt", "--yes", "install", "wget", "curl", "gpg", "lsb-release", "software-properties-common",
+					["sudo", "apt-get", "--yes", "install", "wget", "curl", "gpg", "lsb-release", "software-properties-common",
 						"ccache", "python3", "python3-venv", "python3-dev", "python3-pefile", "python3-pyelftools",
 						"python-is-python3"], dbg_mode=DebugMode.REPORT_ONLY)
 				# XCB and Qt6 dependencies
 				# noinspection SpellCheckingInspection
 				xcb_pkgs = ["xcb", "libxkbcommon-x11-0", "libxcb-xinput0", "libxcb-cursor0", "libxcb-shape0", "libxcb-icccm4",
 					"libxcb-image0", "libxcb-keysyms1", "libxcb-render-util0", "libpcre2-16-0"]
-				run_command(["sudo", "apt", "--yes", "install"] + xcb_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
+				run_command(["sudo", "apt-get", "--yes", "install"] + xcb_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 				# LLVM Repository check and add
 				repo_list = run_command(["apt-add-repository", "--list"], shell=False, capture_output=True,
 					dbg_mode=DebugMode.SILENT).stdout.decode("utf-8")
-				if not re.findall(r'^Suites:\s+llvm-toolchain', repo_list, re.MULTILINE):
-					# Use shell=True for complex pipe operations
-					run_command(
-						["wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null"],
-						shell=True)
-					codename = run_command(["lsb_release", "-sc"], capture_output=True,
-						dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
-					repo_url = f"deb https://apt.llvm.org/{codename}/ llvm-toolchain-{codename} main"
-					run_command(["sudo", "apt-add-repository", "--yes", "--no-update", repo_url])
+				# if not re.findall(r'^Suites:\s+llvm-toolchain', repo_list, re.MULTILINE):
+				# 	# Use shell=True for complex pipe operations
+				# 	run_command(
+				# 		["wget https://apt.llvm.org/llvm-snapshot.gpg.key -O - | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null"],
+				# 		shell=True)
+				# 	codename = run_command(["lsb_release", "-sc"], capture_output=True,
+				# 		dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
+				# 	repo_url = f"deb https://apt.llvm.org/{codename}/ llvm-toolchain-{codename} main"
+				# 	run_command(["sudo", "apt-add-repository", "--yes", "--no-update", repo_url])
 				# Kitware Repository (Ubuntu only)
 				if not len(re.findall(r'apt\.kitware\.com/ubuntu', repo_list, re.MULTILINE)):
 					distro = run_command(["lsb_release", "-is"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode(
@@ -2073,11 +2151,11 @@ Choices are depended on the host platform:
 				# noinspection SpellCheckingInspection
 				main_pkgs = ["make", "cmake", "ninja-build", "gcc", "g++", "doxygen", "graphviz", "libopengl0",
 					"libgl1-mesa-dev", "libglu1-mesa-dev", "libxkbcommon-dev", "libxkbfile-dev", "libvulkan-dev", "libssl-dev",
-					"exiftool", "default-jre-headless", "chrpath", "colordiff", "dialog", "dos2unix", "pcregrep", "clang-format"]
+					"default-jre-headless", "chrpath", "clang-format"]
 				run_command(["sudo", "apt-get", "--yes", "install"] + main_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/win":
-				run_command(["sudo", "apt", "install", "-y", "mingw-w64"], dbg_mode=DebugMode.REPORT_ONLY)
+				run_command(["sudo", "apt-get", "install", "-y", "mingw-w64"], dbg_mode=DebugMode.REPORT_ONLY)
 				# Check if wine is installed using shutil.which (cleaner than command -v)
 				# noinspection PyDeprecation
 				if not shutil.which("wine"):
@@ -2245,8 +2323,8 @@ Examples:
 				return 1
 			return run_command(args_right, cwd=bin_dir, dbg_mode=DebugMode.REPORT_ONLY).returncode
 		else:
-			# Holds the cmake script.
-			cmake_script = os.path.join(*(CMAKE_LIB_SUBDIR + ["run-executable.cmake"]))
+			# Holds the cmake script and raise an exception on failure.
+			cmake_script = get_config_section("config", fail=True).get("cmake-run-file", os.path.join(*(CMAKE_LIB_SUBDIR + ["run-executable.cmake"])))
 			# Check if the required cmake script is present and if not, bailout.
 			if not os.path.exists(cmake_script):
 				logger.info(f": Sub command 'run' disabled due to missing '{cmake_script}' file.")
