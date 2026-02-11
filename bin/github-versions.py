@@ -24,8 +24,8 @@ import requests
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-SEMVER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-
+SEM_VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+REL_VER_RE = re.compile(r"^Release_(\d+)_(\d+)_(\d+)$")
 
 def parse_owner_repo_from_url(url: str) -> Tuple[str, str]:
 	url = url.strip()
@@ -91,9 +91,13 @@ def extract_versions_from_tags(tags: List[dict]) -> List[str]:
 	versions = []
 	for t in tags:
 		name = t.get("name", "")
-		m = SEMVER_RE.match(name)
+		m = SEM_VER_RE.match(name)
 		if m:
 			versions.append("{}.{}.{}".format(m.group(1), m.group(2), m.group(3)))
+		else:
+			m = REL_VER_RE.match(name)
+			if m:
+				versions.append("{}.{}.{}".format(m.group(1), m.group(2), m.group(3)))
 	return versions
 
 

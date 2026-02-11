@@ -27,12 +27,31 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	else ()
 		set(_TlsCheck TRUE)
 	endif ()
-	# Add doxygen project when doxygen was found
-	find_package(Doxygen QUIET)
-	if (NOT Doxygen_FOUND)
-		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Doxygen package has not been found!")
+	if (WIN32)
+		find_program(_DoxygenExe
+			NAMES doxygen
+			NO_CACHE
+			DOC "Doxygen executable"
+		)
+	else ()
+		find_program(_DoxygenExe
+			NAMES doxygen
+			NO_CACHE
+			NO_DEFAULT_PATH
+			PATHS
+			# Try finding it in the local toolchain directory when it exists.
+			"${CMAKE_SOURCE_DIR}/lib/toolchain/doxygen/bin"
+			"/opt/doxygen/bin"
+			"/usr/bin"
+			DOC "Doxygen executable"
+		)
+	endif ()
+	# Add doxygen project when doxygen executable was found.
+	if (NOT _DoxygenExe)
+		message(WARNING "${CMAKE_CURRENT_FUNCTION}(): Doxygen application was not found!")
 		return()
 	endif ()
+	message(STATUS "Doxygen: ${_DoxygenExe}")
 	# Check if the version was passed in the optional argument.
 	if (NOT DEFINED _PlantUmlVer)
 		# Get the latest release version number from 'https://github.com/plantuml/plantuml/tags' through the API.
@@ -147,7 +166,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 		# Remove previous resulting 'html' directory.
 		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_HtmlDir}/"
 		# Execute Doxygen and generate the document.
-		COMMAND ${DOXYGEN_EXECUTABLE} "${_FileOut}"
+		COMMAND ${_DoxygenExe} "${_FileOut}"
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Generating documentation with Doxygen"
 		VERBATIM

@@ -41,14 +41,14 @@ import threading
 import ctypes
 import zipfile
 import tempfile
+import fnmatch
+import io
 from enum import Enum, auto
 from string import Template
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 from pathlib import Path
 from abc import ABC, abstractmethod
-import io
 from urllib.request import urlopen
-from zipfile import ZipFile
 
 # Auto-install for Windows the not standard 'curses' required module.
 try:
@@ -476,6 +476,134 @@ QT_VER = "6.10.1"
 # Directory to store the CMake library files.
 CMAKE_LIB_SUBDIR = ["cmake", "lib"]
 
+
+def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = None, release_tag: Optional[str] = None) -> Optional[Dict[str, any]]:
+	"""
+	Fetch GitHub release information and assets.
+	:param owner: Repository owner
+	:param repo: Repository name
+	:param assets_wildcard: Filter assets by wildcard.
+	:param release_tag: Specific release version (e.g., "1.2.3"). If None, fetches the latest release.
+	:return: Dictionary with 'release', 'assets', and 'url' fields, or None if not found.
+		- release: Release version string
+		- assets: List of asset download info (name, url, size)
+		- url: Base URL for the release
+	"""
+	import requests
+	try:
+		if release_tag is None:
+			# Fetch the latest release.
+			api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
+		else:
+			# Fetch the specific release by tag
+			api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{release_tag}"
+
+		resp = requests.get(api_url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=15)
+		if resp.status_code == 404:
+			return None
+
+		resp.raise_for_status()
+		data = resp.json()
+
+		# Extract release info
+		release_tag = data.get("tag_name", "").lstrip('v')
+		assets_list = []
+
+		for asset in data.get("assets", []):
+			asset_name = asset.get("name", "")
+			if assets_wildcard and not fnmatch.fnmatch(asset_name, assets_wildcard):
+				continue
+			assets_list.append({
+				"name": asset_name,
+				"url": asset.get("browser_download_url", ""),
+				"size": asset.get("size", 0)
+			})
+
+		return {
+			"release": release_tag,
+			"assets": assets_list,
+			"url": data.get("html_url", "")
+		}
+
+	except requests.RequestException:
+		return None
+
+
+def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None) -> bool:
+	"""
+	Extracts the url of a given compressed file to the given destination directory.
+	After extraction the directory is renamed to new_dir_name.
+	"""
+	import tarfile
+	import requests
+
+	try:
+		# Create the destination directory if it doesn't exist.
+		dest_path = Path(dest_dir)
+		dest_path.mkdir(parents=True, exist_ok=True)
+
+		# Download the file
+		resp = requests.get(url, timeout=60, stream=True)
+		resp.raise_for_status()
+
+		# Determine file extension from URL
+		filename = url.split('/')[-1]
+
+		# Download to temporary file
+		with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{filename}") as tmp_file:
+			for chunk in resp.iter_content(chunk_size=1024*64):
+				tmp_file.write(chunk)
+			tmp_path = tmp_file.name
+
+		try:
+			# Extract based on the file type.
+			if filename.endswith(('.tar.gz', '.tgz')):
+				with tarfile.open(tmp_path, 'r:gz') as tar:
+					tar.extractall(dest_path)
+					# Get the root directory name from the archive
+					members = tar.getmembers()
+					if members:
+						root_dir = members[0].name.split('/')[0]
+					else:
+						return False
+			elif filename.endswith('.tar.bz2'):
+				with tarfile.open(tmp_path, 'r:bz2') as tar:
+					tar.extractall(dest_path)
+					members = tar.getmembers()
+					if members:
+						root_dir = members[0].name.split('/')[0]
+					else:
+						return False
+			elif filename.endswith('.zip'):
+				with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+					zip_ref.extractall(dest_path)
+					# Get the root directory name from the archive.
+					names = zip_ref.namelist()
+					if names:
+						root_dir = names[0].split('/')[0]
+					else:
+						return False
+			else:
+				return False
+
+			# Rename the extracted directory if new_dir_name is provided
+			if new_dir_name and root_dir != new_dir_name:
+				old_path = dest_path / root_dir
+				new_path = dest_path / new_dir_name
+				if old_path.exists():
+					# Remove destination if it exists
+					if new_path.exists():
+						shutil.rmtree(new_path)
+					old_path.rename(new_path)
+			# Signal success.
+			return True
+		finally:
+			# Clean up temporary file
+			Path(tmp_path).unlink(missing_ok=True)
+
+	except Exception as e:
+		print(f"Error extracting {url}: {e}")
+		return False
 
 def get_config_section(section: str, fail: bool = True) -> Dict[str, str]:
 	"""
@@ -1780,13 +1908,17 @@ class SubCommandInstall(SubCommand):
 		# Configure the command line options.
 		parser.add_argument("-p", "--project", action="store_true",
 			help="Install the cmake project directories and files from the template repository.")
-		parser.add_argument("-t", "--toolchain", type=str, choices=["tools", "mingw", "msvc", "msvc-alt"],
+		choices: List[str] = ["tools", "mingw", "msvc", "msvc-alt"]
+		if sys.platform != "win32":
+			choices.append("doxygen")
+		parser.add_argument("-t", "--toolchain", type=str, choices=choices,
 			help="""Install a portable toolchains for in Windows or Wine with which the Qt library is build.
 Choices are:
   tools    - Multiple tools as CMake, Ninja, NSIS and Git client for Wine(Linux Only).
   mingw    - MinGW x86_64 v13.2.0 posix + msvcrt compiler compatible with the Qt library.
   msvc     - MSVC 2022 x86_64 compatible with the Qt library preassembled from a Nexus repository.
   msvc-alt - MSVC 2022 x86_64 compatible with the Qt library from Microsoft itself. (Windows only)
+  doxygen  - Doxygen latest released version. (Linux only)
 """)
 		choices: List[str] = []
 		if sys.platform == "win32":
@@ -1899,6 +2031,17 @@ Choices are depended on the host platform:
 					cwd=install_dir, dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
 					logger.error("! Failed to execute installer script.")
 					return False
+
+			case "doxygen":
+				logger.info("# Installing Doxygen latest released version.")
+				doxygen_dir = os.path.join(install_dir,  "doxygen")
+				if os.path.exists(doxygen_dir):
+					logger.warning(f": Doxygen directory already exists: {doxygen_dir}")
+					return False
+				release = get_github_release("doxygen", "doxygen", "*.linux.bin.tar.gz")
+				if release["assets"]:
+					extract_by_url(release["assets"][0]["url"], install_dir, "doxygen")
+				return False
 
 		# Signal success.
 		return True
