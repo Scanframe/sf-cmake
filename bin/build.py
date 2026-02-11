@@ -497,18 +497,14 @@ def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = N
 		else:
 			# Fetch the specific release by tag
 			api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{release_tag}"
-
 		resp = requests.get(api_url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=15)
 		if resp.status_code == 404:
 			return None
-
 		resp.raise_for_status()
 		data = resp.json()
-
 		# Extract release info
 		release_tag = data.get("tag_name", "").lstrip('v')
 		assets_list = []
-
 		for asset in data.get("assets", []):
 			asset_name = asset.get("name", "")
 			if assets_wildcard and not fnmatch.fnmatch(asset_name, assets_wildcard):
@@ -516,45 +512,56 @@ def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = N
 			assets_list.append({
 				"name": asset_name,
 				"url": asset.get("browser_download_url", ""),
-				"size": asset.get("size", 0)
+				"size": asset.get("size", 0),
+				"digest": asset.get("digest", None)
 			})
-
 		return {
 			"release": release_tag,
 			"assets": assets_list,
 			"url": data.get("html_url", "")
 		}
-
 	except requests.RequestException:
 		return None
 
 
-def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None) -> bool:
+def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, digest:Optional[str] = None) -> bool:
 	"""
 	Extracts the url of a given compressed file to the given destination directory.
 	After extraction the directory is renamed to new_dir_name.
 	"""
 	import tarfile
 	import requests
+	import hashlib
 
 	try:
 		# Create the destination directory if it doesn't exist.
 		dest_path = Path(dest_dir)
 		dest_path.mkdir(parents=True, exist_ok=True)
-
 		# Download the file
 		resp = requests.get(url, timeout=60, stream=True)
 		resp.raise_for_status()
-
 		# Determine file extension from URL
 		filename = url.split('/')[-1]
-
-		# Download to temporary file
+		# Download to the temporary file.
+		sha256_hash = hashlib.sha256() if digest else None
 		with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{filename}") as tmp_file:
-			for chunk in resp.iter_content(chunk_size=1024*64):
+			for chunk in resp.iter_content(chunk_size=1024*4):
 				tmp_file.write(chunk)
+				if sha256_hash:
+					sha256_hash.update(chunk)
 			tmp_path = tmp_file.name
-
+		# Verify digest if provided.
+		if digest:
+			computed_digest = sha256_hash.hexdigest()
+			expected_digest = digest.split(':', 1)[1] if ':' in digest else digest
+			if computed_digest != expected_digest:
+				Path(tmp_path).unlink(missing_ok=True)
+				logger.error(f"! Digest mismatch (expected/got):  {expected_digest} / {computed_digest}")
+				return False
+			else:
+				logger.info(f"= Digest matches: {computed_digest}")
+		else:
+			logger.warning(f": No digest for this download: {filename}")
 		try:
 			# Extract based on the file type.
 			if filename.endswith(('.tar.gz', '.tgz')):
@@ -585,7 +592,6 @@ def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None) 
 						return False
 			else:
 				return False
-
 			# Rename the extracted directory if new_dir_name is provided
 			if new_dir_name and root_dir != new_dir_name:
 				old_path = dest_path / root_dir
@@ -602,7 +608,7 @@ def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None) 
 			Path(tmp_path).unlink(missing_ok=True)
 
 	except Exception as e:
-		print(f"Error extracting {url}: {e}")
+		logger.error(f"Error extracting {url}: {e}")
 		return False
 
 def get_config_section(section: str, fail: bool = True) -> Dict[str, str]:
@@ -1045,7 +1051,6 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 	value = value.replace("${sourceParentDir}", os.path.dirname(RUN_DIR))
 	value = value.replace("${fileDir}", RUN_DIR)
 	value = value.replace("${pathListSep}", os.pathsep)
-	value = value.replace("${sourceParentDir}", Path(RUN_DIR).parent.name)
 	value = value.replace("${hostSystemName}", "Windows" if sys.platform == 'win32' else "Linux")
 	value = value.replace("${dollar}", "$")
 
@@ -2040,7 +2045,7 @@ Choices are depended on the host platform:
 					return False
 				release = get_github_release("doxygen", "doxygen", "*.linux.bin.tar.gz")
 				if release["assets"]:
-					extract_by_url(release["assets"][0]["url"], install_dir, "doxygen")
+					extract_by_url(release["assets"][0]["url"], install_dir, "doxygen", release["assets"][0]["digest"])
 				return False
 
 		# Signal success.
@@ -2513,7 +2518,7 @@ def main() -> int:
 	Main entry point for the build script.
 	:return: Exit code.
 	"""
-	# Get the scipt name.
+	# Get the script's name.
 	script = os.path.basename(__file__)
 	# Strip other first argument which is the script itself.
 	arguments = sys.argv[1:]
