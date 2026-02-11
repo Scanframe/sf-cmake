@@ -917,6 +917,22 @@ def set_environment(compiler_type: str | None = None) -> None:
 	# Key name used for inheritance.
 	inherit_key = "__inherit__"
 
+	def fix_wine_path(wine_path: str) -> str:
+		"""
+		Fixes the given Wine path by resolving nested symlinks into a usable path.
+		This is useful when sharing toolchain directories between projects using symlinks.
+		"""
+		result: List[str] = []
+		for d in wine_path.split(";"):
+			if d.startswith("Z:"):
+				d = os.path.realpath(d[2:].replace("\\", "/"))
+				result += ["Z:" + d.replace("/", "\\")]
+			else:
+				if d.startswith("/"):
+					d = "Z:" + d.replace("/", "\\")
+				result += [d]
+		return ";".join(result)
+
 	def get_config_inheritance(_section: str) -> List[str]:
 		"""
 		Gets the inheritance of the passed section.
@@ -963,6 +979,9 @@ def set_environment(compiler_type: str | None = None) -> None:
 			if key not in ENV_IGNORED:
 				RUN_ENV[key] = Template(value).safe_substitute(
 					CallbackEnvironment(environment=RUN_ENV, note_str=f"Configuration section: {section}"))
+				# Fix the path since it must be with Windows backslashes only.
+				if key == "WINEPATH":
+					RUN_ENV[key] = fix_wine_path(RUN_ENV.get(key, ""))
 				logger.info(f"~ Environment Set: {key}={RUN_ENV[key]}")
 			else:
 				logger.info(f"~ Environment Ignored: {key}")
@@ -1007,7 +1026,6 @@ def set_environment_by_preset(preset_name: str, preset_type: PresetTypes = Prese
 		set_environment(compiler_type)
 		return True
 	return False
-
 
 def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict[str, str] = None) -> Any:
 	"""
@@ -1691,28 +1709,10 @@ class SubCommandWine(SubCommand):
 			# Suppress Wine fix-me messages when 'WINEDEBUG' is not set.
 			if "WINEDEBUG" not in RUN_ENV:
 				RUN_ENV["WINEDEBUG"] = 'fixme-all'
-			# Fix the path since it must be with Windows backslashes only.
-			RUN_ENV["WINEPATH"] = self.fix_wine_path(RUN_ENV.get("WINEPATH", ""))
 			arguments = ["wine", "python", self.script] + args_right
 			logger.debug(f"# Running: WINEPATH='{RUN_ENV.get("WINEPATH", "")}' {' '.join(arguments)}")
 			return run_command(arguments, dbg_mode=DebugMode.REPORT_ONLY).returncode
 		return 0
-
-	@staticmethod
-	def fix_wine_path(wine_path: str) -> str:
-		"""
-		Fixes the given Wine path by resolving nested symlinks into a usable path.
-		This is useful when sharing toolchain directories between projects using symlinks.
-		"""
-		paths = wine_path.replace("/", "\\").split(";")
-		result: List[str] = []
-		for d in paths:
-			if d.startswith("Z:"):
-				d = os.path.realpath(d[2:].replace("\\", "/"))
-				result += ["Z:" + d.replace("/", "\\")]
-			else:
-				result += [d]
-		return ";".join(result)
 
 
 class SubCommandDocker(SubCommand):
