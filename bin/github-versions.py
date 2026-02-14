@@ -24,7 +24,7 @@ import requests
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-SEM_VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+SEM_VER_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 REL_VER_RE = re.compile(r"^Release_(\d+)_(\d+)_(\d+)$")
 
 def parse_owner_repo_from_url(url: str) -> Tuple[str, str]:

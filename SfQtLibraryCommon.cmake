@@ -13,7 +13,7 @@ function(Sf_QtLibraryDownload _Version)
 	# When the host is Linux and the targeted system is Linux use the linux Qt library.
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
 		# When cross compiling.
-		if ("${SF_ARCHITECTURE}" STREQUAL "aarch64" AND "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+		if ("${SF_ARCHITECTURE}" STREQUAL "aarch64" AND "${CMAKE_HOST_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
 			if (NOT "$ENV{QT_LNX_VER_DIR_AARCH64}" STREQUAL "")
 				set(ENV{QT_VER_DIR} "$ENV{QT_LNX_VER_DIR_AARCH64}")
 				message(STATUS "When running Docker 'ENV{QT_LNX_VER_DIR_AARCH64}' ($ENV{QT_LNX_VER_DIR_AARCH64}) is copied to 'ENV{QT_VER_DIR}'.")

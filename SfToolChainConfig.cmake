@@ -100,6 +100,12 @@ function(Sf_SetToolChain)
 		set(_SystemName "Linux")
 		set(_Arch "aarch64")
 		Sf_FindLinuxToolChainApps("${_CmakeFile}" "/usr/bin/${_Arch}-linux-gnu-")
+		# Set the architecture of the targets being build also requires 'CMAKE_SYSTEM_NAME' to be set since this also
+		# sets 'CMAKE_CROSSCOMPILING' and makes a project not reset 'CMAKE_SYSTEM_PROCESSOR' for each created project.
+		file(APPEND "${_CmakeFile}" "##
+set(CMAKE_SYSTEM_NAME \"Linux\")
+set(CMAKE_SYSTEM_PROCESSOR \"aarch64\")
+		")
 		# When building Windows targets using GNU compiler on Windows.
 	elseif (SF_COMPILER STREQUAL "mingw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
 		set(_SystemName "Windows")

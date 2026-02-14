@@ -25,7 +25,7 @@ elseif (SF_ARCHITECTURE STREQUAL "arm")
 	set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
 	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 else ()
-	message(SEND_ERROR "Architecture '${CMAKE_SYSTEM_PROCESSOR}' not supported!")
+	message(SEND_ERROR "Architecture '${SF_ARCHITECTURE}' not supported!")
 endif ()
 
 set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)

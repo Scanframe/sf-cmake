@@ -14,6 +14,7 @@ if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
 	message(STATUS "Cross Compiling   : ${CMAKE_CROSSCOMPILING}")
 	message(STATUS "System Info File  : ${CMAKE_SYSTEM_INFO_FILE}")
 	message(STATUS "System Processor  : ${CMAKE_SYSTEM_PROCESSOR}")
+	message(STATUS "Host Sys.Processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 	message(STATUS "Runtime Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 	message(STATUS "Library Output Dir: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 	# Make the target property 'CXX_STANDARD' a requirement.

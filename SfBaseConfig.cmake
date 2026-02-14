@@ -417,7 +417,8 @@ endfunction()
 # Adds an exif custom target for reporting the resource stored versions.
 #
 function(Sf_AddExifTarget _Target)
-	find_program(_PythonExe "python" REQUIRED)
+	# Windows only knows the 'python' command.
+	find_program(_PythonExe "python3" "python" REQUIRED)
 	if (_PythonExe)
 		add_custom_target("exif-${_Target}" ALL
 			COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/exiftool.py" $<SHELL_PATH:$<TARGET_FILE:${_Target}>>
