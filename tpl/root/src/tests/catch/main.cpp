@@ -1,5 +1,11 @@
 #include <catch2/catch_all.hpp>
-#include <unistd.h>
+#include <iostream>
+#if WIN32
+	#include <windows.h>
+	#include <synchapi.h>
+#else
+	#include <unistd.h>
+#endif
 
 namespace
 {
@@ -27,18 +33,18 @@ int main(int argc, char* argv[])
 		// Now pass the new composite back to Catch, so it uses that
 		session.cli(cli);
 		// Let Catch (using Clara) parse the command line
-		int returnCode = session.applyCommandLine(argc, argv);
-		if (returnCode != 0)
-		{
-			return returnCode;
-		}
-		else
-		{
-			auto rv = session.run();
-			return rv;
-		}
+		int exit_code = session.applyCommandLine(argc, argv);
+		if (exit_code == 0)
+			exit_code = session.run();
+		//
+		std::clog << "Exitcode: " << exit_code << std::endl;
+		return exit_code;
 	};
-	// Delay for observing the test order.
+	// Delay to observe test order.
+#if WIN32
+	::Sleep(1000);
+#else
 	::sleep(1);
+#endif
 	return func();
 }

@@ -1,5 +1,16 @@
-# Define the version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 6.9.1)
+# Import Qt common functions.
+include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
+# Latest known available version.
+set(PACKAGE_VERSION 6.10.1)
+
+# Find the locally available  highest version of Qt.
+Sf_FindQtVersion(_AvailQtVer)
+# When greater, reassign the package version.
+if (_AvailQtVer)
+	if ("${_AvailQtVer}" VERSION_GREATER "${PACKAGE_VERSION}")
+		set(PACKAGE_VERSION "${_AvailQtVer}")
+	endif ()
+endif ()
 
 # Split the the package version string.
 string(REPLACE "." ";" _Parts "${PACKAGE_VERSION}")

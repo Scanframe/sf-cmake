@@ -32,7 +32,7 @@ stages:
   - deploy
 
 # Fetches tags and checks if a tag describes the current state of the repository.
-# If not, unshallow is tried and exits when a tag is still not found.
+# If not, unshallow is tried and exits when still no tag is found.
 .script-tags: &tags-script
   - |
     # Prevent error when fetching.
@@ -64,7 +64,7 @@ default:
   # Allow to be interrupted.
   interruptible: true
 
-# Job for creating the make-file using the build.sh script calling CMake with appropriate arguments.
+# Job for creating the make-file using the build.py script calling CMake with appropriate arguments.
 # Wiping the build directory is not needed due to the push policy.
 job-build:
   stage: build
@@ -96,7 +96,7 @@ job-build:
     # The make stage needs tags for versioning of shared libraries and packaging.
     - *tags-script
     # Execute the build script to CMake the makefiles.
-    - './build.sh --workflow "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
+    - '${SF_BUILD_CMD} --workflow "${SF_TOOLCHAIN}-${SF_BUILD_TYPE}"'
 
 # Template for all 'deploy' jobs.
 .deploy:

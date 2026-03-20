@@ -1,17 +1,20 @@
+# Required first entry checking the cmake version.
+cmake_minimum_required(VERSION 3.25)
 ##!
 # Declare some cmake flags for decisions on building targets.
 #
 set(SF_COMPILER "gnu" CACHE STRING "Selected compiler for the build which default to 'gnu' and could be 'ga', 'gw', 'mingw'.")
-set(SF_ARCHITECTURE "x86_64" CACHE INTERNAL "Determines the architecture of the build and is determined by the tool chain selection for the set compiler.")
-set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
-set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library" CACHE INTERNAL "Nexus repository server for downloads of libraries.")
 set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
 set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
 set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")
 set(SF_TEST_NAME_PREFIX "t_" CACHE STRING "Prefix for test applications to allow skipping when packaging.")
 set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when developing locally to speed up.")
-set(SF_OUTPUT_DIR_SUFFIX "" CACHE STRING "Output directory suffix only used by e.g. user presets to separate builds.")
+# Internal used variables.
+set(SF_ARCHITECTURE "x86_64" CACHE INTERNAL "Determines the architecture of the build and is determined by the tool chain selection for the set compiler.")
+set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
+set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library" CACHE INTERNAL "Nexus repository server for downloads of libraries.")
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
+set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -26,6 +29,37 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
 	endmacro()
 endif ()
 
+##!
+# Fix for an optional argument in a nested function where a variable ARGV4 when not passed
+# as an argument has the value of the parent function.
+#  @param _OutVar Name of the output variable returning the value which is not defined in the parent scope when
+#     the index is out of range. Use 'if (DEFINED _MyArg)' to check it.
+#  @param _Index Index value into the list of additional arguments.
+#  @param _Argn List of additional arguments of set with "${ARGN}" by the calling function.
+#
+function(Sf_GetOptionalArgument _VarOut _Index _Argn)
+	list(LENGTH _Argn _Length)
+	if (_Index LESS _Length)
+		list(GET _Argn ${_Index} _Value)
+		set(${_VarOut} "${_Value}" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
+# Gets all sub directories which match the passed regex.
+#
+function(Sf_GetSubDirectories VarOut Directory MatchStr)
+	file(GLOB _Children RELATIVE "${Directory}" "${Directory}/*")
+	set(_List "")
+	foreach (_Child ${_Children})
+		if (IS_DIRECTORY "${Directory}/${_Child}")
+			if ("${_Child}" MATCHES "${MatchStr}")
+				list(APPEND _List "${_Child}")
+			endif ()
+		endif ()
+	endforeach ()
+	set(${VarOut} ${_List} PARENT_SCOPE)
+endfunction()
 
 ##!
 # Maps the passed UNC path to a mounted drive share when it exists.
@@ -134,6 +168,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 			OUTPUT_VARIABLE _FilePath
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
+			ECHO_ERROR_VARIABLE
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
 		# Replace the directory separators from the filepath.
@@ -152,35 +187,35 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 				RESULT_VARIABLE _ExitCode
 				ERROR_VARIABLE _ErrorText
 				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_STRIP_TRAILING_WHITESPACE
 			)
-			# Report solution for specific Windows issue when using a share file system.
-			if (_ExitCode EQUAL 128)
-				message(SEND_ERROR "Solve this Windows only issue: git config --global --add safe.directory '*'")
+			# Do not cache an empty version to file.
+			if (NOT _Version STREQUAL "")
+				# Write the cache file.
+				file(WRITE "${_FilePath}" "${_Version}")
+				# Notify the that a cache version is used.
+				message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Creating cache version (${_Version})")
 			endif ()
-			# Write the cache file.
-			file(WRITE "${_FilePath}" "${_Version}")
 		else ()
 			# Read the cache file.
 			file(READ "${_FilePath}" _Version)
-			# Notify the that a cache version is used.
-			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Using cached version (${_Version})")
 		endif ()
 	else ()
 		# Only annotated tags so no '--tags' option.
-		execute_process(COMMAND "${_GitExe}" describe --dirty --match "v*.*.*"
+		execute_process(COMMAND "${_GitExe}" -C "${_SrcDir}" describe --dirty --match "v*.*.*"
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
 			RESULT_VARIABLE _ExitCode
 			ERROR_VARIABLE _ErrorText
 			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_STRIP_TRAILING_WHITESPACE
 		)
 	endif ()
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)
-		message(NOTICE "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
-		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}).")
-		message(VERBOSE "${_ErrorText}")
+		message(VERBOSE "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
+		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}). '${_ErrorText}'")
 		# Set an initial version to allow continuing.
 		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
@@ -201,7 +236,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	]]
 	string(REGEX MATCH "${_RegEx}" _Dummy_ "${_Version}")
 	if ("${CMAKE_MATCH_1}" STREQUAL "")
-		message(SEND_ERROR "Git returned tag '${_Version}' does not match regex '${_RegEx}' !")
+		message(WARNING "Git returned tag '${_Version}' from '${_SrcDir}' does not match regex '${_RegEx}' !")
 		set(${_VarOut} "0;0;0;0" PARENT_SCOPE)
 	else ()
 		# Make a list of the versions.
@@ -242,13 +277,13 @@ function(Sf_SetTargetDefaultOptions _Target)
 		# Set options depending on the build type.
 		if (CMAKE_BUILD_TYPE STREQUAL "Release")
 			# This bellow could also be the default already.
-			target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
+			target_compile_options("${_Target}" PRIVATE -O3 -DNDEBUG)
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 			# Nothing specific yet.
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
 			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
 		else ()
-			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered!")
+			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered yet for compiler '${CMAKE_CXX_COMPILER_ID}'!")
 		endif ()
 		# When compiling a Windows target.
 		if (WIN32)
@@ -262,7 +297,17 @@ function(Sf_SetTargetDefaultOptions _Target)
 		endif ()
 		# When MSVC compiler is used set some options.
 	elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-		target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
+		# Set options depending on the build type.
+		if (CMAKE_BUILD_TYPE STREQUAL "Release")
+			# This bellow could also be the default already.
+			#target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
+		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+			#target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
+		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
+			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
+		else ()
+			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered yet for compiler '${CMAKE_CXX_COMPILER_ID}'!")
+		endif ()
 	endif ()
 endfunction()
 
@@ -326,8 +371,10 @@ function(Sf_SetTargetVersion _Target)
 			if (_Type STREQUAL "EXECUTABLE")
 				set_target_properties("${_Target}" PROPERTIES SOVERSION "${_Version}")
 			else ()
+				# Get the major version
+				string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" _MajorVersion "${_Version}")
 				# Set the target version properties for Linux.
-				set_target_properties("${_Target}" PROPERTIES VERSION "${_Version}" SOVERSION "${_Version}")
+				set_target_properties("${_Target}" PROPERTIES VERSION "${_Version}" SOVERSION "${_MajorVersion}")
 			endif ()
 		else ()
 			# Set the target version properties for Windows.
@@ -370,51 +417,18 @@ endfunction()
 # Adds an exif custom target for reporting the resource stored versions.
 #
 function(Sf_AddExifTarget _Target)
-	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-		# Try finding the bash.exe from cygwin.
-		find_program(_BashExe "bash" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin" NO_DEFAULT_PATH)
-	else ()
-		find_program(_BashExe "bash")
-	endif ()
-	if (NOT _BashExe)
-		return()
-	endif ()
-	# Add "exif-<target>" custom target when main 'exif' target exist.
-	if (TARGET "exif")
-		if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
-			add_custom_target("exif-${_Target}" ALL
-				COMMAND "${_BashExe}" -lc "exiftool '$<TARGET_FILE:${_Target}>' | egrep -i '(File Name|Product Version|File Version|File Type|CPU Type)\\s*:' | sed 's/\\s*:/:/g'"
-				WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
-				DEPENDS "$<TARGET_FILE:${_Target}>"
-				COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
-				VERBATIM
-			)
-		else ()
-			if (WIN32)
-				add_custom_target("exif-${_Target}" ALL
-					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
-					# Report the linked shared libraries.
-					COMMAND "objdump" -p "$<TARGET_FILE:${_Target}>" | grep -i "DLL Name: " | sed --regexp-extended "s/\\s*DLL Name: /Shared Library: /"
-					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
-					DEPENDS "$<TARGET_FILE:${_Target}>"
-					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
-					VERBATIM
-				)
-			else ()
-				add_custom_target("exif-${_Target}" ALL
-					COMMAND exiftool "$<TARGET_FILE:${_Target}>" | egrep -i "^(File Name|Product Version|File Version|File Type|CPU Type)\\s*:" | sed "s/\\s*:/:/g"
-					# Report the runpath and the linked shared libraries.
-					COMMAND "${CMAKE_READELF}" -d "$<TARGET_FILE:${_Target}>" | egrep -i "\\((NEEDED|RUNPATH)\\)" | sed --regexp-extended "s/.*(Shared library: |Library runpath: )\\[(.*)\\]/\\1\\2/"
-					WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
-					DEPENDS "$<TARGET_FILE:${_Target}>"
-					COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
-					VERBATIM
-				)
-			endif ()
-		endif ()
+	# Windows only knows the 'python' command.
+	find_program(_PythonExe "python3" "python" REQUIRED)
+	if (_PythonExe)
+		add_custom_target("exif-${_Target}" ALL
+			COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/exiftool.py" $<SHELL_PATH:$<TARGET_FILE:${_Target}>>
+			WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+			DEPENDS "$<TARGET_FILE:${_Target}>"
+			COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+			VERBATIM
+		)
 		add_dependencies("exif" "exif-${_Target}")
 	endif ()
-	#endif ()
 endfunction()
 
 ##!
@@ -456,7 +470,7 @@ function(Sf_AddVersionResource _Target)
 	Sf_CheckFileExists("${_FileIn}")
 	# Assemble the file out.
 	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
-	# Generate the configure the file for doxygen.
+	# Generate the configure the file for the resource.
 	configure_file("${_FileIn}" "${_FileOut}" @ONLY NEWLINE_STYLE LF)
 	#
 	target_sources("${_Target}" PRIVATE "${_FileOut}")
@@ -539,10 +553,16 @@ function(Sf_GetSourceFiles _var _targets #[[_rel_to_dir]])
 		if (NOT _sources)
 			continue()
 		endif ()
+		# Fix for nexted problem of ARGVn variables.
+		Sf_GetOptionalArgument(_arg2 0 "${ARGN}")
 		# Prepend source directory for each source file.
 		foreach (_file IN LISTS _sources)
-			if (DEFINED ARGV2)
-				file(RELATIVE_PATH _file "${ARGV2}" "${_source_dir}/${_file}")
+			if (DEFINED _arg2)
+				if (IS_ABSOLUTE "${_file}")
+					file(RELATIVE_PATH _file "${_arg2}" "${_file}")
+				else ()
+					file(RELATIVE_PATH _file "${_arg2}" "${_source_dir}/${_file}")
+				endif ()
 			else ()
 				set(_file "${_source_dir}/${_file}")
 			endif ()
@@ -637,40 +657,64 @@ endfunction()
 ##!
 # Calls native add_test() function using start scripts to set the library paths for Windows/Wine and Linux.
 # @param _Target Name of the target.
-# @param _RunTimeDir Runtime directory which also contains the shell scripts win-exec.sh, win-exec.cmd and lnx-exec.sh.
+# @param _Labels Optional labels for test execution selection.
 #
-function(Sf_AddTest _Target _RunTimeDir)
-	# When target is a Windows build.
-	if (WIN32)
-		# When the host is Windows use a command script.
-		if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-			set(_Script "win-exec.cmd")
-			# When the host is Linux use a shell script executing Wine.
+function(Sf_AddTest _Target)
+	# Invoke a script when cross-compiling which makes normal test debugging not possible which is the case anyway.
+	# Somehow CMAKE_CROSSCOMPILING is not having the correct value at this point so SF_CROSSCOMPILING is used.
+	if (SF_CROSSCOMPILING)
+		# When target is a Windows build.
+		if (WIN32)
+			set(_Script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/WineExec.sh")
 		else ()
-			set(_Script "win-exec.sh")
+			# When NOT compiling Windows assume Linux build and use a shell script.
+			set(_Script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/LinuxExec.sh")
 		endif ()
+		# TODO: Property 'CROSSCOMPILING_EMULATOR' seems not to be working.
+		#set_target_properties(my_exe PROPERTIES CROSSCOMPILING_EMULATOR "/usr/bin/qemu-arm;-L;/usr/arm-linux-gnueabihf")
+		# Add the test using a script setting correct paths for finding dynamic libraries and executing a different architecture.
+		add_test(NAME "${_Target}"
+			# Optional script when cross-compiling.
+			COMMAND ${_Script} "$<TARGET_FILE_NAME:${_Target}>"
+			# Ensure the working directory is its own location.
+			WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+			COMMAND_EXPAND_LISTS
+		)
 	else ()
-		# When NOT compiling Windows assume Linux build and use a shell script.
-		set(_Script "lnx-exec.sh")
-	endif ()
-	# Check if the needed script exists.
-	if (NOT EXISTS "${_RunTimeDir}/${_Script}")
-		# Notify copying the script.
-		message(NOTICE "Copying required script: ${_RunTimeDir}/${_Script}")
-		# Copy the file when it does not exist and do not use 'file(INSTALL ... DESTINATION ...)' since this does not copy the execute mod of the file.
-		execute_process(
-			COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/tpl/bin/${_Script}" "${_RunTimeDir}/${_Script}"
-			COMMAND_ERROR_IS_FATAL ANY
+		# Add the test using a script setting correct paths for finding dynamic libraries and executing a different architecture.
+		add_test(NAME "${_Target}"
+			# Optional script when cross-compiling.
+			COMMAND "$<TARGET_FILE_NAME:${_Target}>"
+			# Ensure the working directory is its own location.
+			WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
+			COMMAND_EXPAND_LISTS
 		)
 	endif ()
-
-	# Add the test using the script.
-	add_test(NAME "${_Target}"
-		COMMAND "${_Script}" "$<TARGET_FILE_NAME:${_Target}>"
-		WORKING_DIRECTORY "${_RunTimeDir}"
-	)
-	# Set the environment variable for the shell script to pickup up to target the correct output directory.
-	set_property(TEST "${_Target}" PROPERTY ENVIRONMENT "SF_OUTPUT_DIR_SUFFIX=${SF_OUTPUT_DIR_SUFFIX}")
+	# Location of dynamic libraries.
+	get_target_property(_LibDir "${_Target}" LIBRARY_OUTPUT_DIRECTORY)
+	if (NOT _LibDir)
+		# Check if global library output directory has been set.
+		set(_LibDir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+	endif ()
+	if (_LibDir)
+		if (WIN32)
+			# For Windows prepend the PATH.
+			set_tests_properties("${_Target}" PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<SHELL_PATH:${_LibDir}>")
+		elseif (LINUX)
+			# For Linux prepend/set the LD_LIBRARY_PATH in case it was build using Docker with a different RUNPATH.
+			get_target_property(_LibDir "${_Target}" LIBRARY_OUTPUT_DIRECTORY)
+			if (NOT _LibDir)
+				set(_LibDir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+			endif ()
+			set_tests_properties("${_Target}" PROPERTIES ENVIRONMENT_MODIFICATION "LD_LIBRARY_PATH=path_list_prepend:$<SHELL_PATH:${_LibDir}>")
+		endif ()
+	endif ()
+	# When the first optional argument is given use it to set labels.
+	Sf_GetOptionalArgument(_Labels 0 "${ARGN}")
+	# Test if the argument was passed.
+	if (DEFINED _Labels)
+		set_tests_properties("${_Target}" PROPERTIES LABELS "${_Labels}")
+	endif ()
 endfunction()
 
 ##!
@@ -757,8 +801,15 @@ endfunction()
 
 ##!
 # Adds a file to be accessible by Doxygen which allows a single directory for examples and no subdirectories.
+# In a markdown the file is referenced as '[\@]snippet <prefix>/<file> <visible-name>'.
 # _Files  : List of file used as examples.
 # _Prefix : Prefix for the destination filename to prevent naming collisions.
+#
+# Code example for creating a by 'Data' referencable snipped:
+#
+# //! [Data]
+#	int my_example_var = 0;
+# //! [Data]
 #
 function(Sf_AddExamples _Files _Prefix)
 	# Create the sample directory if it does not exists yet.
@@ -816,3 +867,48 @@ CMAKE_FIND_ROOT_PATH_MODE_PROGRAM=${CMAKE_FIND_ROOT_PATH_MODE_PROGRAM}
 ==================================================
 ")
 endfunction()
+
+##!
+# Call message() on each item in the given variable prefixed with an index number.
+# Use 'CMAKE_MESSAGE_INDENT' to prefix each message.
+#
+function(Sf_ListPath _Path)
+	Sf_GetOptionalArgument(_Prefix 0 "${ARGN}")
+	# Check if the variable is a Linux path one.
+	string(FIND "${_Path}" ";" _idx)
+	# Check if this is a Linux path.
+	if (_idx EQUAL -1)
+		string(REPLACE ":" ";" _Path "${_Path}")
+	endif ()
+	set(_Counter 0)
+	foreach (_Dir IN LISTS _Path)
+		message(STATUS "${_Prefix}${_Var}[${_Counter}]: ${_Dir}")
+		math(EXPR _Counter "${_Counter} + 1")
+	endforeach ()
+endfunction()
+
+
+if (WIN32)
+	# Set the Docker flag when the file exists.
+	if (EXISTS "Z:/.dockerenv")
+		set(SF_DOCKER TRUE)
+	endif ()
+	if (MINGW)
+		# Adding option '-mwindows' as a linker flag will remove the console.
+		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=bfd")
+	endif ()
+	if (MSVC)
+		# Needed to be able to set debug breaks using MSVC
+		#add_compile_definitions($<$<CONFIG:Debug>:_DEBUG>)
+		# Warning: This disables some STL bounds checking in Debug builds otherwise the Qt Release library build
+		# causes access violations in for example:
+		#   QString::fromStdString({"My String."});
+		# Release builds from the application has no problem linking or violations.
+		add_compile_definitions($<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
+	endif ()
+else ()
+	# Set the Docker flag when the file exists.
+	if (EXISTS "/.dockerenv")
+		set(SF_DOCKER TRUE)
+	endif ()
+endif ()

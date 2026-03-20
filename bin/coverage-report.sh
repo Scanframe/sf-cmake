@@ -16,6 +16,8 @@ function ShowHelp {
 	echo "Usage: ${0} [options] <directories>
 
   Needs to be executed in the project directory where the main CMakeLists.txt resides.
+  All files having 'tests' as a subdirectory in the path are excluded from the report but
+  the data is still processed for coverage of inlined functions and templates.
 
   Options:
     -h, --help    : Show this help.
@@ -246,6 +248,8 @@ gcovr_mcd+=(--sort uncovered-percent)
 #gcovr_mcd+=(--decisions --calls)
 # Remove lines containing only an accolade.
 gcovr_mcd+=(--exclude-lines-by-pattern '^\s*\}\s*$')
+# Exclude files in the report when 'tests' is a subdirectory in the filepath.
+gcovr_mcd+=(--exclude '.*/tests/.*')
 
 # Add the gcda-files using file or search path(s).
 if ${flag_search_path}; then

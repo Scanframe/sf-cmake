@@ -21,7 +21,7 @@ $convertedPath = $InputPath
 # Find a matching drive.
 foreach ($drive in $networkDrives)
 {
-	if ( $normalizedInputPath.StartsWith($drive.ProviderName, [System.StringComparison]::InvariantCultureIgnoreCase))
+	if ( $drive.ProviderName.Length -and $normalizedInputPath.StartsWith($drive.ProviderName, [System.StringComparison]::InvariantCultureIgnoreCase))
 	{
 		# Replace UNC root with drive letter.
 		$relativePath = $normalizedInputPath.Substring($drive.ProviderName.Length)

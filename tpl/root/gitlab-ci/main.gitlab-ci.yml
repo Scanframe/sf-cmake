@@ -17,7 +17,7 @@ variables:
   # To propagate the CI_PIPELINE_ID to the child pipeline.
   SF_PARENT_PIPELINE_ID: "${CI_PIPELINE_ID}"
   # Default Docker image.
-  SF_DOCKER_IMAGE: "nexus.scanframe.com/amd64/gnu-cpp:24.04-6.8.1"
+  SF_DOCKER_IMAGE: "nexus.scanframe.com/amd64/gnu-cpp:24.04-6.10.1"
 
 workflow:
   rules:
@@ -45,6 +45,8 @@ stages:
 
 # Defaults for all jobs.
 default:
+  # Set a time limit for all jobs.
+  timeout: 2h
   # Set a specific Docker image to execute all jobs in.
   image: "${SF_DOCKER_IMAGE}"
   # Tags determine the selection of a runner.
@@ -96,6 +98,7 @@ cache-test:
     # Set the toolchain to use.
     SF_TOOLCHAIN: "toolchain"
     SF_BUILD_TYPE: "debug"
+    SF_BUILD_CMD: "./build.py native"
     SF_DIR_BIN: "bin/lnx64"
   trigger:
     forward:
@@ -113,6 +116,7 @@ linux-gnu:
     # Set the toolchain to use.
     SF_TOOLCHAIN: "gnu"
     SF_BUILD_TYPE: "release"
+    SF_BUILD_CMD: "./build.py native"
     SF_DIR_BIN: "bin/lnx64"
   trigger:
     forward:
@@ -131,6 +135,7 @@ linux-gw:
     # Set the toolchain to use.
     SF_TOOLCHAIN: "gw"
     SF_BUILD_TYPE: "release"
+    SF_BUILD_CMD: "./build.py native"
     SF_DIR_BIN: "bin/win64"
   trigger:
     strategy: depend
@@ -149,7 +154,27 @@ linux-ga:
     # Set the toolchain to use.
     SF_TOOLCHAIN: "ga"
     SF_BUILD_TYPE: "release"
+    SF_BUILD_CMD: "./build.py native"
     SF_DIR_BIN: "bin/lnx64"
+  trigger:
+    strategy: depend
+    forward:
+      yaml_variables: true
+    include:
+      - local: '.gitlab/build-single.gitlab-ci.yml'
+
+wine-msvc:
+  stage: build
+  needs:
+    - job: check-env
+    - job: linux-gcov
+  extends: .build-rules
+  variables:
+    # Set the toolchain to use.
+    SF_TOOLCHAIN: "msvc"
+    SF_BUILD_TYPE: "release"
+    SF_BUILD_CMD: "./build.py wine --"
+    SF_DIR_BIN: "bin/win64"
   trigger:
     strategy: depend
     forward:
@@ -166,6 +191,7 @@ linux-gcov:
     # Set the toolchain to use.
     SF_TOOLCHAIN: "gnu"
     SF_BUILD_TYPE: "coverage"
+    SF_BUILD_CMD: "./build.py native"
     SF_DIR_BIN: "bin/lnx64"
   rules:
     # Skip if the signal is 'test'.
@@ -185,7 +211,7 @@ linux-gcov:
     include:
       - local: '.gitlab/coverage.gitlab-ci.yml'
 
-# Report the coverage generated in the pipeline using infor stored on Nexus.
+# Report the coverage generated in the pipeline using info stored on Nexus.
 report-coverage:
   stage: report
   needs: [linux-gcov]

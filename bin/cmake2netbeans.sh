@@ -4,9 +4,9 @@
 set -o pipefail -e
 
 # Get the script directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Include WriteLog function.
-source "${SCRIPT_DIR}/inc/WriteLog.sh"
+source "${script_dir}/inc/WriteLog.sh"
 
 # Prints the help.
 #

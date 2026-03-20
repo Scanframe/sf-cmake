@@ -10,7 +10,19 @@
 			"name": ".cfg",
 			"hidden": true,
 			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/cmake-build$penv{SF_BIN_DIR_SUFFIX}/${presetName}",
+			"environment": {
+				"SF_LIBRARY_DIR": "$env{SF_EXECUTABLE_DIR}/lib"
+			},
 			"cacheVariables": {
+				"CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+					"type": "STRING",
+					"value": "$env{SF_EXECUTABLE_DIR}"
+				},
+				"CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
+					"type": "STRING",
+					"value": "$env{SF_LIBRARY_DIR}"
+				},
 				"CMAKE_COLOR_DIAGNOSTICS": {
 					"type": "BOOL",
 					"value": "ON"
@@ -39,12 +51,7 @@
 					"type": "STRING",
 					"value": ""
 				},
-				"SF_COVERAGE_ONLY_TARGETS":
-				{
-					"type": "STRING",
-					"value": ""
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
+				"SF_COVERAGE_ONLY_TARGETS": {
 					"type": "STRING",
 					"value": ""
 				}
@@ -69,6 +76,53 @@
 			}
 		},
 		{
+			"name": ".tc-msvc",
+			"description": "Toolchain for generic MSVC",
+			"hidden": true,
+			"environment": {
+				"MSVC_ROOT": "$penv{MSVC_ROOT}",
+				"VCToolsVersion": "14.44.35207",
+				"WindowsSDKVersion": "10.0.26100.0",
+				"VSCMD_ARG_HOST_ARCH": "x64",
+				"VSCMD_ARG_TGT_ARCH": "x64",
+				"VCToolsInstallDir": "$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}",
+				"WindowsSdkBinPath": "$env{MSVC_ROOT}\\Windows Kits\\10\\bin",
+				"LIB": "$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\lib\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\Lib\\$env{WindowsSDKVersion}\\ucrt\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\Lib\\$env{WindowsSDKVersion}\\um\\$env{VSCMD_ARG_TGT_ARCH}",
+				"INCLUDE": "$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\include;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\ucrt;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\shared;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\um;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\winrt;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\cppwinrt",
+				"PATH": "$env{SF_LIBRARY_DIR};$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\bin\\Host$env{VSCMD_ARG_TGT_ARCH}\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH}\\ucrt;$penv{PATH}"
+			},
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "msvc"
+				}
+			}
+		},
+		{
+			"name": ".tc-msvc-2022",
+			"description": "Toolchain for MSVC 2022",
+			"hidden": true,
+			"inherits": [
+				".tc-msvc"
+			],
+			"environment": {
+				"VCToolsVersion": "14.44.35207",
+				"WindowsSDKVersion": "10.0.26100.0"
+			}
+		},
+		{
+			"name": ".tc-msvc-2026",
+			"description": "Toolchain for MSVC 2026",
+			"hidden": true,
+			"inherits": [
+				".tc-msvc"
+			],
+			"environment": {
+				"VCToolsVersion": "14.50.35717",
+				"WindowsSDKVersion": "10.0.26100.0"
+			}
+		},
+		{
 			"name": ".qt",
 			"hidden": true,
 			"cacheVariables": {
@@ -88,7 +142,8 @@
 			"displayName": "Debug Linux Template",
 			"description": "Debug config Linux template.",
 			"environment": {
-				"PATH": "${sourceDir}/cmake/lib/bin:$penv{PATH}"
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/lnx64$penv{SF_EXEC_DIR_SUFFIX}",
+				"LD_LIBRARY_PATH": "$env{SF_LIBRARY_DIR}:$penv{LD_LIBRARY_PATH}"
 			},
 			"cacheVariables": {
 				"SF_BUILD_TESTING": {
@@ -99,6 +154,9 @@
 					"type": "STRING",
 					"value": "gnu"
 				}
+			},
+			"vendor": {
+				"compiler": "gnu"
 			}
 		},
 		{
@@ -109,18 +167,14 @@
 			"hidden": true,
 			"displayName": "Debug Linux Template",
 			"description": "Debug config Linux template.",
-			"environment": {
-				"PATH": "${sourceDir}/cmake/lib/bin:$penv{PATH}"
-			},
 			"cacheVariables": {
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "ga"
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
-					"type": "STRING",
-					"value": "-arm"
 				}
+			},
+			"vendor": {
+				"compiler": "ga"
 			}
 		},
 		{
@@ -132,6 +186,9 @@
 			"hidden": true,
 			"displayName": "Debug Windows Template",
 			"description": "Debug config Windows template.",
+			"environment": {
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/win64$penv{SF_EXEC_DIR_SUFFIX}"
+			},
 			"cacheVariables": {
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
@@ -142,8 +199,8 @@
 					"value": "gw"
 				}
 			},
-			"environment": {
-				"PATH": "${sourceDir}/cmake/lib/bin:$penv{PATH}"
+			"vendor": {
+				"compiler": "gw"
 			}
 		},
 		{
@@ -155,6 +212,10 @@
 			"hidden": true,
 			"displayName": "Debug Windows Template",
 			"description": "Debug config Windows template.",
+			"environment": {
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/win64$penv{SF_EXEC_DIR_SUFFIX}",
+				"PATH": "$env{SF_LIBRARY_DIR};$penv{PATH}"
+			},
 			"cacheVariables": {
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
@@ -164,9 +225,6 @@
 					"type": "STRING",
 					"value": "mingw"
 				}
-			},
-			"environment": {
-				"PATH": "${sourceDir}/lib/qt/w64-x86_64/Tools/mingw1120_64/bin;$penv{PATH}"
 			}
 		},
 		{
@@ -178,7 +236,8 @@
 				".qt",
 				".cfg-lnx"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/gnu-debug"
+			"cacheVariables": {
+			}
 		},
 		{
 			"name": "ga-debug",
@@ -189,7 +248,8 @@
 				".qt",
 				".cfg-lnx-arm"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/ga-debug"
+			"cacheVariables": {
+			}
 		},
 		{
 			"name": "gnu-coverage",
@@ -205,8 +265,7 @@
 					"type": "STRING",
 					"value": "Coverage"
 				}
-			},
-			"binaryDir": "${sourceDir}/cmake-build/gnu-coverage"
+			}
 		},
 		{
 			"name": "gw-coverage",
@@ -222,8 +281,7 @@
 					"type": "STRING",
 					"value": "Coverage"
 				}
-			},
-			"binaryDir": "${sourceDir}/cmake-build/gw-coverage"
+			}
 		},
 		{
 			"name": "gw-debug",
@@ -233,8 +291,7 @@
 			"inherits": [
 				".qt",
 				".cfg-win"
-			],
-			"binaryDir": "${sourceDir}/cmake-build/gw-debug"
+			]
 		},
 		{
 			"name": "gnu-release",
@@ -245,7 +302,12 @@
 				".qt",
 				".cfg-lnx"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/gnu-release"
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
 		},
 		{
 			"name": "ga-release",
@@ -256,7 +318,12 @@
 				".qt",
 				".cfg-lnx-arm"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/ga-release"
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
 		},
 		{
 			"name": "gw-release",
@@ -267,7 +334,12 @@
 				".qt",
 				".cfg-win"
 			],
-			"binaryDir": "${sourceDir}/cmake-build/gw-release"
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
 		},
 		{
 			"name": "mingw-debug",
@@ -282,13 +354,13 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "mingw"
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
-					"type": "STRING",
-					"value": "-ntv"
 				}
 			},
-			"binaryDir": "$env{HOME}/tmp/cmake-build/mingw-debug"
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MinGW"
+				}
+			}
 		},
 		{
 			"name": "mingw-release",
@@ -300,16 +372,68 @@
 				".cfg-w64"
 			],
 			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				},
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "mingw"
-				},
-				"SF_OUTPUT_DIR_SUFFIX": {
-					"type": "STRING",
-					"value": "-ntv"
 				}
 			},
-			"binaryDir": "${sourceDir}/cmake-build/mingw-release"
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MinGW"
+				}
+			}
+		},
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"displayName": "Debug MSVC",
+			"description": "Debug config for MSVC compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-msvc-2022",
+				".cfg-w64"
+			],
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "msvc"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MSVC"
+				}
+			}
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"displayName": "Release MSVC",
+			"description": "Release config for MSVC compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-msvc-2022",
+				".cfg-w64"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				},
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "msvc"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MSVC"
+				}
+			}
 		}
 	],
 	"buildPresets": [
@@ -449,6 +573,28 @@
 			"displayName": "Release MinGW",
 			"description": "Release build MinGW compiler on Windows.",
 			"configurePreset": "mingw-release",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		},
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"displayName": "Debug MSVC",
+			"description": "Debug build MSVC compiler on Windows.",
+			"configurePreset": "msvc-debug",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"displayName": "Release MSVC",
+			"description": "Release build MSVC compiler on Windows.",
+			"configurePreset": "msvc-release",
 			"inherits": [
 				".w64-only",
 				".build"
@@ -594,6 +740,28 @@
 				".test"
 			],
 			"configurePreset": "mingw-release"
+		},
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"displayName": "Debug MSVC",
+			"description": "Debug test MSVC compiler on Windows.",
+			"inherits": [
+				".w64-only",
+				".test"
+			],
+			"configurePreset": "msvc-debug"
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"displayName": "Release MSVC",
+			"description": "Release test MSVC compiler on Windows.",
+			"inherits": [
+				".w64-only",
+				".test"
+			],
+			"configurePreset": "msvc-release"
 		}
 	],
 	"packagePresets": [
@@ -748,6 +916,38 @@
 			"displayName": "MinGW ZIP + NSIS",
 			"description": "MinGW ZIP + NSIS package debug.",
 			"configurePreset": "mingw-release",
+			"packageDirectory": "${sourceDir}/bin/pkg",
+			"generators": [
+				"NSIS64",
+				"ZIP"
+			]
+		},
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MSVC ZIP + NSIS",
+			"description": "MSVC ZIP + NSIS package debug.",
+			"configurePreset": "msvc-debug",
+			"packageDirectory": "${sourceDir}/bin/pkg",
+			"generators": [
+				"NSIS64",
+				"ZIP"
+			]
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MSVC ZIP + NSIS",
+			"description": "MSVC ZIP + NSIS package debug.",
+			"configurePreset": "msvc-release",
 			"packageDirectory": "${sourceDir}/bin/pkg",
 			"generators": [
 				"NSIS64",
@@ -1007,6 +1207,52 @@
 			"vendor": {
 				"target_os": "Cygwin"
 			}
+		},
+		{
+			"name": "msvc-debug",
+			"displayName": "Debug MSVC",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "build",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "test",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "package",
+					"name": "msvc-debug"
+				}
+			]
+		},
+		{
+			"name": "msvc-release",
+			"displayName": "Release MSVC",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "msvc-release"
+				},
+				{
+					"type": "build",
+					"name": "msvc-release"
+				},
+				{
+					"type": "test",
+					"name": "msvc-release"
+				},
+				{
+					"type": "package",
+					"name": "msvc-release"
+				}
+			]
 		}
 	]
 }

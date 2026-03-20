@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.29)
 
 # Set the project name which is also used as the target name.
 project("hello-lib"
@@ -15,12 +15,12 @@ if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
 	find_package(SfBuildCheck CONFIG REQUIRED)
 	find_package(SfMacros CONFIG REQUIRED)
 	find_package(SfCompiler CONFIG REQUIRED)
-	# Set the 3 CMAKE_xxxxx_OUTPUT_DIRECTORY variables.
-	Sf_SetOutputDirs("bin")
 endif ()
 
+
+# //! [switch]
 # Switch between static and dynamic library build.
-if (False)
+if (TRUE)
 	# Add shared library target and also sets the dynamic library version.
 	Sf_AddSharedLibrary("${PROJECT_NAME}")
 	# Sets the extension of the generated binary.
@@ -53,6 +53,7 @@ else ()
 		_HWL_ARC
 	)
 endif ()
+# //! [switch]
 
 # Adds the compiler and linker options for coverage.
 Sf_AddTargetForCoverage("${PROJECT_NAME}")
@@ -76,10 +77,5 @@ target_include_directories(${PROJECT_NAME}
 	PRIVATE "inc/hwl"
 )
 
-# Function enable_testing() set the 'BUILD_TESTING' flag.
-if (SF_BUILD_TESTING)
-	add_subdirectory(tests/google)
-	add_subdirectory(tests/catch)
-endif ()
 
 

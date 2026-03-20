@@ -9,11 +9,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # Include WriteLog function.
 source "${script_dir}/inc/Miscellaneous.sh"
 
-# Check if the executable directory has been set.
-if [[ -z "${EXECUTABLE_DIR}" || ! -d "${EXECUTABLE_DIR}" ]]; then
-	WriteLog "Environment variable 'EXECUTABLE_DIR' does not exist or has not been set!"
-	exit 1
-fi
+# Set the default.
+dir_bin_win="${SF_EXECUTABLE_DIR:-${PWD}}"
 
 # Get the Qt installed directory.
 if qt_ver_dir="$("${script_dir}/QtLibDir.sh" "Windows")"; then
@@ -33,52 +30,22 @@ if ! command -v "${wine_bin}" >/dev/null; then
 fi
 
 # Form the binary target directory for cross Windows builds.
-dir_bin_win="$(realpath "${EXECUTABLE_DIR}")"
+dir_bin_win="$(realpath "${dir_bin_win}")"
 # Location of MinGW DLLs.
 dir_mingw_dll="/usr/x86_64-w64-mingw32/lib"
 # Location of MinGW posix DLLs 2.
 dir_mingw_dll2="$(find /usr/lib/gcc/x86_64-w64-mingw32 -name "*-posix" | sort -V | tail -n 1)"
 
-##
-# Select executable from the available ones using a dialog.
-#
-function SelectBinary {
-	local files
-	declare -A files
-	local dlg_options=("0" "<None>")
-	local idx=0
-	# 'None' as first entry.
-	files[0]=""
-	# Split the output into an array using the newline character as the delimiter
-	while IFS= read -r -d $'\n'; do
-		idx=$((idx + 1))
-		files[${idx}]="${REPLY}"
-		dlg_options+=("${idx}" "${REPLY}")
-	done < <(cd "${dir_bin_win}" && ls -1A *.exe)
-	# Create a dialog returning a selection index.
-	idx="$(dialog --backtitle "Run Windows Binary" \
-		--menu "Select a Windows binary to run using Wine $("${wine_bin}" --version)" \
-		22 60 80 "${dlg_options[@]}" 2>&1 >/dev/tty)"
-	# Echoing the binary filename as the return value.
-	echo "${files[${idx}]}"
-}
 
 # When no executable name is passed show selection dialog.
 if [[ -z "${1}" ]]; then
-	bin_file="$(SelectBinary)"
-else
-	# Selected binary file from command line.
-	bin_file="${1}"
-	shift 1
+	WriteLog "! No executable was passed."
+	exit 1
 fi
 
-# When no selection made exit.
-if [[ -z "${bin_file}" ]]; then
-	WriteLog "- No selection made."
-	exit 0
-else
-	WriteLog "- Selected binary: ${EXECUTABLE_DIR}/${bin_file}"
-fi
+# Selected binary file from command line.
+bin_file="${1}"
+shift 1
 
 # Check if all directories exist.
 for dir_name in "${dir_bin_win}" "${dir_mingw_dll}" "${dir_mingw_dll2}" "${dir_qt_dll}"; do
@@ -127,6 +94,17 @@ if [[ -n "${GDBSERVER_BIN}" ]]; then
 		WriteLog "Exit code ($?)!"
 	done
 else
+# Check if the binary file is actually a command.
+if [[ "${bin_file:0:1}" == '@' ]]; then
+	# Append this scripts directory for finding commands.
+	export PATH="${PATH}:${script_dir}"
+	# Remove the first character.
+	bin_file="${bin_file:1}"
+	# Execute the command found in the path.
+	"${bin_file}" "${@}"
+else
 	# Execute the binary with all options.
-	"${wine_bin}" "${bin_file}" "$@" "${ctest_arguments[@]}"
+	"${wine_bin}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
 fi
+fi
+

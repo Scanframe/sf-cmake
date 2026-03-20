@@ -1,8 +1,8 @@
 # Define and use some foreground colors values when not running CI-jobs
-# or when terminal is 'dumb' when running ctest from CLion.
+# or when terminal is 'dumb' or 'unknown' when running ctest from CLion.
 
 declare -A col_fg
-if [[ "${TERM}" == "dumb" || -z "${TERM}" || -n "${CI}" ]]; then
+if [[ "${TERM}" == "dumb" || "${TERM}" == 'unknown' || -z "${TERM}" || -n "${CI}" ]]; then
 	col_fg[black]=""
 	col_fg[red]=""
 	col_fg[green]=""

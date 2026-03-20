@@ -1,10 +1,17 @@
 # FetchContent added in CMake 3.11, downloads during the configure step
 include(FetchContent)
 # Import Catch2 library for testing.
+#[[
 FetchContent_Declare(
 	"Catch2-${SfCatch2_VERSION}"
-	GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+	GIT_REPOSITORY "https://github.com/catchorg/Catch2.git"
 	GIT_TAG "v${SfCatch2_VERSION}"
+	GIT_SHALLOW 1
+)
+]]
+FetchContent_Declare(
+	"Catch2-${SfCatch2_VERSION}"
+	URL "https://github.com/catchorg/Catch2/archive/refs/tags/v${SfCatch2_VERSION}.tar.gz"
 )
 # Adds Catch2::Catch2
 FetchContent_MakeAvailable("Catch2-${SfCatch2_VERSION}")

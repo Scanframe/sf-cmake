@@ -39,60 +39,6 @@ macro(Sf_AddImportLibrary TargetName)
 endmacro()
 
 ##!
-# Locates a top '_DirName' directory containing the file named '__output__'.
-# Sets the '_OutputDir' variable when found.
-#
-function(Sf_LocateOutputDir _DirName _OutputDir)
-	# InitializeBase return value variable.
-	set(${_OutputDir} "" PARENT_SCOPE)
-	# Loop from 9 to 4 with step 1.
-	foreach (_Counter RANGE 0 4 1)
-		# Form the string to the parent directory.
-		string(REPEAT "/.." ${_Counter} _Sub)
-		# Get the real filepath which is looked for.
-		Sf_GetFilenameComponent(_Dir "${CMAKE_CURRENT_LIST_DIR}${_Sub}/${_DirName}" REALPATH)
-		# When the file inside is found Set the output directories and break the loop.
-		if (EXISTS "${_Dir}/__output__")
-			set(_Sep "/")
-			# Make a distinction based on targeted system.
-			if (WIN32)
-				set(${_OutputDir} "${_Dir}${_Sep}win64${SF_OUTPUT_DIR_SUFFIX}" PARENT_SCOPE)
-			else ()
-				set(${_OutputDir} "${_Dir}${_Sep}lnx64${SF_OUTPUT_DIR_SUFFIX}" PARENT_SCOPE)
-			endif ()
-			# Stop here the directory has been found.
-			break()
-		endif ()
-	endforeach ()
-endfunction()
-
-##!
-# Sets the CMAKE_??????_OUTPUT_DIRECTORY variables when an output directory has been found.
-# Only when the top level project is the current project.
-# Fatal error when not able to do so.
-#
-function(Sf_SetOutputDirs _DirName)
-	# if (CMAKE_PROJECT_NAME STREQUAL "${PROJECT_NAME}")
-	if (PROJECT_IS_TOP_LEVEL)
-		Sf_LocateOutputDir("${_DirName}" _OutputDir)
-		# Check if the directory was found.
-		if (_OutputDir STREQUAL "")
-			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}() (${PROJECT_NAME}): Output directory could not be located! (missing a file '__output__'?)")
-		else ()
-			message(STATUS "Setting output directories for top level project '${PROJECT_NAME}'.")
-			# Set the directories accordingly in the parents scope.
-			#if (CMAKE_RUNTIME_OUTPUT_DIRECTORY STREQUAL "")
-			set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
-			#endif ()
-			#if (CMAKE_LIBRARY_OUTPUT_DIRECTORY STREQUAL "")
-			set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_OutputDir}/lib" PARENT_SCOPE)
-			#endif ()
-			#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${_OutputDir}" PARENT_SCOPE)
-		endif ()
-	endif ()
-endfunction()
-
-##!
 # Sets the extension of the created shared library or executable.
 #
 function(Sf_SetTargetSuffix)
@@ -112,22 +58,6 @@ function(Sf_SetTargetSuffix)
 			endif ()
 		endif ()
 	endforeach ()
-endfunction()
-
-##!
-# Gets all sub directories which match the passed regex.
-#
-function(Sf_GetSubDirectories VarOut Directory MatchStr)
-	file(GLOB _Children RELATIVE "${Directory}" "${Directory}/*")
-	set(_List "")
-	foreach (_Child ${_Children})
-		if (IS_DIRECTORY "${Directory}/${_Child}")
-			if ("${_Child}" MATCHES "${MatchStr}")
-				list(APPEND _List "${_Child}")
-			endif ()
-		endif ()
-	endforeach ()
-	set(${VarOut} ${_List} PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -175,10 +105,15 @@ endfunction()
 
 ##!
 # Checks if the passed path is a symlink.
-# Sets the '_ResultVar' variable to True or False.
+# Sets the '_ResultVar' variable to TRUE or FALSE.
 # Returns false when the path does not exist.
 #
 function(Sf_IsSymlink _Path _ResultVar)
+	# Check if the variable exists
+	if (NOT EXISTS "${_Path}")
+		set(_ResultVar FALSE PARENT_SCOPE)
+		return()
+	endif ()
 	# When the host system is not windows.
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		# Windows doesn't have symlinks in the same way, but it has junctions and symlinks and are treated the same way.
@@ -240,7 +175,9 @@ function(Sf_GetNamedSubdirectories _RootDir _RelativeToDir _SubDir _OutVar)
 	set("${_OutVar}" ${_Result} PARENT_SCOPE)
 endfunction()
 
-
+##!
+# Used by Sf_GetNamedSubdirectories()
+#
 function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
 	# Initialize empty list
 	set(_Result)
@@ -261,4 +198,59 @@ function(Sf_DoGetNamedSubdirectories _RootDir _SubDir _OutVar)
 	endforeach ()
 	# Set output variable with collected directories
 	set("${_OutVar}" ${_Result} PARENT_SCOPE)
+endfunction()
+
+##!
+# Gets release versions from a GitHub repository.
+# @param _Owner Name of owner of the repository.
+# @param _Repository Name of the owners repository.
+# @param Optional boolean true for latest version only.
+#
+function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
+	# Get the first optional argument.
+	Sf_GetOptionalArgument(_arg3 0 "${ARGN}")
+	if (DEFINED _arg3 AND _arg3)
+		# Set default plantuml version to the latest.
+		set(_Options "--latest")
+	else ()
+		set(_Options "--joined")
+	endif ()
+	list(APPEND _Options "--owner" "${_Owner}" "--repo" "${_Repository}")
+	cmake_path(CONVERT "${CMAKE_CURRENT_BINARY_DIR}/_cache" TO_NATIVE_PATH_LIST _NativeCacheDir)
+	#cmake_path(NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}" _CacheDir)
+	# Make the cache dir to be in the binary directory so when that is deleted the cache is too.
+	list(APPEND _Options "--cache-dir" "${_NativeCacheDir}")
+	find_program(_PythonExe "python" REQUIRED)
+	if (_PythonExe)
+		execute_process(
+			COMMAND ${_PythonExe} "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/github-versions.py" ${_Options}
+			WORKING_DIRECTORY "${CMAKE_CURRENT_FUNCTION_LIST_DIR}"
+			OUTPUT_VARIABLE _Versions
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			COMMAND_ERROR_IS_FATAL ANY
+			ECHO_OUTPUT_VARIABLE
+			ECHO_ERROR_VARIABLE
+		)
+	endif ()
+	if (_Versions STREQUAL "")
+		set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
+		return()
+	else ()
+		set(${_VarOut} "${_Versions}" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
+# Gets latest release version from a GitHub repository.
+# @param _Owner Name of owner of the repository.
+# @param _Repository Name of the owners repository.
+#
+function(Sf_GetGitHubVersion _VarOut _Owner _Repository)
+	Sf_GetGitHubVersions(_Version "${_Owner}" "${_Repository}" TRUE)
+	if (_Version STREQUAL "")
+		set(${_VarOut} "${_VarOut}-NOTFOUND" PARENT_SCOPE)
+		return()
+	else ()
+		set(${_VarOut} "${_Version}" PARENT_SCOPE)
+	endif ()
 endfunction()

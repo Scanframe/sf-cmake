@@ -2,13 +2,17 @@
 
 ## Compiling
 
-The documentation is compiled by the  '**document**' target.
+The documentation is compiled by the '**document**' target.
 
 From the command line this is:
 
 ```shell
- ./build.sh -b gnu-debug -n document
-```
+# Linux
+ ./build.py -b gnu-debug -n document
+ # Windows
+ ./build.py -b mingw-debug -n document
+ ./build.py -b msvc-debug -n document
+ ```
 
 ## Convention
 

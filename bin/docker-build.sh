@@ -2,6 +2,8 @@
 
 # Bail out on first error.
 set -e
+# Make sure the 'tee pipes' fail correctly. Don't hide errors within pipes.
+set -o pipefail
 
 # Get the scripts run directory weather it is a symlink or not.
 run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,6 +16,10 @@ fi
 
 # Include the Miscellaneous functions.
 source "${include_dir}/inc/Miscellaneous.sh"
+
+## Trap script exit with function.
+trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
+
 # Get the project root and subdirectory.
 project_subdir="$(basename "${run_dir}")"
 # Determines if the build is in the 'cmake-build/docker' directory or not.
@@ -22,11 +28,11 @@ flag_build_dir=true
 if [[ "$(uname -m)" == 'aarch64' ]]; then
 	platform="arm64"
 	# Qt default version
-	qt_ver="6.9.1"
+	qt_ver="6.10.1"
 else
 	platform="amd64"
 	# Qt default version
-	qt_ver="6.9.1"
+	qt_ver="6.10.1"
 fi
 
 # Set container name to be used.
@@ -34,11 +40,23 @@ container_name="cpp_builder"
 # Hostname for the docker container.
 hostname="$(hostname)"
 
+# Find the build python or bash build script.
+for bs in "build.py" "build.sh" ; do
+	if [[ -f "${run_dir}/${bs}" ]]; then
+		build_script="${bs}"
+		break
+	fi
+done
+if [[ -z "${build_script}" ]]; then
+	WriteLog "! Required build script not found."
+	exit 1
+fi
+
 function show_help {
 	local cmd
 	cmd="$(basename "${0}")"
 	# When no arguments are given run bash from within the container.
-	echo "Same as 'build.sh' script but running from Docker image but allows Docker specific commands.
+	echo "Same as '${build_script}' script but running from Docker image but allows Docker specific commands.
 
 Usage: ${cmd} <options> -- <build-options> [command] <args...>
 
@@ -55,12 +73,13 @@ Usage: ${cmd} <options> -- <build-options> [command] <args...>
     start     : Starts/Detaches a container named '${container_name}' in the background.
     attach    : Attaches to the  in the background running container named '${container_name}'.
     status    : Returns info of the running container '${container_name}' in the background.
+    prune     : Remove unused data and anonymous volumes.
     stop      : Stops the container named '${container_name}' running in the background.
     kill      : Kills the container named '${container_name}' running in the background.
     versions  : Shows versions of most installed applications within the container.
     sshd      : Starts sshd service on port 3022 to allow remote control.
 
-  When a the container is detached it executes the 'build.sh' script by attaching to the container which is much faster.
+  When a the container is detached it executes the '${build_script}' script by attaching to the container which is much faster.
 
   Examples:
     Show the targets using the amd64 platform docker image and Qt version ${qt_ver}.
@@ -82,7 +101,7 @@ function is_detached {
 	[[ -n "${cntr_id}" ]] || return 1 && return 0
 }
 
-# Function which runs the docker build.sh script in the container.
+# Function which runs the docker build script in the container.
 function docker_run {
 	if is_detached; then
 		docker exec --interactive --tty "${container_name}" sudo --login --user=user -- "${@}"
@@ -113,7 +132,7 @@ else
 
 			--no-build-dir)
 				flag_build_dir=false
-				shift 2
+				shift 1
 				continue
 				;;
 
@@ -130,7 +149,7 @@ else
 				;;
 
 			'--')
-				shift
+				shift 1
 				break
 				;;
 
@@ -181,21 +200,23 @@ else
 	# Check if the build directory offset has been set for separate build dir offset.
 	if ${flag_build_dir}; then
 		# Build directory used for Docker builds.
-		build_dir="${run_dir}/cmake-build/docker-${platform}"
+		build_dir="${run_dir}/cmake-build/docker-${platform}-${qt_ver}"
 		# Create the special docker binary build directory.
 		mkdir --parents "${build_dir}"
 		if [[ "$(uname -o)" == "Cygwin" ]]; then
 			options+=(--volume "$(cygpath -w "${build_dir}"):/mnt/project/${project_subdir}/cmake-build:rw")
 		else
 			options+=(--volume "${build_dir}:/mnt/project/${project_subdir}/cmake-build:rw")
+			# Hack to map the user's TEMP directory outside the container so it is not deleted when it finished.
+			options+=(--volume "${build_dir}:/opt/wine-prefix/drive_c/users/user/Temp:rw")
 		fi
 	fi
 	options+=(--workdir "/mnt/project/${project_subdir}/")
 	# Form the Docker image name and trim the '-' whe qt_ver is empty.
 	img_name="nexus.scanframe.com/${platform}/gnu-cpp:24.04-${qt_ver}"
 	img_name="${img_name/%-/}"
-	WriteLog "Docker image used: ${img_name}":
-	# Process the given commands additional to the 'build.sh' script.
+	WriteLog "# Docker image used: ${img_name}"
+	# Process the given commands additional to the build script.
 	case "$1" in
 		pull)
 			# Pull the Docker image from the registry.
@@ -215,7 +236,7 @@ else
 		detach | start)
 			# Check if the container is running.
 			if is_detached; then
-				WriteLog "Container '${container_name}' is already running."
+				WriteLog "# Container '${container_name}' is already running."
 				exit 1
 			fi
 			# Name of the container only useful for detached running.
@@ -227,7 +248,7 @@ else
 		sshd)
 			# Check if the container is running.
 			if is_detached; then
-				WriteLog "Container '${container_name}' is already running."
+				WriteLog "# Container '${container_name}' is already running."
 				exit 1
 			fi
 			# Name of the container only useful for detached running.
@@ -244,7 +265,7 @@ else
 		attach)
 			# Check if the container is running.
 			if ! is_detached; then
-				WriteLog "Container '${container_name}' is not running."
+				WriteLog "# Container '${container_name}' is not running."
 				exit 1
 			fi
 			# Remove the attach command from the arguments list.
@@ -258,22 +279,27 @@ else
 			docker ps --filter name="${container_name}"
 			;;
 
+		prune)
+			# Prune all dangling images.
+			docker system prune --volumes
+			;;
+
 		stop | kill)
 			if is_detached; then
-				WriteLog "Container ID is '${cntr_id}' and performing '${1}' command."
+				WriteLog "# Container ID is '${cntr_id}' and performing '${1}' command."
 				docker "${1}" "${cntr_id}"
 			else
-				WriteLog "Container '${container_name}' is not running."
+				WriteLog "# Container '${container_name}' is not running."
 			fi
 			;;
 
 		*)
 			# Stop this docker container only.
 			if is_detached; then
-				docker exec --interactive --tty "${container_name}" sudo --login --user=user -- "/mnt/project/${project_subdir}/build.sh" "${@}"
+				docker exec --interactive --tty "${container_name}" sudo --login --user=user -- "/mnt/project/${project_subdir}/${build_script}" "${@}"
 			else
 				# Execute/run the build script from the Docker container.
-				docker_run "/mnt/project/${project_subdir}/build.sh" "${@}"
+				docker_run "/mnt/project/${project_subdir}/${build_script}" "${@}"
 			fi
 			;;
 	esac

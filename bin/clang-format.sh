@@ -162,7 +162,7 @@ done
 # Check for recursive operation.
 if ${flag_recursive}; then
 	# When max directory depth is set.
-	find_options+=("-maxdepth ${max_depth:-1}")
+	find_options=("-maxdepth" "${max_depth:-1}" "${find_options[@]}")
 fi
 
 # Find the cfg_file file for clang-format up the tree.

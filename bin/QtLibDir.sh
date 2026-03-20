@@ -46,12 +46,12 @@ if [[ -f /.dockerenv ]]; then
 	local_qt_root="${HOME}/lib/${qt_subdir}"
 else
 	##
-	## Try finding the Qt library of the project first using the file 'build.sh' location.
+	## Try finding the Qt library of the project first using the file 'build.py' location.
 	##
-	# Move 1 directory up since the 'build.sh' is also in this directory.
+	# Move 1 directory up since the 'build.py' is also in this directory.
 	pushd "${run_dir}/.." >/dev/null
-	# Look for file 'build.sh' up the directory path from the scripts directory.
-	if filepath="$(FindUp --type f build.sh)"; then
+	# Look for file 'build.py' up the directory path from the scripts directory.
+	if filepath="$(FindUp --type f build.py)"; then
 		# Form the expected directory for the Qt library.
 		local_qt_root="$(dirname "${filepath}")/lib/${qt_subdir}"
 	fi

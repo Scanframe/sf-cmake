@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.29)
 
 # Set the global project name.
 project("document")
@@ -24,9 +24,16 @@ if (SfDoxygen_FOUND)
 	list(FILTER _Targets EXCLUDE REGEX "^${SF_TEST_NAME_PREFIX}.*$")
 	# Iterate through all targets to remove.
 	foreach (_Target ${_Targets})
+		# Exclude fetched targets.
+		get_target_property(_SourceDir "${_Target}" SOURCE_DIR)
+		string(FIND "${_SourceDir}" "${FETCHCONTENT_BASE_DIR}" _Pos)
+		if(_Pos EQUAL 0)
+			message(VERBOSE "Document Target Skipped: ${_Target}")
+			continue()
+		endif ()
 		get_target_property(_Type "${_Target}" TYPE)
-		# Only use executables and shared libraries.
-		if (_Type STREQUAL "EXECUTABLE" OR _Type STREQUAL "SHARED_LIBRARY")
+		# Only use executables and shared or static libraries.
+		if (_Type STREQUAL "EXECUTABLE" OR _Type STREQUAL "SHARED_LIBRARY" OR _Type STREQUAL "STATIC_LIBRARY")
 			message(VERBOSE "Document Target (${_Type}): ${_Target}")
 		else ()
 			list(REMOVE_ITEM APPEND _Targets "${_Target}")
@@ -47,6 +54,6 @@ if (SfDoxygen_FOUND)
 	list(JOIN _SourceList "\n\t" _Files)
 	message(NOTICE "Target Files:\n\t${_Files}")
 ]]
-	# Adds the actual manual target .
-	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" "v1.2025.0")
+	# Adds the actual manual target and the last 2 optional arguments are awesome theming flag and plantuml version.
+	Sf_AddDoxygenDocumentation("${PROJECT_NAME}" "${PROJECT_SOURCE_DIR}" "${_ImageDirs}" "${PROJECT_SOURCE_DIR}/../bin/man" "${_SourceList}" TRUE)
 endif ()
