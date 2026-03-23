@@ -482,7 +482,8 @@ QT_VER = "6.10.1"
 CMAKE_LIB_SUBDIR = ["cmake", "lib"]
 
 
-def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = None, release_tag: Optional[str] = None) -> Optional[Dict[str, any]]:
+def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = None, release_tag: Optional[str] = None
+) -> Optional[Dict[str, any]]:
 	"""
 	Fetch GitHub release information and assets.
 	:param owner: Repository owner
@@ -529,7 +530,7 @@ def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = N
 		return None
 
 
-def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, digest:Optional[str] = None) -> bool:
+def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, digest: Optional[str] = None) -> bool:
 	"""
 	Extracts the url of a given compressed file to the given destination directory.
 	After extraction the directory is renamed to new_dir_name.
@@ -550,7 +551,7 @@ def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, 
 		# Download to the temporary file.
 		sha256_hash = hashlib.sha256() if digest else None
 		with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{filename}") as tmp_file:
-			for chunk in resp.iter_content(chunk_size=1024*4):
+			for chunk in resp.iter_content(chunk_size=1024 * 4):
 				tmp_file.write(chunk)
 				if sha256_hash:
 					sha256_hash.update(chunk)
@@ -615,6 +616,7 @@ def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, 
 	except Exception as e:
 		logger.error(f"Error extracting {url}: {e}")
 		return False
+
 
 def get_config_section(section: str, fail: bool = True) -> Dict[str, str]:
 	"""
@@ -1038,6 +1040,7 @@ def set_environment_by_preset(preset_name: str, preset_type: PresetTypes = Prese
 		return True
 	return False
 
+
 def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict[str, str] = None) -> Any:
 	"""
 	Recursively expands macros, substituting environment variables in strings from CMakePresets.json.
@@ -1074,7 +1077,8 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 	return value
 
 
-def run_command(cmd_list: List[str], input_data: bytes = None, shell: bool = False, capture_output: bool = False, check: bool = True,
+def run_command(cmd_list: List[str], input_data: bytes = None, shell: bool = False, capture_output: bool = False,
+	check: bool = True,
 	cwd: str = None, dbg_mode: DebugMode = DebugMode.REPORT
 ) -> subprocess.CompletedProcess | None:
 	"""
@@ -1094,7 +1098,8 @@ def run_command(cmd_list: List[str], input_data: bytes = None, shell: bool = Fal
 		logger.info(f"~ Executing from({cwd}): {cmd_str}")
 	# Raises a 'CalledProcessError' exception on error.
 	try:
-		return subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV, capture_output=capture_output, input=input_data)
+		return subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV, capture_output=capture_output,
+			input=input_data)
 	except Exception as ex:
 		ex.add_note(f"Subprocess: {' '.join(cmd_list)}")
 		raise ex
@@ -1908,7 +1913,7 @@ class SubCommandInstall(SubCommand):
 	def create_parser(self, subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
 			formatter_class=argparse.RawTextHelpFormatter,
-			help="Install required build tools or a quick start template project.")
+			help="Install required build tools or a quick start boilerplate project.")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -2045,7 +2050,7 @@ Choices are depended on the host platform:
 
 			case "doxygen":
 				logger.info("# Installing Doxygen latest released version.")
-				doxygen_dir = os.path.join(install_dir,  "doxygen")
+				doxygen_dir = os.path.join(install_dir, "doxygen")
 				if os.path.exists(doxygen_dir):
 					logger.warning(f": Doxygen directory already exists: {doxygen_dir}")
 					return False
@@ -2094,8 +2099,8 @@ Choices are depended on the host platform:
 		# Check if the repository was installed 'cmake/lib' submodule.
 		if not os.path.isdir(dir_cmake_lib):
 			# Suggest installing the cmake project template.
-			if ask_selection(options={True: "Yes", False: "No"}, title="CMakeLists.txt not found!",
-				caption=f"Clone project helper in '{'/'.join(CMAKE_LIB_SUBDIR)}'?"):
+			if ask_selection(options={True: "Yes", False: "No"}, title="Project Helper Repository",
+				caption=f"Add submodule project helper in '{'/'.join(CMAKE_LIB_SUBDIR)}'?"):
 				clone_options = {
 					"main@https://github.com/Scanframe/sf-cmake.git": "GitHub Scanframe 'sf-cmake.git'",
 					"main@https://git.scanframe.com/library/cmake-lib.git": "Scanframe GitLab 'cmake-lib.git'"
@@ -2109,7 +2114,11 @@ Choices are depended on the host platform:
 					branch, repo = selected.split("@")
 					if repo:
 						if repo[-4:] == ".git":
-							cmd = ["git", "clone", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
+							if ask_selection(options={True: "Git Submodule", False: "Standalone Repository"}, title="Helper Repository Type",
+								caption="Add repository as?"):
+								cmd = ["git", "submodule", "add", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
+							else:
+								cmd = ["git", "clone", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							# cmd = ["git", "submodule", "add", "--branch", "main", "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							if run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
 								logger.error(f"! Failed to add submodule in '{'/'.join(CMAKE_LIB_SUBDIR)}'!")
@@ -2231,9 +2240,12 @@ Choices are depended on the host platform:
 				#
 				logger.info(f"# Installing docker target.")
 				# Get distribution information
-				distro = run_command(["lsb_release", "-is"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip().lower()
-				codename = run_command(["lsb_release", "-cs"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
-				arch = run_command(["dpkg", "--print-architecture"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
+				distro = run_command(["lsb_release", "-is"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode(
+					"utf-8").strip().lower()
+				codename = run_command(["lsb_release", "-cs"], capture_output=True, dbg_mode=DebugMode.SILENT).stdout.decode(
+					"utf-8").strip()
+				arch = run_command(["dpkg", "--print-architecture"], capture_output=True,
+					dbg_mode=DebugMode.SILENT).stdout.decode("utf-8").strip()
 				# Download GPG key
 				gpg_url = f"https://download.docker.com/linux/{distro}/gpg"
 				gpg_result = run_command(["wget", "-qO-", gpg_url], capture_output=True, dbg_mode=DebugMode.SILENT)
@@ -2309,7 +2321,8 @@ Signed-By:
 				run_command(["sudo", "apt-get", "--yes", "install"] + main_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/qemu":
-				run_command(["sudo", "apt-get", "install", "-y", "qemu-user-static", "binfmt-support", "qemu-user-binfmt"], dbg_mode=DebugMode.REPORT_ONLY)
+				run_command(["sudo", "apt-get", "install", "-y", "qemu-user-static", "binfmt-support", "qemu-user-binfmt"],
+					dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/win":
 				run_command(["sudo", "apt-get", "install", "-y", "mingw-w64"], dbg_mode=DebugMode.REPORT_ONLY)
@@ -2481,7 +2494,8 @@ Examples:
 			return run_command(args_right, cwd=bin_dir, dbg_mode=DebugMode.REPORT_ONLY).returncode
 		else:
 			# Holds the cmake script and raise an exception on failure.
-			cmake_script = get_config_section("config", fail=True).get("cmake-run-file", os.path.join(*(CMAKE_LIB_SUBDIR + ["run-executable.cmake"])))
+			cmake_script = get_config_section("config", fail=True).get("cmake-run-file",
+				os.path.join(*(CMAKE_LIB_SUBDIR + ["run-executable.cmake"])))
 			# Check if the required cmake script is present and if not, bailout.
 			if not os.path.exists(cmake_script):
 				logger.info(f": Sub command 'run' disabled due to missing '{cmake_script}' file.")
