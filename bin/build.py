@@ -446,8 +446,9 @@ def create_config_parser(ini_path: str, cfg: configparser.ConfigParser = None) -
 
 # Show the Python used.
 logger.info(f"# Python {sys.version} on {sys.platform}.")
-# The directory of the current file.
-RUN_DIR = os.path.dirname(os.path.abspath(__file__))
+# The run directory using on Linux of the current file/symlink location and on Windows the current working directory.
+# It is impossible in Windows to detect the location of an executed symlink when executed without 'python' executable.
+RUN_DIR = os.getcwd() if sys.platform == "win32" else os.path.dirname(os.path.abspath(__file__))
 # Environment variables from this process.
 PARENT_ENV = os.environ.copy()
 # Linux has a current working directory environment variable and Windows does not.
@@ -2103,10 +2104,11 @@ Choices are depended on the host platform:
 				caption=f"Add submodule project helper in '{'/'.join(CMAKE_LIB_SUBDIR)}'?"):
 				clone_options = {
 					"main@https://github.com/Scanframe/sf-cmake.git": "GitHub Scanframe 'sf-cmake.git'",
-					"main@https://git.scanframe.com/library/cmake-lib.git": "Scanframe GitLab 'cmake-lib.git'"
+					"main@https://git.scanframe.com/library/cmake-lib.git": "GitLab Scanframe 'cmake-lib.git'",
 				}
 				# Only add these options when '__DEV' is set.
 				if RUN_ENV.get("__DEV"):
+					clone_options["dev-hotfix@https://git.scanframe.com/library/cmake-lib.git"] = "GitLab Scanframe 'cmake-lib.git' (hotfix)"
 					clone_options["zipfile@https://www.scanframe.com/export/cmake-lib.zip"] = "Zipped (dev only)"
 				if selected := ask_selection(
 					options=clone_options,
