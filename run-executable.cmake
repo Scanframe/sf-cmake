@@ -17,6 +17,7 @@ if (SF_VERBOSE)
 	message(STATUS "CMAKE_LIBRARY_OUTPUT_DIRECTORY: ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 endif ()
 
+include("${CMAKE_CURRENT_LIST_DIR}/SfBaseConfig.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
 
 function(Sf_ArgDecode _VarRef)

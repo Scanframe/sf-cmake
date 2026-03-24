@@ -89,7 +89,8 @@
 				"WindowsSdkBinPath": "$env{MSVC_ROOT}\\Windows Kits\\10\\bin",
 				"LIB": "$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\lib\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\Lib\\$env{WindowsSDKVersion}\\ucrt\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\Lib\\$env{WindowsSDKVersion}\\um\\$env{VSCMD_ARG_TGT_ARCH}",
 				"INCLUDE": "$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\include;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\ucrt;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\shared;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\um;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\winrt;$env{MSVC_ROOT}\\Windows Kits\\10\\Include\\$env{WindowsSDKVersion}\\cppwinrt",
-				"PATH": "$env{SF_LIBRARY_DIR};$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\bin\\Host$env{VSCMD_ARG_TGT_ARCH}\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH}\\ucrt;$penv{PATH}"
+				"LD_LIBRARY_PATH": "$env{SF_LIBRARY_DIR};$env{MSVC_ROOT}\\VC\\Tools\\MSVC\\$env{VCToolsVersion}\\bin\\Host$env{VSCMD_ARG_TGT_ARCH}\\$env{VSCMD_ARG_TGT_ARCH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH}\\ucrt;$penv{LD_LIBRARY_PATH}",
+				"PATH": "$env{LD_LIBRARY_PATH};$env{MSVC_ROOT}\\Windows Kits\\10\\bin\\$env{WindowsSDKVersion}\\$env{VSCMD_ARG_TGT_ARCH};$penv{PATH}"
 			},
 			"cacheVariables": {
 				"SF_COMPILER": {

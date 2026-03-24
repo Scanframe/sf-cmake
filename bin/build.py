@@ -101,28 +101,25 @@ WINEPATH=${TOOL_ROOT}\cmake\bin;${TOOL_ROOT}\bin;${TOOL_ROOT}\python;${TOOL_ROOT
 
 ; Environment added before running with the compiler msvc natively.
 [env.msvc@]
+__inherit__=qt-ver
+SF_EXEC_DIR_SUFFIX=-msvc
 ; Location of the root of the MSVC toolchain in the Wine environment.
 ; The rest is environment as below is configured in the file CMakePresets.json to allow multiple compilers to be configured in the same project.
 MSVC_ROOT=${RUN_DIR}\lib\toolchain\w64-x86_64-msvc-2022
-;MSVC_ROOT=P:\toolchain\w64-x86_64-msvc-2022
-PATH=${RUN_DIR}\lib\qt\w64-x86_64\6.10.1\msvc_64\bin;${PATH}
-; Puts the binary in 'bin/win64-msvc'.
-SF_EXEC_DIR_SUFFIX=-msvc
+; Overrides QT_VER_DIR for subcommand 'run'.
+RUN_QT_VER_DIR=${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}
+; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
+LD_LIBRARY_PATH=${RUN_QT_VER_DIR}\msvc_64\bin
+PATH=${LD_LIBRARY_PATH};${PATH}
 
 ; Environment added before running with the compiler msvc in Wine.
 [env.msvc.wine@]
-__inherit__=qt-ver
-; Location of the root of the MSVC toolchain in the Wine environment.
-; The rest is environment as below is configured in the file CMakePresets.json to allow multiple compilers to be configured in the same project.
-MSVC_ROOT=${RUN_DIR}\lib\toolchain\w64-x86_64-msvc-2022
-; Overrides QT_VER_DIR in the for subcommand 'run'.
-RUN_QT_VER_DIR=${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}
-SF_EXEC_DIR_SUFFIX=-msvc
+__inherit__=env.msvc@
 
 ; Environment added before running Wine in the Docker container.
 [env.wine.docker@]
 __inherit__=qt-ver
-; Overrides QT_VER_DIR in the for subcommand 'run'.
+; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}
 
 ; Environment added before running with the compiler msvc in Wine in the Docker container.
@@ -143,15 +140,16 @@ LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
 __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gw
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix
-; Overrides QT_VER_DIR in the for subcommand 'run'.
+; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
 
 ; Environment added before running the 'mingw' compiler natively.
 [env.mingw@]
 __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-mingw
-; Only the path is required. Notice that some of the distributed MinGW compiler include older versions of Ninja and CMake.
-PATH=${RUN_DIR}\lib\toolchain\w64-x86_64-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
+; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
+LD_LIBRARY_PATH=${RUN_DIR}\lib\toolchain\w64-x86_64-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
+PATH=${LD_LIBRARY_PATH};${PATH}
 
 [env.mingw.wine@]
 __inherit__=env.mingw@
@@ -173,6 +171,8 @@ __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gw
 ; Provides compiler std libraries to be found.
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix
+; Prevent displaying Wine warnings.
+WINEDEBUG=fixme-all
 # Optional for allowing the .exe files to be executed from Linux. Required compiler std libraries are also part of the Qt library.
 ;WINEPATH=Z:\home\${USER}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
 ; Overrides QT_VER_DIR since Wine does not pass any 'QT_' prefixed variables.
@@ -455,7 +455,7 @@ PARENT_ENV = os.environ.copy()
 if 'PWD' not in PARENT_ENV:
 	PARENT_ENV['PWD'] = os.getcwd()
 # List of optional environment variable names when missing no exception is raised.
-ENV_OPTIONAL = ["SF_BIN_DIR_SUFFIX", "WINEPATH", "LD_LIBRARY_PATH"]
+ENV_OPTIONAL = ["SF_BIN_DIR_SUFFIX", "WINEPATH", "LD_LIBRARY_PATH", "SF_EXEC_DIR_SUFFIX"]
 # List of ignored environment variables set when a CI pipeline is active.
 ENV_IGNORED = ["SF_EXEC_DIR_SUFFIX"] if PARENT_ENV.get("CI") else []
 # In Linux and Docker it could be the TEMP environment variable is not set.
@@ -1055,13 +1055,6 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 	if not isinstance(value, str):
 		return value
 	preset_name = preset.get("name", "unknown")
-	value = value.replace("${presetName}", preset_name)
-	value = value.replace("${sourceDir}", RUN_DIR)
-	value = value.replace("${sourceParentDir}", os.path.dirname(RUN_DIR))
-	value = value.replace("${fileDir}", RUN_DIR)
-	value = value.replace("${pathListSep}", os.pathsep)
-	value = value.replace("${hostSystemName}", "Windows" if sys.platform == 'win32' else "Linux")
-	value = value.replace("${dollar}", "$")
 
 	def env_replacer(match):
 		"""Callback function for regular expression substitution."""
@@ -1075,6 +1068,14 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 		value = re.sub(pat, env_replacer, value)
 	if is_path and sys.platform == 'win32':
 		value = value.replace('/', os.sep)
+	# Expand CMakePreset macros at the end.
+	value = value.replace("${presetName}", preset_name)
+	value = value.replace("${sourceDir}", RUN_DIR)
+	value = value.replace("${sourceParentDir}", os.path.dirname(RUN_DIR))
+	value = value.replace("${fileDir}", RUN_DIR)
+	value = value.replace("${pathListSep}", os.pathsep)
+	value = value.replace("${hostSystemName}", "Windows" if sys.platform == 'win32' else "Linux")
+	value = value.replace("${dollar}", "$")
 	return value
 
 
@@ -1956,7 +1957,8 @@ Choices are depended on the host platform:
   Windows: 
     win - Windows WinGet packages for build tools except a compiler(s).
 """)
-
+		parser.add_argument("-e", "--env-file", type=str, metavar="<preset>",
+			help="Create an environment file for the toolchain configured by the given configure preset.")
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
 		Handles the 'create' command execution of the script.
@@ -1971,10 +1973,113 @@ Choices are depended on the host platform:
 		if args.project:
 			if not self.create_project():
 				return 1
+		if args.env_file:
+			if not self.create_env_file(args.env_file):
+				return 1
 		if args.toolchain:
 			if not self.install_toolchain(args.toolchain):
 				return 1
 		return 0
+
+	# noinspection PyMethodMayBeStatic
+	def create_env_file(self, preset_name: str) -> bool:
+		"""Creates an environment file for the toolchain of the given 'configure' preset."""
+		# Get the compiler type and the preset itself.
+		toolchain = get_compiler_type(preset_name)
+		preset = get_preset_by_name(PresetTypes.CONFIGURE, preset_name)
+		if toolchain is None or preset is None:
+			logger.error(f"! Could not determine toolchain or find preset '{preset_name}'.")
+			return False
+
+		# Get the section name for the toolchain.
+		parts = ["env", toolchain]
+		if is_wine():
+			parts += ["wine"]
+		if is_docker():
+			parts += ["docker"]
+		section = '.'.join(parts) + '@'
+
+		# Assemble the filename based on the toolchain and environment.
+		ext = ".bat" if sys.platform == "win32" or is_wine() else ".sh"
+		env_filename = f".tc-env.{'.'.join(parts[1:])}{ext}"
+		env_file = os.path.join(RUN_DIR, env_filename)
+
+		# Check if the section exists.
+		if not CONFIG.has_section(section):
+			logger.error(f"! No environment configuration section [{section}] found in the ini-file.")
+			return False
+		# Call set_environment to populate RUN_ENV with expanded macros.
+		set_environment(toolchain)
+		# Collect the variables that are defined in the section or its ancestors.
+		# We want to exclude variables that are just inherited from the process environment and NOT modified.
+		def get_config_inheritance(_section: str) -> List[str]:
+			"""
+			Gets the configuration inheritance for the given section.
+			:param _section:
+			:return:
+			"""
+			inherit_key = "__inherit__"
+			visited = []
+			queue = [_section]
+			while queue:
+				sec = queue.pop(0)
+				if sec in visited:
+					continue
+				visited.append(sec)
+				secs = [p.strip() for p in CONFIG.get(sec, inherit_key, fallback="").split(",") if p.strip()]
+				secs.reverse()
+				queue += secs
+			return visited
+
+		config_vars = set()
+		for cur_section in get_config_inheritance(section):
+			if CONFIG.has_section(cur_section):
+				for key in CONFIG[cur_section]:
+					if key not in ["__inherit__"]:
+						# configparser keys are case-insensitive and converted to lowercase.
+						# We need to find the actual key name if possible, or just use it.
+						# But RUN_ENV has the correct case.
+						config_vars.add(key.upper())
+
+		# Add environment variables from the preset itself.
+		preset_env = preset.get("environment", {})
+		for key, value in preset_env.items():
+			expanded_value = expand_macros(preset, value, context=preset_env)
+			# Only update RUN_ENV if it's not already set by the toolchain section (which takes precedence for tools).
+			# Actually, we want both, but if they overlap, which one should win?
+			# Usually, presets might override some things. Let's update RUN_ENV with preset variables.
+			RUN_ENV[key] = expanded_value
+			config_vars.add(key.upper())
+
+		export_vars = ["SF_EXEC_DIR_SUFFIX", "LD_LIBRARY_PATH", "WINEPATH", "MSVC_ROOT"]
+		lines = []
+		if sys.platform == "win32" or is_wine():
+			lines.append("@echo off")
+			for key in sorted(config_vars):
+				if key in RUN_ENV and key in export_vars:
+					val = RUN_ENV[key]
+					lines.append(f"set {key}={val}")
+					# Special handling for LD_LIBRARY_PATH to prefix the PATH.
+					if key == "LD_LIBRARY_PATH":
+						lines.append(f"set PATH=%LD_LIBRARY_PATH%;%PATH%")
+		else:
+			lines.append("#!/usr/bin/env bash")
+			for key in sorted(config_vars):
+				if key in RUN_ENV and key in export_vars:
+					val = RUN_ENV[key]
+					lines.append(f"export {key}=\"{val}\"")
+					# Special handling for LD_LIBRARY_PATH to prefix the PATH.
+					if key == "LD_LIBRARY_PATH":
+						lines.append(f"# set PATH=%LD_LIBRARY_PATH%;%PATH%")
+
+		try:
+			with open(env_file, "w") as f:
+				f.write("\n".join(lines) + "\n")
+			logger.info(f"# Environment file for preset '{preset_name}' with toolchain '{toolchain}': {env_file}")
+			return True
+		except OSError as e:
+			logger.error(f"! Failed to create environment file '{env_file}': {e}")
+			return False
 
 	@staticmethod
 	def install_toolchain(toolchain: str) -> bool:
