@@ -26,6 +26,8 @@ Author: Arjan van Olphen <arjan@scanframe.nl>
 from __future__ import annotations
 import argparse
 import configparser
+import copy
+import hashlib
 import logging
 import stat
 import platform
@@ -45,7 +47,7 @@ import fnmatch
 import io
 from enum import Enum, auto
 from string import Template
-from typing import List, Any, Dict, Optional
+from typing import List, Any, Dict, Optional, Tuple
 from pathlib import Path
 from abc import ABC, abstractmethod
 from urllib.request import urlopen
@@ -74,10 +76,33 @@ cmake-run-file=cmake/lib/run-executable.cmake
 ; Override the default docker image using a smaller one without the QT libraries.
 ;docker-image=nexus.scanframe.com/amd64/gnu-cpp:24.04
 ;docker-image=avolphen/amd64-gnu-cpp:24.04
+;docker-image=amd64/gnu-cpp:24.04
+
+; Sematic versioning type impact map.
+[config-ver-type-map]
+fix=patch,Bugfix
+feat=minor,Feature
+build=patch,Build Tool/Process
+chore=patch,Chore
+ci=patch,CI Configuration
+docs=patch,Documentation
+style=patch,Code Formatting/Styling
+refactor=patch,Code Refactoring
+perf=patch,Performance
+test=none,Test Addition/Modification
+revert=patch,Revert of Commit
 
 ; Section for optional include file which is merged.
 [__include__]
 user=user.ini
+
+; Pulse audio server config. Need volume mapping from host.
+[pulse-audio]
+# Location for the pulse audio server to find the users socket (check with: pactl info).
+PULSE_SERVER=unix:/run/user/${USER_UID}/pulse/native
+# To get the Qt theme as on the host.
+QT_QPA_PLATFORMTHEME=xdgdesktopportal
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${UID}/bus
 
 [qt-ver]
 RUN_QT_VER=6.10.1
@@ -135,6 +160,13 @@ SF_EXEC_DIR_SUFFIX=-gnu
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
 
+; Environment added before running the 'gnu' compiler in the Docker container.
+[env.gnu.docker@]
+__inherit__=qt-ver,pulse-audio
+SF_EXEC_DIR_SUFFIX=-gnu
+# Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
+LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
+
 ; Environment added when running wine natively to execute the Windows cross-compiled targets.
 [env.gw@]
 __inherit__=qt-ver
@@ -170,20 +202,13 @@ SF_EXEC_DIR_SUFFIX=-ga
 __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gw
 ; Provides compiler std libraries to be found.
-WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix
+WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;
 ; Prevent displaying Wine warnings.
 WINEDEBUG=fixme-all
 # Optional for allowing the .exe files to be executed from Linux. Required compiler std libraries are also part of the Qt library.
 ;WINEPATH=Z:\home\${USER}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
 ; Overrides QT_VER_DIR since Wine does not pass any 'QT_' prefixed variables.
 RUN_QT_VER_DIR=/home/${USER}/lib/qt/win-x86_64/${RUN_QT_VER}
-
-; Environment added before running the 'gnu' compiler in the Docker container.
-[env.gnu.docker@]
-__inherit__=qt-ver
-SF_EXEC_DIR_SUFFIX=-gnu
-# Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
-;LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
 
 """.replace('\r', '')
 
@@ -349,7 +374,7 @@ class DebugMode(Enum):
 
 
 # Flag determining the terminal is dumb or needs to be dumb is the case of a CI pipeline.
-TERM_DUMB: bool = (not sys.stderr.isatty() or os.environ.get("CI") or os.environ.get("TERM") in ["dumb", "unknown"])
+TERM_DUMB: bool = bool(not sys.stderr.isatty() or os.environ.get("CI") or os.environ.get("TERM") in ["dumb", "unknown"])
 
 
 # Enumeration of types.
@@ -447,7 +472,7 @@ def create_config_parser(ini_path: str, cfg: configparser.ConfigParser = None) -
 # Show the Python used.
 logger.info(f"# Python {sys.version} on {sys.platform}.")
 # The run directory using on Linux of the current file/symlink location and on Windows the current working directory.
-# It is impossible in Windows to detect the location of an executed symlink when executed without 'python' executable.
+# It is impossible on Windows to detect the location of an executed symlink when executed without the 'python' executable.
 RUN_DIR = os.getcwd() if sys.platform == "win32" else os.path.dirname(os.path.abspath(__file__))
 # Environment variables from this process.
 PARENT_ENV = os.environ.copy()
@@ -463,6 +488,9 @@ if 'TEMP' not in PARENT_ENV:
 	PARENT_ENV['TEMP'] = tempfile.gettempdir()
 # Add the RUN_DIR so it is available in the '.toolchain-*' files.
 PARENT_ENV['RUN_DIR'] = RUN_DIR
+# Add the user id to the parent environment so it can be used.
+if sys.platform != "win32":
+	PARENT_ENV['UID'] = f"{os.getuid()}"
 # Environment variables for running a command with.
 RUN_ENV = PARENT_ENV.copy()
 # Global debug flag for system commands.
@@ -484,7 +512,7 @@ CMAKE_LIB_SUBDIR = ["cmake", "lib"]
 
 
 def get_github_release(owner: str, repo: str, assets_wildcard: Optional[str] = None, release_tag: Optional[str] = None
-) -> Optional[Dict[str, any]]:
+) -> Optional[Dict[str, Any]]:
 	"""
 	Fetch GitHub release information and assets.
 	:param owner: Repository owner
@@ -668,6 +696,37 @@ def get_merged_config_section(section: str, fail: bool = True) -> Dict[str, str]
 			if key not in merged_data:
 				merged_data[key] = value
 	return merged_data
+
+
+def remove_files_from_tree(dir_name: Path, wild_cards: list[str]) -> None:
+	"""
+	Removes any of the matching files listed in the pattern.
+	:param dir_name: Directory to search in recursively.
+	:param wild_cards: Wild card file patterns to look for.
+	"""
+	if not os.path.isdir(dir_name):
+		logger.warning(f": Directory '{dir_name}' does not exist or is not a directory.")
+		return
+	# Single timestamp for all.
+	timestamp = time.strftime("%Y%m%dT%H%M%S", time.localtime())
+	# Walk the tree.
+	for root, dirs, files in os.walk(dir_name):
+		for filename in files:
+			for pattern in wild_cards:
+				if fnmatch.fnmatch(filename, pattern):
+					file_path = os.path.join(root, filename)
+					try:
+						new_file_path = f"{file_path}-{timestamp}"
+						# Use a shorted path name for logging when in the run/project directory.
+						disp_name = new_file_path if RUN_DIR != new_file_path[:len(RUN_DIR)] else new_file_path[len(RUN_DIR) + 1:]
+						if not DEBUG_FLAG:
+							logger.info(f"~ Renaming file to: {disp_name}")
+							os.rename(file_path, new_file_path)
+						else:
+							logger.info(f"~ Skipped renaming file to: {disp_name}")
+					except OSError as ex:
+						logger.warning(f": Failed to rename file '{file_path}': {ex}")
+					break
 
 
 def remove_tree(dir_name: Path) -> None:
@@ -854,7 +913,7 @@ def ask_selection(options: dict[Any, str], title: str | None = "Make a Selection
 	"""
 	Displays a numeric selection menu from a dictionary and returns the corresponding key.
 	- options: Dict where value is displayed and key is returned.
-	- 'q': returns None.
+	- Q-key : returns None.
 	- Invalid input: prompts again.
 	"""
 	# Copy the arguments to pass on to the menu function.
@@ -902,7 +961,8 @@ class CallbackEnvironment(dict):
 	Callback for getting environment variables and when missing raises an Exception.
 	"""
 
-	def __init__(self, environment: Dict[str, str], context: Dict[str, str] = None, note_str: str | None = None):
+	def __init__(self, environment: Dict[str, str], context: Optional[Dict[str, str]] = None, note_str: str | None = None
+	):
 		super().__init__()
 		self.note = note_str
 		self.context = context
@@ -920,7 +980,7 @@ class CallbackEnvironment(dict):
 				logger.debug(f": Missing environment variable '{key}' returning empty string instead.")
 				return ""
 			exception = RuntimeError(f"Missing environment variable '{key}' !")
-			exception.add_note(self.note)
+			exception.add_note(str(self.note))
 			raise exception
 		return value
 
@@ -1011,15 +1071,16 @@ def get_compiler_type(preset_name: str, preset_type: PresetTypes = PresetTypes.C
 	"""
 	if (cpn := get_configure_preset_name(preset_type, preset_name)) is not None:
 		if (pn := get_preset_by_name(PresetTypes.CONFIGURE, cpn)) is not None:
+			# Use the 'vendor' from the preset configuration first.
 			compiler_type = pn.get("vendor", {}).get("compiler", None)
-			# Try the cache variable.
+			# Try the cache variable when not found.
 			if compiler_type is not None:
 				logger.debug(f"# Compiler type from field 'vendor/compiler': {compiler_type}")
 			else:
 				compiler_type = pn.get("cacheVariables", {}).get("SF_COMPILER", {}).get("value", None)
 				if compiler_type is not None:
 					logger.debug(f"# Compiler type from field 'cacheVariables/SF_COMPILER': {compiler_type}")
-			# Modify the environment.
+			# Return the type.
 			return compiler_type
 	else:
 		logger.warning(f"! No {PresetTypes.CONFIGURE.value} preset found for '{preset_type.value}/{preset_name}'!")
@@ -1042,7 +1103,7 @@ def set_environment_by_preset(preset_name: str, preset_type: PresetTypes = Prese
 	return False
 
 
-def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict[str, str] = None) -> Any:
+def expand_macros(preset: Optional[dict], value: Any, is_path: bool = False, context: Dict[str, str] = None) -> Any:
 	"""
 	Recursively expands macros, substituting environment variables in strings from CMakePresets.json.
 	"""
@@ -1082,7 +1143,7 @@ def expand_macros(preset: dict, value: Any, is_path: bool = False, context: Dict
 def run_command(cmd_list: List[str], input_data: bytes = None, shell: bool = False, capture_output: bool = False,
 	check: bool = True,
 	cwd: str = None, dbg_mode: DebugMode = DebugMode.REPORT
-) -> subprocess.CompletedProcess | None:
+) -> subprocess.CompletedProcess:
 	"""
 	Utility to run shell commands.
 	Raises 'subprocess.CalledProcessError' if the command fails.
@@ -1120,22 +1181,23 @@ def get_merged_presets() -> dict:
 	# Make 'merged' reference the attribute.
 	merged = get_merged_presets.merged_data
 
-	def deep_merge(source, destination):
+	def deep_merge(_source, _destination):
 		"""
 		Recursively merges the contents of the source dictionary into the destination dictionary.
 		If a key exists in both dictionaries and its value is also a dictionary, this function
 		will recursively merge those nested dictionaries. For non-dictionary values, the value
 		from the source dictionary will overwrite or add to the destination.
 		"""
-		for key, value in source.items():
-			if isinstance(value, dict) and key in destination and isinstance(destination[key], dict):
+		# Make a deep copy since at some point '_source' get corrupted somehow.
+		for _key, _value in _source.items():
+			if isinstance(_value, dict) and _key in _destination and isinstance(_destination[_key], dict):
 				# Recursively merge nested dictionaries.
-				deep_merge(value, destination[key])
+				deep_merge(_value, _destination[_key])
 			else:
 				# Overwrite or add the value.
-				if key not in destination:
-					destination[key] = value
-		return destination
+				if _key not in _destination:
+					_destination[_key] = copy.deepcopy(_value)
+		return _destination
 
 	base_path = os.path.join(RUN_DIR, "CMakePresets.json")
 	user_path = os.path.join(RUN_DIR, "CMakeUserPresets.json")
@@ -1167,18 +1229,30 @@ def get_merged_presets() -> dict:
 			merged.setdefault("vendor", {}).update(data["vendor"])
 	# Merge all in inherited presets.
 	for field in preset_type_fields:
-		# Assemble a dictionary of presets by name first.
-		presets: dict[str, dict] = {}
+		# Assemble a dictionary of presets by name in tuple containing a hash for a sanity check.
+		presets: dict[str, tuple[str, dict]] = {}
 		for preset in merged[field]:
-			presets.setdefault(preset['name'], preset)
+			presets.setdefault(preset['name'], (hashlib.md5(f"{preset}".encode()).hexdigest(), preset))
 		# Merge inherited presets.
 		for preset in merged[field]:
 			inherits = preset.get("inherits", None)
 			if inherits:
 				cur_preset_name = preset['name']
+				cur_index = list(presets).index(cur_preset_name)
 				# Iterate through the inherited presets and merge them in.
 				for preset_name in inherits:
-					deep_merge(presets[preset_name], preset)
+					# Can only merge a preset when defined earlier.
+					if cur_index > list(presets).index(preset_name):
+						deep_merge(presets[preset_name][1], preset)
+						# Update the current hash only.
+						presets[cur_preset_name] = (hashlib.md5(f"{presets[cur_preset_name][1]}".encode()).hexdigest(),
+							presets[cur_preset_name][1])
+						# Sanity check on the changed after the deep-merge.
+						for key in list(presets):
+							if presets[key][0] != hashlib.md5(f"{presets[key][1]}".encode()).hexdigest():
+								logger.debug(f"! Preset '{key}' has changed due to merge of '{preset_name}' into '{cur_preset_name}'!")
+					else:
+						raise RuntimeError(f"Preset '{cur_preset_name}' inherits from '{preset_name}' before it was defined!")
 				# Sanity check after merge.
 				if cur_preset_name != preset['name']:
 					logger.debug(f"! Failed to merge properly.")
@@ -1329,8 +1403,7 @@ def get_preset_by_name(preset_type: PresetTypes, preset_name: str) -> dict | Non
 	:param preset_name:  Name of the preset defined in CMakePresets.json or CMakeUserPresets.json.
 	:return: The preset dictionary or None when not found.
 	"""
-	data = get_merged_presets()
-	for p in data.get(f"{preset_type.value}Presets", []):
+	for p in get_merged_presets().get(f"{preset_type.value}Presets", []):
 		if p.get("name") == preset_name:
 			return p
 	return None
@@ -1402,6 +1475,8 @@ class SubCommand(ABC):
 		"""Create a sub parser for the command."""
 		self.parser = subparsers.add_parser(name=self.command, aliases=self.aliases, add_help=False,
 			formatter_class=argparse.RawTextHelpFormatter, help=f"Run with command '{self.command}'.", description="")
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	@abstractmethod
@@ -1463,21 +1538,23 @@ class SubCommandNative(SubCommand):
 			formatter_class=argparse.RawTextHelpFormatter,
 			help="Run native on this Linux or Windows host.")
 		self.parser.epilog = f"""
-	Examples:
-	
-	 List files in the configure preset's binary directory:
-		 Linux: 
-			 ./{self.script} {self.command} -p gnu-debug
-		 Windows:
-			 {self.script} {self.command} -p mingw-debug
-			 
-	 Run executable in with the working directory as the binary: 
-		 Linux: 
-			 ./{self.script} {self.command} -p gnu-debug
-			 SF_EXEC_DIR_SUFFIX=-gnu ./{self.script} {self.command} -p gnu-debug -- ./hello-world.bin
-		 Windows:
-			 SF_EXEC_DIR_SUFFIX=-msvc {self.script} {self.command} -p msvc-debug -- hello-world.exe
+examples:
+
+  List files in the configure preset's binary directory:
+    Linux: 
+      ./{self.script} {self.command} -p gnu-debug
+    Windows:
+      {self.script} {self.command} -p mingw-debug
+
+  Run executable in with the working directory as the binary: 
+    Linux: 
+      ./{self.script} {self.command} -p gnu-debug
+      SF_EXEC_DIR_SUFFIX=-gnu ./{self.script} {self.command} -p gnu-debug -- ./hello-world.bin
+    Windows:
+      SF_EXEC_DIR_SUFFIX=-msvc {self.script} {self.command} -p msvc-debug -- hello-world.exe
 """
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -1488,7 +1565,9 @@ class SubCommandNative(SubCommand):
 		parser.add_argument("-c", "--clean", action="store_true",
 			help="Remove the built artifacts first (cmake option '--clean-first').")
 		parser.add_argument("-f", "--fresh", action="store_true",
-			help="Configure a fresh build tree (cmake option --fresh).")
+			help="Additional flag for adding (cmake option --fresh).")
+		parser.add_argument("-F", "--fresh-all", action="store_true",
+			help="Clears the build tree of all 'CMakeCache.txt' files.")
 		parser.add_argument("-C", "--wipe", action="store_true", help="Wipe build directory contents.")
 		parser.add_argument("-l", "--list-only", action="store_true", help="Lists tests only.")
 		parser.add_argument("-m", "--make", action="store_true", help="Create build directory/makefiles only.")
@@ -1511,20 +1590,25 @@ class SubCommandNative(SubCommand):
 			help="Single preset to process and when omitted a dialog is shown to select one.")
 		# Create additional help text.
 		parser.epilog = f"""
-  Examples:
-    Get all project presets info:
-      {self.script} --info 
-    Get single project presets by name:
-      {self.script} --info gnu-debug
-    Make/Build a preset:
-      {self.script} -mb gnu-debug
-      {self.script} --make -build gnu-debug
-    Run all tests on a preset:
-      {self.script} --test gnu-debug
-    Run specific tests using a regex:
-      {self.script} -t gnu-debug -r '^t_my-test'
-    Workflow (Make/Build/Test/Pack) a preset:
-      {self.script} --workflow gnu-debug
+examples:
+
+  Get all project presets info:
+    {self.script} --info 
+  Get single project presets by name:
+    {self.script} --info gnu-debug
+  Make/Build a preset:
+    {self.script} -mb gnu-debug
+    {self.script} --make -build gnu-debug
+  Run all tests on a preset:
+    {self.script} --test gnu-debug
+  Run specific tests using a regex:
+    {self.script} -t gnu-debug -r '^t_my-test'
+  Workflow (Make/Build/Test/Pack) a preset:
+    {self.script} --workflow gnu-debug
+  When configuring fails due to 'CMakeCache.txt' issues:
+    {self.script} -fm gnu-debug  (Applies only to the  main project)
+    {self.script} -Fm gnu-debug  (Applies to all projects and modules)
+    {self.script} -Cm gnu-debug  (Nuclear option, wipes the build directory clean.))
 """
 		return parser
 
@@ -1589,6 +1673,9 @@ class SubCommandNative(SubCommand):
 				logger.info(f"# Binary Directory: {bin_dir}")
 			# Get the full path to the binary directory if not already absolute.
 			bin_dir = os.path.abspath(bin_dir)
+			# Check if the build directory needs to have cleaned all 'CMakeLists.txt' files recursively.
+			if args.fresh_all:
+				remove_files_from_tree(Path(bin_dir), ["CMakeCache.txt"])
 			# When build only, do not configure.
 			if not args.build_only:
 				# Check if the directory should be wiped.
@@ -1614,12 +1701,12 @@ class SubCommandNative(SubCommand):
 			if not os.path.exists(os.path.join(bin_dir, "CMakeCache.txt")):
 				logger.error(f"! Missing build directory: {bin_dir}")
 				return 1
-			cmd = ["cmake", "--build", "--preset", build_preset_name]
+			cmd: List[str] = ["cmake", "--build", "--preset", str(build_preset_name)]
 			cmd += ["--parallel", str(os.cpu_count())]
 			if args.clean:
 				cmd.append("--clean-first")
 			if args.target_select:
-				args.target = select_target(PresetTypes.BUILD, build_preset_name)
+				args.target = select_target(PresetTypes.BUILD, str(build_preset_name))
 			if args.target:
 				cmd.extend(["--target", args.target])
 				logger.debug(f"# Select build target: {args.target}")
@@ -1679,6 +1766,8 @@ class SubCommandWine(SubCommand):
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
 			formatter_class=argparse.RawTextHelpFormatter,
 			help="Run in Wine on Linux. (uses a Git client/server solution)")
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -1687,7 +1776,9 @@ class SubCommandWine(SubCommand):
 		super().options(parser)
 		parser.add_argument("-g", "--git-server", action="store_true", help="Force start of git-server in the background.")
 		# Define Epilog for the help message.
-		parser.epilog = f"""Examples:
+		parser.epilog = f"""
+examples:
+
   Compile using Microsoft Visual C++ on Linux
     ./{self.script} {self.command} -- -b msvc-debug
 """
@@ -1726,7 +1817,7 @@ class SubCommandWine(SubCommand):
 			# Suppress Wine fix-me messages when 'WINEDEBUG' is not set.
 			if "WINEDEBUG" not in RUN_ENV:
 				RUN_ENV["WINEDEBUG"] = 'fixme-all'
-			arguments = ["wine", "python", self.script] + args_right
+			arguments: List[str] = ["wine", "python", str(self.script)] + args_right
 			logger.debug(f"# Running: WINEPATH='{RUN_ENV.get("WINEPATH", "")}' {' '.join(arguments)}")
 			return run_command(arguments, dbg_mode=DebugMode.REPORT_ONLY).returncode
 		return 0
@@ -1742,6 +1833,8 @@ class SubCommandDocker(SubCommand):
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
 			formatter_class=argparse.RawTextHelpFormatter,
 			help="Run in a docker environment(Linux only).")
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -1753,7 +1846,9 @@ class SubCommandDocker(SubCommand):
 		default_platform = "arm64" if machine == 'aarch64' else "amd64"
 		cfg = get_config_section("config", fail=True)
 		# Define Epilog for the help message.
-		parser.epilog = f"""Examples:
+		parser.epilog = f"""
+examples:
+
   Show the targets using the {default_platform} platform docker image and Qt version {QT_VER}:
     {self.script} --platform {default_platform} --qt-ver '{QT_VER}' -- --info
   Show the uname information of the arm64 container without QT libraries:
@@ -1812,16 +1907,32 @@ This ignores the options: --qt-ver, --platform'
 		logger.info(f"# Docker image used: {img_name}")
 		# Prepare standard Docker options for running the container.
 		docker_opts = ["--platform", f"linux/{args.platform}", "--rm", "--tty", "--interactive", "--device", "/dev/fuse",
-			"--cap-add", "SYS_ADMIN", "--security-opt", "apparmor:unconfined", "--hostname", platform.node(), "--user", "0:0",
+			"--cap-add", "SYS_ADMIN", "--cap-add", "SYS_PTRACE", "--security-opt", "apparmor:unconfined",
+			"--hostname", platform.node(), "--user", "0:0",
 			"--env", f"LOCAL_USER={os.getuid()}:{os.getgid()}", "--network", "host"]
 		# Handle X11 Display forwarding if available on the host.
-		# noinspection SpellCheckingInspection
 		if os.environ.get("DISPLAY"):
+			# noinspection SpellCheckingInspection
 			xauth = os.environ.get("XAUTHORITY")
 			if not xauth:
+				# noinspection SpellCheckingInspection
 				xauth = Path.home() / ".Xauthority"
 			# noinspection SpellCheckingInspection
 			docker_opts += ["--env", "DISPLAY", "--volume", f"{xauth}:/home/user/.Xauthority:ro"]
+		if "XDG_RUNTIME_DIR" in RUN_ENV:
+			audio_socket = f"{RUN_ENV["XDG_RUNTIME_DIR"]}/pulse/native"
+			# And the pulse socket is valid.
+			if os.path.exists(audio_socket):
+				logger.info(f"# Mapping pulse audio socket: {audio_socket}")
+				docker_opts += ["--volume", f"{RUN_ENV["XDG_RUNTIME_DIR"]}:/run/user/{os.getuid()}"]
+				# Add the graphics card for acceleration. The Piper library uses this.
+				if os.path.exists("/dev/dri"):
+					logger.info(f"# Granting access to the GPU")
+					docker_opts += ["--device", "/dev/dri"]
+				# When 'DBUS_SESSION_BUS_ADDRESS' environment variable is present.
+				if "DBUS_SESSION_BUS_ADDRESS" in RUN_ENV:
+					# This is need when a Qt application wants to match the host's theme.
+					docker_opts += ["--volume", f"/home/{RUN_ENV["USER"]}/.config:/home/user/.config"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
 		# Configure a specific build directory volume if requested.
@@ -1872,7 +1983,7 @@ This ignores the options: --qt-ver, --platform'
 				logger.warning(f": Container '{CONTAINER_NAME}' is not running.")
 				return 1
 			cmd = ["docker", "exec", "--interactive", "--tty", CONTAINER_NAME, "sudo", "--login", "--user=user", "--"]
-			return run_command(cmd + args_right, dbg_mode=DebugMode.REPORT_ONLY).returncode
+			return run_command(cmd + (args_right or []), dbg_mode=DebugMode.REPORT_ONLY).returncode
 		#
 		elif command == "sshd":
 			cache_dir = Path.home() / "tmp" / f"{CONTAINER_NAME}-cache"
@@ -1886,7 +1997,8 @@ This ignores the options: --qt-ver, --platform'
 				return 1
 		#
 		elif command == "run":
-			return run_command(docker_command(docker_opts, img_name, args_right), dbg_mode=DebugMode.REPORT_ONLY).returncode
+			return run_command(docker_command(docker_opts, img_name, (args_right or [])),
+				dbg_mode=DebugMode.REPORT_ONLY).returncode
 		#
 		elif command == "versions":
 			script: list[str] = CMAKE_LIB_SUBDIR + ["bin", "versions.sh"]
@@ -1901,7 +2013,7 @@ This ignores the options: --qt-ver, --platform'
 		else:
 			# The default behavior is to execute the discovered build script.
 			target_script = f"/mnt/project/{PROJECT_SUBDIR}/{self.script}"
-			return run_command(docker_command(docker_opts, img_name, [target_script] + args_right),
+			return run_command(docker_command(docker_opts, img_name, [target_script] + (args_right or [])),
 				dbg_mode=DebugMode.REPORT_ONLY).returncode
 		return 0
 
@@ -1916,6 +2028,8 @@ class SubCommandInstall(SubCommand):
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
 			formatter_class=argparse.RawTextHelpFormatter,
 			help="Install required build tools or a quick start boilerplate project.")
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -1959,6 +2073,7 @@ Choices are depended on the host platform:
 """)
 		parser.add_argument("-e", "--env-file", type=str, metavar="<preset>",
 			help="Create an environment file for the toolchain configured by the given configure preset.")
+
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
 		Handles the 'create' command execution of the script.
@@ -1967,8 +2082,7 @@ Choices are depended on the host platform:
 		# Call parent to handle the common dry-run option.
 		super().handle(args, args_left, args_right)
 		if args.required:
-			if self.install_packages(args.required):
-				return 1
+			self.install_packages(args.required)
 		# Check if to create project items when requested.
 		if args.project:
 			if not self.create_project():
@@ -2010,6 +2124,7 @@ Choices are depended on the host platform:
 			return False
 		# Call set_environment to populate RUN_ENV with expanded macros.
 		set_environment(toolchain)
+
 		# Collect the variables that are defined in the section or its ancestors.
 		# We want to exclude variables that are just inherited from the process environment and NOT modified.
 		def get_config_inheritance(_section: str) -> List[str]:
@@ -2085,7 +2200,7 @@ Choices are depended on the host platform:
 	def install_toolchain(toolchain: str) -> bool:
 		"""Installs toolchains."""
 
-		def get_file_from_url(url: str, suffix: str = None) -> str | None:
+		def get_file_from_url(url: str, suffix: str = None) -> str:
 			"""Copies the file from the url to a temporary file."""
 			import requests
 			with (tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp):
@@ -2145,7 +2260,7 @@ Choices are depended on the host platform:
 
 			case "msvc-alt":
 				logger.info("# Installing MSVC 2022 x86_64 compatible with the Qt library.")
-				# Download a python file for downloading the MSVC
+				# Download a Python file for downloading the MSVC.
 				py_file = get_file_from_url(
 					url="https://raw.githubusercontent.com/Scanframe/sf-cygwin-bin/refs/heads/master/portable-msvc.py",
 					suffix=".py")
@@ -2161,7 +2276,7 @@ Choices are depended on the host platform:
 					logger.warning(f": Doxygen directory already exists: {doxygen_dir}")
 					return False
 				release = get_github_release("doxygen", "doxygen", "*.linux.bin.tar.gz")
-				if release["assets"]:
+				if release and release["assets"]:
 					extract_by_url(release["assets"][0]["url"], install_dir, "doxygen", release["assets"][0]["digest"])
 				return False
 
@@ -2213,7 +2328,8 @@ Choices are depended on the host platform:
 				}
 				# Only add these options when '__DEV' is set.
 				if RUN_ENV.get("__DEV"):
-					clone_options["dev-hotfix@https://git.scanframe.com/library/cmake-lib.git"] = "GitLab Scanframe 'cmake-lib.git' (hotfix)"
+					clone_options[
+						"dev-hotfix@https://git.scanframe.com/library/cmake-lib.git"] = "GitLab Scanframe 'cmake-lib.git' (hotfix)"
 					clone_options["zipfile@https://www.scanframe.com/export/cmake-lib.zip"] = "Zipped (dev only)"
 				if selected := ask_selection(
 					options=clone_options,
@@ -2221,7 +2337,8 @@ Choices are depended on the host platform:
 					branch, repo = selected.split("@")
 					if repo:
 						if repo[-4:] == ".git":
-							if ask_selection(options={True: "Git Submodule", False: "Standalone Repository"}, title="Helper Repository Type",
+							if ask_selection(options={True: "Git Submodule", False: "Standalone Repository"},
+								title="Helper Repository Type",
 								caption="Add repository as?"):
 								cmd = ["git", "submodule", "add", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							else:
@@ -2472,7 +2589,7 @@ Signed-By:
 					"CMake C++ build tool": "Kitware.CMake",
 					"Ninja build system": "Ninja-build.Ninja",
 					"Nullsoft Install System": "NSIS.NSIS",
-					"Oracle JRE": "Oracle.JavaRuntimeEnvironment",
+					"Termurin JRE": "EclipseAdoptium.Temurin.21.JRE",
 					"LLVM Clang-Format": "LLVM.ClangFormat",
 					"Doxygen": "DimitriVanHeesch.Doxygen",
 					# TODO: Sadly, the WinGet package is missing some MinGW DLL's. The official installer does not.
@@ -2519,6 +2636,415 @@ Signed-By:
 			raise ex
 
 
+class SubCommandVersion(SubCommand):
+	"""Subcommand handler for repository version reporting and bumping."""
+
+	_header_regex = re.compile(r"^([a-z_\-]+)(\(([a-z_\-]+)\))?(!)?:\s(.*)$")
+	_increment_order = {"none": 0, "patch": 1, "minor": 2, "major": 3}
+	# Holds the type map from ini config file.
+	_type_map: dict[str, tuple[str, str]] = {}
+	# Cache for commit message retrieval.
+	_cache_get_cmt_msg: dict[str, str] = {}
+	# Cache for the git-describe-exact tag retrieval.
+	_cache_git_describe_exact: dict[str, str] = {}
+
+	def __init__(self):
+		super().__init__("version", ["v"])
+		# Read the type map from the ini config file.
+		for key, value in get_config_section("config-ver-type-map", fail=True).items():
+			self._type_map[key] = value.split(',', 1)
+
+	def create_parser(self, subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
+			formatter_class=argparse.RawTextHelpFormatter,
+			help="Report or bump semantic version based on conventional commits.")
+		self.parser.epilog = f"""
+examples:
+
+  {self.script} version info
+  {self.script} version bump -v
+  {self.script} version bump -m --msg-file version-bump.msgs.json
+"""
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
+		return self.parser
+
+	def options(self, parser: argparse.ArgumentParser):
+		"""Adds options to the version subcommand."""
+		super().options(parser)
+		parser.add_argument("-v", "--verbose", action="store_true", help="Print extra processing information.")
+		parser.add_argument("-c", "--commit", type=str, metavar="<hash/tag>",
+			help="Commit hash to tag as new version (defaults to last commit/HEAD when omitted).")
+		parser.add_argument("-a", "--all", action="store_true",
+			help="Use all commits and not only merge commits in the process.")
+		parser.add_argument("-s", "--select", action="store_true",
+			help="Interactively select the target commit since last release tag (respecting merges flag).")
+		parser.add_argument("--msg-file", type=str, metavar="<file>",
+			help="JSON file containing replacement messages for commit hashes (for debugging).")
+		parser.add_argument("-l", "--long", action="store_true",
+			help="Use long (full) git hashes; default prints short hashes.")
+		parser.add_argument("action", nargs="?", choices=["info", "bump"],
+			help="""
+info: Report repository version information on the merge commits.
+bump: Generate release notes from the last or given commit hash.""")
+		parser.epilog = """
+
+message header format:
+  <type>(<scope>)!: <short summary>
+  │       │      │      └─⫸ Summary in present tense.
+  │       │      └─⫸ Optional exclamation mark '!' indicating a breaking change.
+  │       └─⫸ Commit Scope: common|compiler|config|cmake|changelog|docs-infra|pack|iface|etc...
+  └─⫸ Commit Type: build|ci|chore|docs|feat|fix|perf|refactor|style|test|revert
+
+type to change map:
+"""
+		for key, value in self._type_map.items():
+			parser.epilog += f"  {key} {' ' * (10 - len(key))}{value[0]} {' ' * (8 - len(value[0]))}{value[1]}\n"
+		parser.epilog += f"""
+examples:
+  Report versioning information using the last commit to determine the new version:
+    ./{self.script} {self.command} info 
+  Report versioning information using a by a dialog selected commit:
+    ./{self.script} {self.command} info -s 
+  Create Markdown release-notes in 'doc/release' directory for specified hash or tag:
+    ./{self.script} {self.command} bump -c b8d37e2
+    ./{self.script} {self.command} bump -c v0.1.0-rc.5
+"""
+		return parser
+
+	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
+		"""Handles the version reporting/bumping."""
+		super().handle(args, args_left, args_right)
+		merges_only = not args.all
+		logger.info(f"# Commits processed: {"Merges only" if merges_only else "All"}")
+		if args.select:
+			commit_hash = self.select_commit(merges_only)
+		elif args.commit:
+			# Convert the short or tag to a full commit hash.
+			commit_hash = self.git(["rev-parse", args.commit], check=True)
+		else:
+			commit_hash = self.git(["rev-parse", "--verify", "HEAD"], check=True)
+		git_top_level = self.git(["rev-parse", "--show-toplevel"], check=True)
+		cur_ver_tag, tag_found = self.get_latest_non_rc_tag()
+		tag_annotation = self.get_tag_annotation(cur_ver_tag) if tag_found else ""
+		msg_overrides = self.load_message_overrides(args.msg_file)
+		long_hash = args.long
+		if args.action == "info":
+			self.report_version_tags(git_top_level, cur_ver_tag, tag_found, commit_hash, merges_only, msg_overrides,
+				tag_annotation, long_hash=long_hash)
+			self.bump_version(info_only=True, cur_ver_tag=cur_ver_tag, commit_hash=commit_hash, merges_only=merges_only,
+				verbose=args.verbose, tag_found=tag_found, overrides=msg_overrides, git_top_level=git_top_level)
+		elif args.action == "bump":
+			self.bump_version(info_only=False, cur_ver_tag=cur_ver_tag, commit_hash=commit_hash, merges_only=merges_only,
+				verbose=args.verbose, tag_found=tag_found, overrides=msg_overrides, git_top_level=git_top_level)
+		else:
+			logger.info("! Missing version command.")
+			return 1
+		return 0
+
+	@staticmethod
+	def escape_markdown(text: str) -> str:
+		"""Escapes basic Markdown characters."""
+		if text is None:
+			return ""
+		escaped = text
+		replacements = {
+			"\\": "&#92;",
+			"`": "&#96;",
+			"*": "&#42;",
+			"#": "&#35;",
+			"[": "&#91;",
+			"]": "&#93;",
+		}
+		for src, dst in replacements.items():
+			escaped = escaped.replace(src, dst)
+		return escaped
+
+	# noinspection PyMethodMayBeStatic
+	def git(self, args: List[str], check: bool = False) -> str:
+		"""Runs git command and returns stdout as string."""
+		result = run_command(["git"] + args, capture_output=True, check=check, dbg_mode=DebugMode.SILENT)
+		return result.stdout.decode("utf-8").strip()
+
+	def git_lines(self, args: List[str], check: bool = False) -> List[str]:
+		"""Runs git and returns non-empty lines."""
+		return [ln for ln in self.git(args, check=check).splitlines() if ln.strip()]
+
+	# noinspection PyMethodMayBeStatic
+	def git_describe_exact(self, commit_hash: str) -> str:
+		"""Returns exact matching tag or '...' when none."""
+		if commit_hash in self._cache_git_describe_exact:
+			return self._cache_git_describe_exact[commit_hash]
+		result = run_command(["git", "describe", "--exact-match", commit_hash], capture_output=True, check=False,
+			dbg_mode=DebugMode.SILENT)
+		result = result.stdout.decode("utf-8").strip() if result.returncode == 0 else "..."
+		self._cache_git_describe_exact[commit_hash] = result
+		return result
+
+	def get_latest_non_rc_tag(self) -> Tuple[str, bool]:
+		"""Returns the latest non-RC tag and flag indicating existence."""
+		tags = [tag for tag in self.git_lines(["tag", "--list", "--format", "%(tag)"], check=False)
+			if re.match(r"^v\d+\.\d+\.\d+$", tag)]
+		if not tags:
+			return "v0.0.0", False
+		tags.sort(key=lambda t: tuple(int(x) for x in t[1:].split(".")), reverse=True)
+		return tags[0], True
+
+	# noinspection PyMethodMayBeStatic
+	def get_tag_annotation(self, tag: str) -> str:
+		"""Returns annotation text for tag."""
+		result = run_command(["git", "cat-file", "tag", tag], capture_output=True, check=False,
+			dbg_mode=DebugMode.SILENT)
+		if result.returncode != 0:
+			return ""
+		raw = result.stdout.decode("utf-8", errors="ignore")
+		parts = raw.split("\n\n", 1)
+		return parts[1].strip() if len(parts) == 2 else ""
+
+	# noinspection PyMethodMayBeStatic
+	def get_git_tag_version(self) -> Tuple[str, str, str, str]:
+		"""Returns tuple (version, rc, commits, hash) parsed from git describe information."""
+		result = run_command(["git", "describe", "--dirty", "--match", "v*.*.*"], capture_output=True, check=False,
+			dbg_mode=DebugMode.SILENT)
+		desc = result.stdout.decode("utf-8").strip()
+		match = re.match(
+			r"^v(?P<ver>[0-9]+\.[0-9]+\.[0-9]+)(-rc\.?(?P<rc>[0-9]+))?(-((?P<commits>[0-9]+)?(-(?P<hash>[a-z0-9]+))?)?)?(-dirty)?$",
+			desc)
+		if not match:
+			return "0.0.0", "", "", ""
+		return match.group("ver") or "0.0.0", match.group("rc") or "", match.group("commits") or "", match.group(
+			"hash") or ""
+
+	@staticmethod
+	def git_tag_version_string(version_info: Tuple[str, str, str, str]) -> str:
+		"""Formats the git describe tuple into a version string."""
+		version, rc, commits, _ = version_info
+		result = version
+		if rc:
+			result += f"-rc.{rc}"
+		if commits:
+			result += f"~{commits}"
+		return result
+
+	# noinspection PyMethodMayBeStatic
+	def load_message_overrides(self, msg_file: str) -> Dict[str, str]:
+		"""Loads message overrides from JSON or shell-format file."""
+		if msg_file is None:
+			json_default = os.path.join(RUN_DIR, ".version-bump.json")
+			if os.path.exists(json_default):
+				msg_file = json_default
+			else:
+				return {}
+		if not os.path.exists(msg_file):
+			logger.warning(f": Message file '{msg_file}' not found, ignoring.")
+			return {}
+		with open(msg_file, "r", encoding="utf-8") as fh:
+			data = json.load(fh)
+		if isinstance(data, dict):
+			return {k: str(v) for k, v in data.items()}
+		logger.warning(f": Message file '{msg_file}' has unsupported JSON structure, ignoring.")
+		return {}
+
+	# noinspection PyMethodMayBeStatic
+	def get_commit_message(self, commit_hash: str, overrides: Dict[str, str]) -> str:
+		"""Returns commit message with overrides applied."""
+		if commit_hash in overrides:
+			return overrides[commit_hash]
+		if commit_hash in self._cache_get_cmt_msg:
+			return self._cache_get_cmt_msg[commit_hash]
+		result = run_command(["git", "show", "--no-patch", "--format=%B", commit_hash], capture_output=True,
+			check=False, dbg_mode=DebugMode.SILENT)
+		result = result.stdout.decode("utf-8", errors="ignore").strip()
+		self._cache_get_cmt_msg[commit_hash] = result
+		return result
+
+	# noinspection PyMethodMayBeStatic
+	def collect_commits(self, cur_ver_tag: str, commit_hash: str, merges_only: bool, tag_found: bool) -> List[str]:
+		"""Collects commits between tag and commit hash (or from root when no tag)."""
+		args = ["git", "log"]
+		if merges_only:
+			args.append("--merges")
+		args += ["--pretty=format:%H"]
+		args.append(f"{cur_ver_tag}^..{commit_hash}" if tag_found else commit_hash)
+		result = run_command(args, capture_output=True, check=False, dbg_mode=DebugMode.SILENT)
+		if result.returncode != 0 and not result.stdout:
+			return []
+		return [ln for ln in result.stdout.decode("utf-8").splitlines() if ln.strip()]
+
+	def calculate_next_for_commit(self, cur_ver_tag: str, commit_hash: str, merges_only: bool, tag_found: bool,
+		overrides: Dict[str, str]
+	) -> str:
+		"""Returns the prospective next version tag if bumped at commit_hash."""
+		effect_max = "minor" if not tag_found else "none"
+		for commit in self.collect_commits(cur_ver_tag, commit_hash, merges_only, tag_found):
+			msg_string = self.get_commit_message(commit, overrides)
+			if not msg_string:
+				continue
+			msg_header = msg_string.split("\n", 1)[0]
+			match = self._header_regex.match(msg_header)
+			if not match:
+				continue
+			msg_type = match.group(1)
+			msg_breaking = match.group(4)
+			type_effect = self._type_map.get(msg_type, ("none", ""))[0]
+			effect = "major" if msg_breaking else type_effect
+			effect_max = self.compare_increments(effect, effect_max)
+		if effect_max == "none":
+			return cur_ver_tag
+		base_ver = cur_ver_tag[1:] if cur_ver_tag.startswith("v") else cur_ver_tag
+		return f"v{self.increment_version(base_ver, effect_max)}"
+
+	def select_commit(self, merges_only: bool) -> str:
+		"""Prompts the user to select a commit since the last tag."""
+		cur_ver_tag, tag_found = self.get_latest_non_rc_tag()
+		commits = self.collect_commits(cur_ver_tag, "HEAD", merges_only, tag_found)
+		if not commits:
+			raise subprocess.CalledProcessError(returncode=1, cmd=["git", "log"], output=b"", stderr=b"No commits found")
+		options = {}
+		for commit in commits:
+			msg = self.get_commit_message(commit, {})
+			heading = msg.split("\n", 1)[0].strip()
+			display = f"{commit[:7]} | {heading}"
+			options[commit] = display
+		choice = ask_selection(options=options, title="Select Commit", caption="Choose commit for version calculation")
+		if choice is None:
+			raise subprocess.CalledProcessError(returncode=1, cmd=["selection"], output=b"", stderr=b"No commit selected")
+		return str(choice)
+
+	@staticmethod
+	def compare_increments(effect: str, effect_max: str) -> str:
+		"""Returns the maximum increment."""
+		return effect if SubCommandVersion._increment_order.get(effect, 0) > SubCommandVersion._increment_order.get(
+			effect_max, 0) else effect_max
+
+	@staticmethod
+	def increment_version(version: str, effect: str) -> str:
+		"""Increments version string based on effect."""
+		parts = version.split(".")
+		while len(parts) < 3:
+			parts.append("0")
+		major, minor, patch = [int(x) for x in parts[:3]]
+		if effect == "patch":
+			patch += 1
+		elif effect == "minor":
+			minor += 1
+			patch = 0
+		elif effect == "major":
+			major += 1
+			minor = 0
+			patch = 0
+		return f"{major}.{minor}.{patch}"
+
+	def bump_version(self, info_only: bool, cur_ver_tag: str, commit_hash: str, merges_only: bool, verbose: bool,
+		tag_found: bool, overrides: Dict[str, str], git_top_level: str
+	):
+		"""Calculates the next version and optionally writes release notes."""
+		effect_max = "minor" if not tag_found else "none"
+		md_table_lines: List[str] = ["| # | Type | Effect | Scope | Change |", "|---:|:---|:---|:---|:---|"]
+		md_change_lines: List[str] = []
+		counter = 0
+		commits = self.collect_commits(cur_ver_tag, commit_hash, merges_only, tag_found)
+		if verbose:
+			logger.info(f"\n# Conventional commits from version: {cur_ver_tag} to ({commit_hash})")
+		for commit in commits:
+			msg_string = self.get_commit_message(commit, overrides)
+			if not msg_string:
+				continue
+			msg_header = msg_string.split("\n", 1)[0]
+			match = self._header_regex.match(msg_header)
+			if not match:
+				if verbose:
+					logger.info(f"~ Ignoring commit: {commit}")
+				continue
+			msg_type = match.group(1)
+			msg_scope = match.group(3) or ""
+			msg_breaking = match.group(4)
+			msg_heading = match.group(5)
+			msg_body = msg_string.split("\n", 1)[1] if "\n" in msg_string else ""
+			type_effect = self._type_map.get(msg_type, ("none", ""))[0]
+			effect = "major" if msg_breaking else type_effect
+			effect_max = self.compare_increments(effect, effect_max)
+			if verbose:
+				logger.info(f"= Accepting commit: {commit}")
+				logger.info(
+					f"Heading\t{msg_heading}\nType\t{msg_type}\nScope\t{msg_scope}\nBreak\t[{msg_breaking}]\nVersion Effect\t{effect}")
+				if msg_body.strip():
+					logger.info(msg_body)
+			if not info_only:
+				counter += 1
+				md_table_lines.append(
+					f"| **{counter}** | {self._type_map.get(msg_type, ('', ''))[1]} | {effect} | {msg_scope} | {msg_heading} |")
+				md_change_lines.append(
+					f"#### {counter}) {self._type_map.get(msg_type, ('', ''))[1]}: {self.escape_markdown(msg_heading)}\n\n{msg_body}\n\n---\n")
+
+		logger.info("\n# Version Bump")
+		if effect_max == "none":
+			logger.info(": Changes maximum effect (none) do not bump the version.")
+			return
+		base_ver = cur_ver_tag[1:] if cur_ver_tag.startswith("v") else cur_ver_tag
+		next_ver_tag = f"v{self.increment_version(base_ver, effect_max)}"
+		logger.info(f"Current ver/tag  : {cur_ver_tag}")
+		logger.info(f"Max-effect       : {effect_max}")
+		logger.info(f"Upto commit      : {commit_hash}")
+		logger.info(f"Next version/tag : {next_ver_tag}")
+
+		if not info_only:
+			notes_dir = os.path.join(git_top_level, "doc", "release")
+			os.makedirs(notes_dir, exist_ok=True)
+			md_file = os.path.join(notes_dir, f"notes-{next_ver_tag}.md")
+			with open(md_file, "w", encoding="utf-8") as fh:
+				fh.write(f"# Release-notes Version {next_ver_tag}\n\n")
+				fh.write(f"## Changelist since version {cur_ver_tag}\n\n")
+				fh.write("\n".join(md_table_lines))
+				fh.write("\n\n### Changes\n")
+				fh.write("\n".join(md_change_lines))
+			logger.info(f"- Release notes written to {md_file}")
+
+	def report_version_tags(self, git_top_level: str, cur_ver_tag: str, tag_found: bool, commit_hash: str,
+		merges_only: bool, overrides: Dict[str, str], tag_annotation: str, long_hash: bool = False
+	):
+		"""Reports the versions, the annotated tags, and the commit ranges."""
+
+		def fmt_hash(h: str) -> str:
+			"""Formats the given hash to a character short one taking the first 7 characters."""
+			return h if long_hash else h[:7]
+
+		hash_w = 40 if long_hash else 8
+		logger.info("\n# Top level directory")
+		logger.info(git_top_level)
+
+		logger.info("\n# Current versions")
+		logger.info(f"Package (Git) : {self.git_tag_version_string(self.get_git_tag_version())}")
+		logger.info(f'Last non-rc   : {cur_ver_tag} "{tag_annotation}"')
+		if not tag_found:
+			logger.info(f": No current git version tag was found using '{cur_ver_tag}'.")
+
+		logger.info("\n# Annotated version-tags")
+		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Annotation")
+		for line in reversed(self.git_lines(["tag", "--list", "--format", "%(tag)\t%(object)\t%(subject)"], check=False)):
+			tag, obj, subject = (line.split("\t", 2) + ["", "", ""])[:3]
+			if not re.match(r"^v\d+\.\d+\.\d+(-rc\.\d+)?$", tag):
+				continue
+			logger.info(f"{tag:<15} | {fmt_hash(obj):<{hash_w}} | \"{subject}\"")
+
+		logger.info("\n# All merge commits")
+		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Version{'':<3} | Commit heading")
+		for commit in self.git_lines(["log", "--merges", "--pretty=format:%H"], check=False):
+			tag = self.git_describe_exact(commit)
+			heading = (self.get_commit_message(commit, overrides).split("\n", 1)[0]).strip()
+			next_ver = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=True, tag_found=tag_found,
+				overrides=overrides)
+			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {next_ver:<10} | {heading}")
+
+		logger.info(f"\n# Commits since version: {cur_ver_tag} upto '{commit_hash}'")
+		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Commit heading")
+		commits = self.collect_commits(cur_ver_tag, commit_hash, merges_only, tag_found)
+		for commit in commits:
+			tag = self.git_describe_exact(commit)
+			heading = (self.get_commit_message(commit, overrides).split("\n", 1)[0]).strip()
+			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {heading}")
+
+
 class SubCommandRun(SubCommand):
 	"""Subcommand handler for the 'create' command."""
 
@@ -2530,13 +3056,7 @@ class SubCommandRun(SubCommand):
 			formatter_class=argparse.RawTextHelpFormatter,
 			help="Runs an executable with the environment from given configure preset.")
 		self.parser.epilog = f"""
-Examples:
-
-  List files in the configure preset's binary directory:
-    Linux: 
-      ./{self.script} {self.command} -p gnu-debug
-    Windows:
-      {self.script} {self.command} -p mingw-debug
+examples:
       
   Run executable in with the working directory as the binary: 
     Linux: 
@@ -2551,6 +3071,8 @@ Examples:
       {self.script} --exec -- gcc --version
       {self.script} --preset gnu-debug -- cmd /c echo ^%PATH^%
 """
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
 		return self.parser
 
 	def options(self, parser: argparse.ArgumentParser):
@@ -2664,13 +3186,14 @@ def main() -> int:
 			SubCommandDocker().register()
 	# Register unconditional commands.
 	SubCommandInstall().register()
+	SubCommandVersion().register()
 	SubCommandRun().register()
 	#
 	parser = argparse.ArgumentParser(description="""Helper for running CMake , CTest, CPack commands using 'CMakePresets.json' and 'CMakeUserPresets.json'.
 Running Native, Docker, Wine and nested as in Docker > Wine.
 """, formatter_class=argparse.RawTextHelpFormatter, add_help=False)
 	# Get the ini file.
-	ini_file = str(os.path.splitext(script)[0] + ".ini")
+	ini_file = str(os.path.splitext(str(script))[0] + ".ini")
 	parser.epilog = f"""
 The script depends on the configuration file '{ini_file}' which contains sections
 for creating environments for each nested call of this script.

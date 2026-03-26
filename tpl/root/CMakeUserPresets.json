@@ -2,38 +2,49 @@
 	"version": 6,
 	"configurePresets": [
 		{
-			"name": "gw-user",
+			"name": "d-gnu-debug",
 			"hidden": false,
-			"displayName": "User GW",
-			"description": "Debug config for Windows GW compiler on Linux.",
+			"displayName": "Docker GNU",
 			"inherits": [
-				".lnx-only",
-				".cfg-win"
+				"gnu-debug"
 			],
-			"cacheVariables": {
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "gw"
-				},
-				"SF_BUILD_TESTING": {
-					"type": "BOOL",
-					"value": "ON"
-				}
-			},
-			"environment": {
-				"--QT_VER_DIR": "$penv{HOME}/lib/qt/w64-x86_64/6.8.1"
-			},
 			"vendor": {
 				"jetbrains.com/clion": {
-					"toolchain": "MinGW"
+					"toolchain": "DockerRemoteGNU"
 				}
 			}
 		},
 		{
-			"name": "msvc-debug-local",
+			"name": "d-ga-debug",
+			"hidden": false,
+			"displayName": "Docker GA",
+			"inherits": [
+				"ga-debug"
+			],
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "DockerRemoteGA"
+				}
+			}
+		},
+		{
+			"name": "d-gw-debug",
+			"hidden": false,
+			"displayName": "Docker GW",
+			"description": "Debug config for Docker GW compiler on Linux.",
+			"inherits": [
+				"gw-debug"
+			],
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "DockerRemoteGW"
+				}
+			}
+		},
+		{
+			"name": "l-msvc-debug",
 			"hidden": false,
 			"displayName": "Debug Local MSVC",
-			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
 				"msvc-debug"
 			],
@@ -47,102 +58,69 @@
 	],
 	"buildPresets": [
 		{
-			"name": "gw-user",
-			"hidden": false,
+			"name": "d-gnu-debug",
 			"inherits": [
-				".lnx-only",
-				".build"
+				"gnu-debug"
 			],
-			"displayName": "User GW",
-			"description": "User debug build preset GW compiler.",
-			"configurePreset": "gw-user",
-			"targets": [
-				"t_devops-shared-test-catch",
-				"t_devops-shared-test-google"
-			]
+			"displayName": "Docker GNU",
+			"configurePreset": "d-gnu-debug"
 		},
 		{
-			"name": "msvc-debug-local",
+			"name": "d-ga-debug",
+			"inherits": [
+				"ga-debug"
+			],
+			"displayName": "Docker GA",
+			"configurePreset": "d-ga-debug"
+		},
+		{
+			"name": "d-gw-debug",
+			"inherits": [
+				"gnu-debug"
+			],
+			"displayName": "Docker GW",
+			"configurePreset": "d-gw-debug"
+		},
+		{
+			"name": "l-msvc-debug",
 			"displayName": "Debug Local MSVC",
-			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
 				"msvc-debug"
 			],
-			"configurePreset": "msvc-debug-local",
-			"targets": [
-				"t_devops-shared-test-catch",
-				"t_devops-shared-test-google"
-			]
+			"configurePreset": "l-msvc-debug"
 		}
 	],
 	"testPresets": [
 		{
-			"name": "gw-user",
-			"hidden": false,
-			"displayName": "User GW",
-			"description": "User test debug Windows GW compiler on Linux.",
-			"inherits": [
-				".lnx-only",
-				".test"
-			],
-			"configurePreset": "gw-user"
-		},
-		{
-			"name": "msvc-debug-local",
+			"name": "l-msvc-debug",
 			"displayName": "Debug Local MSVC",
-			"description": "Debug local config for MSVC compiler.",
 			"inherits": [
 				"msvc-debug"
 			],
-			"configurePreset": "msvc-debug-local"
+			"configurePreset": "l-msvc-debug"
 		}
 	],
 	"packagePresets": [
 	],
 	"workflowPresets": [
 		{
-			"name": "gw-user",
-			"displayName": "User GW",
-			"description": "User build & test only.",
-			"steps": [
-				{
-					"type": "configure",
-					"name": "gw-user"
-				},
-				{
-					"type": "build",
-					"name": "gw-user"
-				},
-				{
-					"type": "test",
-					"name": "gw-user"
-				}
-			],
-			"vendor": {
-				"target_os": "GNU/Linux"
-			}
-		},
-		{
-			"name": "msvc-debug-local",
+			"name": "l-msvc-debug",
 			"displayName": "Debug Local MSVC",
 			"description": "Debug local config for MSVC compiler.",
 			"steps": [
 				{
 					"type": "configure",
-					"name": "msvc-debug-local"
+					"name": "l-msvc-debug"
 				},
 				{
 					"type": "build",
-					"name": "msvc-debug-local"
+					"name": "l-msvc-debug"
 				},
 				{
 					"type": "test",
-					"name": "msvc-debug-local"
+					"name": "l-msvc-debug"
 				}
-			],
-			"vendor": {
-				"target_os": "Cygwin"
-			}
+			]
 		}
 	]
 }

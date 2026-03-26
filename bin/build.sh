@@ -155,7 +155,7 @@ function InstallPackages {
 		wg_pkgs["CMake C++ build tool"]="Kitware.CMake"
 		wg_pkgs["Ninja build system"]="Ninja-build.Ninja"
 		wg_pkgs["Nullsoft Install System"]="NSIS.NSIS"
-		wg_pkgs["Oracle JRE"]="Oracle.JavaRuntimeEnvironment"
+		wg_pkgs["Temurin JRE"]="EclipseAdoptium.Temurin.21.JRE"
 		wg_pkgs["LLVM Clang-Format"]="LLVM.ClangFormat"
 		wg_pkgs["Doxygen"]="DimitriVanHeesch.Doxygen"
 		#wg_pkgs["GNU Make"]="GnuWin32.Make"

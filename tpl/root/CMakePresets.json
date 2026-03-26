@@ -76,6 +76,70 @@
 			}
 		},
 		{
+			"name": ".tc-gnu",
+			"description": "Toolchain for generic GNU",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gnu"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GNU"
+				}
+			}
+		},
+		{
+			"name": ".tc-ga",
+			"description": "Toolchain for generic GA",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "ga"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GA"
+				}
+			}
+		},
+		{
+			"name": ".tc-gw",
+			"description": "Toolchain for generic GW",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gw"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GW"
+				}
+			}
+		},
+		{
+			"name": ".tc-mingw",
+			"description": "Toolchain for generic MinGW",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "mingw"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MinGW"
+				}
+			}
+		},
+		{
 			"name": ".tc-msvc",
 			"description": "Toolchain for generic MSVC",
 			"hidden": true,
@@ -96,6 +160,11 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "msvc"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "MSVC"
 				}
 			}
 		},
@@ -150,32 +219,7 @@
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
 					"value": "ON"
-				},
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "gnu"
 				}
-			},
-			"vendor": {
-				"compiler": "gnu"
-			}
-		},
-		{
-			"name": ".cfg-lnx-arm",
-			"inherits": [
-				".cfg-lnx"
-			],
-			"hidden": true,
-			"displayName": "Debug Linux Template",
-			"description": "Debug config Linux template.",
-			"cacheVariables": {
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "ga"
-				}
-			},
-			"vendor": {
-				"compiler": "ga"
 			}
 		},
 		{
@@ -194,14 +238,7 @@
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
 					"value": "ON"
-				},
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "gw"
 				}
-			},
-			"vendor": {
-				"compiler": "gw"
 			}
 		},
 		{
@@ -221,10 +258,6 @@
 				"SF_BUILD_TESTING": {
 					"type": "BOOL",
 					"value": "ON"
-				},
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "mingw"
 				}
 			}
 		},
@@ -235,6 +268,7 @@
 			"description": "Debug config GNU compiler on Linux.",
 			"inherits": [
 				".qt",
+				".tc-gnu",
 				".cfg-lnx"
 			],
 			"cacheVariables": {
@@ -247,7 +281,8 @@
 			"description": "Debug config GNU Arm compiler on Linux.",
 			"inherits": [
 				".qt",
-				".cfg-lnx-arm"
+				".tc-ga",
+				".cfg-lnx"
 			],
 			"cacheVariables": {
 			}
@@ -259,6 +294,7 @@
 			"description": "Coverage config GNU compiler on Linux.",
 			"inherits": [
 				".qt",
+				".tc-gnu",
 				".cfg-lnx"
 			],
 			"cacheVariables": {
@@ -275,6 +311,7 @@
 			"description": "Coverage config Windows GW compiler on Linux.",
 			"inherits": [
 				".qt",
+				".tc-gw",
 				".cfg-win"
 			],
 			"cacheVariables": {
@@ -285,22 +322,13 @@
 			}
 		},
 		{
-			"name": "gw-debug",
-			"hidden": false,
-			"displayName": "Debug GW",
-			"description": "Debug config for Windows GW compiler on Linux.",
-			"inherits": [
-				".qt",
-				".cfg-win"
-			]
-		},
-		{
 			"name": "gnu-release",
 			"hidden": false,
 			"displayName": "Release GNU",
 			"description": "Release config GNU compiler on Linux.",
 			"inherits": [
 				".qt",
+				".tc-gnu",
 				".cfg-lnx"
 			],
 			"cacheVariables": {
@@ -317,7 +345,8 @@
 			"description": "Release config GNU Arm compiler on Linux.",
 			"inherits": [
 				".qt",
-				".cfg-lnx-arm"
+				".tc-ga",
+				".cfg-lnx"
 			],
 			"cacheVariables": {
 				"CMAKE_BUILD_TYPE": {
@@ -327,12 +356,24 @@
 			}
 		},
 		{
+			"name": "gw-debug",
+			"hidden": false,
+			"displayName": "Debug GW",
+			"description": "Debug config for Windows GW compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gw",
+				".cfg-win"
+			]
+		},
+		{
 			"name": "gw-release",
 			"hidden": false,
 			"displayName": "Release GW",
 			"description": "Release config for Windows GW compiler on Linux.",
 			"inherits": [
 				".qt",
+				".tc-gw",
 				".cfg-win"
 			],
 			"cacheVariables": {
@@ -349,19 +390,9 @@
 			"description": "Debug config for MinGW compiler on Windows.",
 			"inherits": [
 				".qt",
+				".tc-mingw",
 				".cfg-w64"
-			],
-			"cacheVariables": {
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "mingw"
-				}
-			},
-			"vendor": {
-				"jetbrains.com/clion": {
-					"toolchain": "MinGW"
-				}
-			}
+			]
 		},
 		{
 			"name": "mingw-release",
@@ -370,21 +401,13 @@
 			"description": "Release config for MinGW compiler on Windows.",
 			"inherits": [
 				".qt",
+				".tc-mingw",
 				".cfg-w64"
 			],
 			"cacheVariables": {
 				"CMAKE_BUILD_TYPE": {
 					"type": "STRING",
 					"value": "Release"
-				},
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "mingw"
-				}
-			},
-			"vendor": {
-				"jetbrains.com/clion": {
-					"toolchain": "MinGW"
 				}
 			}
 		},
@@ -399,15 +422,6 @@
 				".cfg-w64"
 			],
 			"cacheVariables": {
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "msvc"
-				}
-			},
-			"vendor": {
-				"jetbrains.com/clion": {
-					"toolchain": "MSVC"
-				}
 			}
 		},
 		{
@@ -424,15 +438,6 @@
 				"CMAKE_BUILD_TYPE": {
 					"type": "STRING",
 					"value": "Release"
-				},
-				"SF_COMPILER": {
-					"type": "STRING",
-					"value": "msvc"
-				}
-			},
-			"vendor": {
-				"jetbrains.com/clion": {
-					"toolchain": "MSVC"
 				}
 			}
 		}
