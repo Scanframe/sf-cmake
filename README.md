@@ -3,8 +3,10 @@
 <!-- TOC -->
 * [CMake Library](#cmake-library)
 * [Introduction](#introduction)
+  * [General](#general)
+  * [Toolchains Supported](#toolchains-supported)
   * [Quick start](#quick-start)
-    * [Using: Debian Linux:](#using-debian-linux)
+    * [Using: Ubuntu/Debian flavor of Linux:](#using-ubuntudebian-flavor-of-linux)
     * [Using: Windows](#using-windows)
   * [Project Directory Structure & Setup](#project-directory-structure--setup)
     * [Structure](#structure)
@@ -24,9 +26,11 @@
 
 # Introduction
 
+## General
+
 This repository makes using CMake in C++ projects easier and features:
 
-* Allows building Qt and non-Qt projects from Linux and Windows from a fresh installed OS from scratch.
+* Allows building Qt and non-Qt projects from Linux and Windows from a fresh-installed OS from scratch.
 * The project can be setup on a Linux system and shared with Windows using Samba ((`follow symlinks = yes`))
   or with VirtualBox shared folders.
 * Supports building using the compilers GNU, MinGW and MSVC on Linux and MinGW and MSVC on Windows.
@@ -48,9 +52,41 @@ This repository makes using CMake in C++ projects easier and features:
   * Locates the required Qt library version and downloads it when it does not exist.
 * Provides a skeleton [`gitlab-ci`](tpl/root/gitlab-ci) configuration directory which:
   * Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
-  * Uploads the coverage HTML-report to a MinIO server and accessible from the GitLab merge request.
-* A version bump bash script to determine the next version based on which (merge-)commit is released
-  when using conventional commit messages.
+  * Uploads the coverage HTML report to a MinIO server and accessible from the GitLab merge request.
+* A version bump bash script to determine the next version based on which (merge-)commit is released when using
+  conventional commit messages.
+
+## Toolchains Supported
+
+The [`build.py`](bin/build.py) script supports several toolchains, each intended for specific host environments:
+
+* `gnu` - The native GNU compiler on Linux, targeting Linux x86_64.
+* `ga` - The GNU compiler on Linux, cross-compiling for the ARM (aarch64) architecture.
+* `gw` - The GNU cross-compiler toolchain running on Linux, targeting Windows (mingw-w64).
+* `mingw` - The MinGW compiler, running natively on Windows or within Wine, targeting Windows.
+* `msvc` - The Microsoft Visual C++ compiler, running natively on Windows or within Wine, targeting Windows.
+
+| Toolchain | Linux | Wine | Docker(Wine) | Windows |
+|-----------|:-----:|:----:|:------------:|:-------:|
+| `gnu`     | 🛠🚀  |  ➖  |     🛠🚀     |   ➖    |
+| `ga`      | 🛠🚀  |  ➖  |     🛠🚀     |   ➖    |
+| `gw`      |  🛠   |  🚀  |     🛠🚀     |   ➖    |
+| `mingw`   |  ➖   | 🛠🚀 |     🛠🚀     |  🛠🚀   |
+| `msvc`    |  ➖   | 🛠🚀 |     🛠🚀     |  🛠🚀   |
+
+> 🛠 Build/Compile projects.  
+> 🚀 Execution of tests and applications.
+
+The table below shows how to invoke `build.py` for a given toolchain `<tc>` in each supported environment:
+
+| Environment    | Command to Make and Build                     |
+|----------------|-----------------------------------------------|
+| Linux          | `./build.py -mb <tc>-debug`                   |
+| Linux + Wine   | `./build.py wine -- -mb <tc>-debug`           |
+| Docker         | `./build.py docker -- -mb <tc>-debug`         |
+| Docker + Wine  | `./build.py docker -- wine -- -mb <tc>-debug` |
+| Native Windows | `build.py -mb <tc>-debug`                     |
+
 
 ## Quick start
 
@@ -58,12 +94,12 @@ Create an empty project directory like `cpp-project`.
 Download the [`build.py`](bin/build.py) script the project directory.
 
 Sources where to download from are:
+
 - https://www.scanframe.com/export/build.py
 - https://git.scanframe.com/library/cmake-lib/-/raw/main/bin/build.py
 - https://raw.githubusercontent.com/Scanframe/sf-cmake/refs/heads/main/bin/build.py
 
-For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, 
-use `curl -O <url>`.
+For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, use `curl -O <url>`.
 
 ### Using: Ubuntu/Debian flavor of Linux:
 
@@ -121,7 +157,7 @@ A prerequisite is Python 3.12 or later. Python `.py` scripts are executable on W
 winget install --exact --id Python.Python.3.12
 ```
 
-For MinGW/MSVC compiling: 
+For MinGW/MSVC compiling:
 
 ```shell
 # Install WinGet packages for the required buildtools.
@@ -135,7 +171,7 @@ When Git was not installed yet, reopen the console app to have the `git` command
 build.py install --project
 ```
 
-For MinGW compiling: 
+For MinGW compiling:
 
 ```shell
 # Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
@@ -144,7 +180,7 @@ build.py install --toolchain mingw
 build.py --build mingw-debug
 ```
 
-For MSVC compiling: 
+For MSVC compiling:
 
 ```shell
 # Install the MinGW toolchain in subdirectory '<project>/lib/toolchain'.
@@ -153,7 +189,7 @@ build.py install --toolchain msvc
 build.py --build msvc-debug
 ```
 
-For compiling a document with DoxyGen: 
+For compiling a document with DoxyGen:
 
 ```shell
 # Compile the non-default DoxGen documentation project.
@@ -161,63 +197,76 @@ For compiling a document with DoxyGen:
 # Opens the Chrome browser in application mode with the generated pages.
 bin/man/open.sh
 ```
+
 > For Windows use preset `mingw-debug` or `mingw-debug`.
 
 ## Project Directory Structure & Setup
 
 ### Structure
 
-A project directory tree could look like this.
+A project directory tree could look like this:
 
 ```
 <project-root>
-    ├── .gitlab
-    ├── bin
-    │   ├── gcov
-    │   ├── lnx64 (a suffixed could be applied)
+    ├── .gitlab (CI/CD )
+    ├── bin (build output of the project)
+    │   ├── lnx64-gnu
     │   │   └── lib
-    │   ├── pkg
-    │   ├── man
+    │   ├── lnx64-ga
+    │   │   └── lib
+    │   ├── win64-gw
+    │   │   └── lib
+    │   ├── win64-msvc
+    │   │   └── lib
+    │   ├── pkg (CPack generated output)
+    │   ├── gcov (Covverage generated output)
+    │   ├── man (Doxygen generated documentation)
     │   └── win64 (a suffixed could be applied)
     │       └── lib
     ├── cmake
     │   ├── cpack
     │   └── lib (This repository location)
     ├── cmake-build
+    │   ├── docker-amd64-6.10.1 (mapped docker build root)
+    │   │   ├── gnu-debug (Linux GNU)
+    │   │   ├── ga-debug (Linux MinGW)
+    │   │   └── msvc-debug (Windows MSVC)
     │   ├── gnu-debug (Linux GNU)
     │   ├── gw-debug (Linux MinGW)
     │   └── mingw-debug (Windows MinGW)
-    ├── doc
+    ├── doc (Base documentation directory)
     ├── lib
-    │   └── qt
+    │   ├── qt (base of Qt versioned libraries)
+    │   └── toolchain (Base of toolchains)
     └── src
         └── tests
 ```
 
-| Path          | Description                                            |
-|---------------|--------------------------------------------------------|
-| .gitlab       | GitLab CI/CD pipeline scripts.                         | 
-| bin           | Root for compiled results from builds.                 |
-| bin/gcov      | Coverage report files from unittests.                  |
-| bin/lnx64     | Binaries from Linux 64-bit builds.                     |
-| bin/lnx64/lib | Dynamic libraries from Linux 64-bit builds.            |
-| bin/win64     | Binaries from Windows 64-bit builds.                   |
-| bin/win64/lib | Dynamic libraries from Windows 64-bit builds.          |
-| bin/pkg       | Packages from all builds.                              |
-| bin/man       | Doxygen generated documentation builds.                |
-| cmake/cpack   | CPack files for packing the application and libraries. |
-| cmake/lib     | Obligatory Location of this 'cmake-lib' git-submodule. |
-| cmake-build   | CMake binary root directory.                           |
-| doc           | Doxygen document project source.                       |
-| lib           | Downloaded or symlinks to libraries.                   |
-| lib/qt        | Linux Qt library directory or symlink.                 |
-| src           | Application source files.                              |
-| src/test      | Test application source files.                         |
+| Path            | Description                                            |
+|-----------------|--------------------------------------------------------|
+| .gitlab         | GitLab CI/CD pipeline scripts.                         | 
+| bin             | Root for compiled results from builds.                 |
+| bin/gcov        | Coverage report files from unittests.                  |
+| bin/lnx64-*     | Binaries from Linux 64-bit builds.                     |
+| bin/lnx64-*/lib | Dynamic libraries from Linux 64-bit builds.            |
+| bin/win64-*     | Binaries from Windows 64-bit builds.                   |
+| bin/win64-*/lib | Dynamic libraries from Windows 64-bit builds.          |
+| bin/pkg         | Packages from all builds.                              |
+| bin/man         | Doxygen generated documentation builds.                |
+| cmake/cpack     | CPack files for packing the application and libraries. |
+| cmake/lib       | Obligatory Location of this 'cmake-lib' git-submodule. |
+| cmake-build     | CMake binary root directory.                           |
+| doc             | Doxygen document project source.                       |
+| lib             | Downloaded or symlinks to libraries.                   |
+| lib/qt          | Linux Qt library directory or symlink.                 |
+| lib/toolchain   | Base direcotry of toolchains.                          |
+| src             | Application source files.                              |
+| src/test        | Test application source files.                         |
 
-The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build
-output directory for subprojects. The reason for building only subprojects instead of all is to speed
-up debugging by compiling only the dynamic loaded library separately.
-When directories are empty but needed then add a file called `__placeholder__` so is not ignoring them.
+The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build output directory
+for subprojects. The reason for building only subprojects instead of all is to speed up debugging by compiling only the
+dynamic loaded library separately. When directories are empty but needed, then add a file called `__placeholder__` so is
+not ignoring them.
 
 > The `build.ini` and the `CMakePresets.json` provides a way to extend the `bin/lnx64` or `bin/win64` directory
 > by an environment variable (`SF_EXEC_DIR_SUFFIX`).
@@ -226,8 +275,8 @@ When directories are empty but needed then add a file called `__placeholder__` s
 
 ## Qt Library Download
 
-Instead of installing Qt with the "Qt Maintenance Tool" this CMake command will download the library
-in the subdirectory `<project-dir>/lib/qt` depending on the target specified host OS.
+Instead of installing Qt with the "Qt Maintenance Tool" this CMake command will download the library in the subdirectory
+`<project-dir>/lib/qt` depending on the target specified host OS.
 
 ```cmake
 find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
@@ -235,19 +284,18 @@ find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
 
 ## Doxygen Document
 
-For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory
-is added to the main `CMakeLists.txt` file.
+For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory is added to
+the main `CMakeLists.txt` file.
 
 ```cmake
 # Add Doxygen document project.
 add_subdirectory(doc)
 ```
 
-See the `doc` directory [`CMakeLists.txt`](tpl/root/doc/CMakeLists.txt) to see how files are automatically 
-included in the manual.
+See the `doc` directory [`CMakeLists.txt`](tpl/root/doc/CMakeLists.txt) to see how files are automatically included in
+the manual.
 
-Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or 
-Markdown files.
+Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or Markdown files.
 
 ## Git Versioning
 
@@ -284,7 +332,7 @@ list(GET _Versions 1 SF_GIT_TAG_RC)
 list(GET _Versions 2 SF_GIT_TAG_COMMITS)
 ```
 
-For example when the result is `v1.2.3-rc.4-56-g914edbb-dirty`.
+For example, when the result is `v1.2.3-rc.4-56-g914edbb-dirty`.
 
 | Index | Description                       | Value |
 |------:|-----------------------------------|------:|
@@ -310,9 +358,8 @@ There are three Nexus apt-repositories that can be described to:
 | `staging` | Release candidates.      |
 | `develop` | Development and testing. |
 
-To have the latest release, subscribe only to `stable`.
-To have update when a release candidate (RC) becomes available subscribe additionally to `staging`.
-When developing and testing debian packages subscribe additionally to `develop`.
+To have the latest release, subscribe only to `stable`. To have update when a release candidate (RC) becomes available
+subscribe additionally to `staging`. When developing and testing debian packages subscribe additionally to `develop`.
 
 Debian packages are deployed/uploaded to the appropriate apt-repository depending on if it:
 
@@ -351,8 +398,8 @@ The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfB
 ## Code Format Checking and Fixing with Clang
 
 To enable format check before a commit, modify or add the script [
-`.git/hooks/pre-commit`](tpl/root/git-pre-commit-hook.sh) with the following content.
-It calls the [check-format.sh](bin/check-format.sh) script, which indirectly calls the
+`.git/hooks/pre-commit`](tpl/root/git-pre-commit-hook.sh) with the following content. It calls
+the [check-format.sh](bin/check-format.sh) script, which indirectly calls the
 [clang-format.sh`](bin/clang-format.sh) from the CMake support library.  
 It also checks if it is a commit to the main or master branch and prevents it.
 

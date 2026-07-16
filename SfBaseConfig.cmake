@@ -267,6 +267,8 @@ endfunction()
 # Set the target linker and compile options depending on the compiler ID and 'CMAKE_BUILD_TYPE' variable.
 #
 function(Sf_SetTargetDefaultOptions _Target)
+	# Get the target's type.
+	get_target_property(_Type "${_Target}" TYPE)
 	# When the GNU compiler is involved.
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		# Workaround for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden) globally.
@@ -302,6 +304,19 @@ function(Sf_SetTargetDefaultOptions _Target)
 			# This bellow could also be the default already.
 			#target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+#[[
+			# When compiling with MSVC in Wine and the target is a dynamic library.
+			if (DEFINED ENV{WINE_HOST_HOME})
+				message(STATUS "Forces MSVC to link standard Release runtimes on target: ${_Target}")
+				# Use the multithread-specific and DLL-specific version of the runtime library.
+				# Defines _MT and _DLL. The linker uses the MSVCRT.lib import library to resolve runtime symbols.
+				if (_Type STREQUAL "SHARED_LIBRARY")
+					set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+				elseif (_Type STREQUAL "EXECUTABLE")
+					set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+				endif ()
+			endif ()
+]]
 			#target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
 			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
@@ -409,7 +424,7 @@ function(Sf_AddSharedLibrary _Target)
 	Sf_SetTargetVersion("${_Target}")
 	# In Windows builds the output directory for libraries is ignored and the runtime is used and is now corrected.
 	if (WIN32)
-		set_target_properties("${PROJECT_NAME}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+		set_target_properties("${_Target}" PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 	endif ()
 endfunction()
 

@@ -3,8 +3,13 @@ include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
 # Latest known available version.
 set(PACKAGE_VERSION 6.10.1)
 
-# Find the locally available  highest version of Qt.
-Sf_FindQtVersion(_AvailQtVer)
+# When no version was given use the default version set here above.
+if (PACKAGE_FIND_VERSION STREQUAL "")
+	set(PACKAGE_FIND_VERSION "${PACKAGE_VERSION}")
+endif ()
+
+# Find if the version of Qt when available.
+Sf_FindQtVersion(_AvailQtVer "${PACKAGE_FIND_VERSION}")
 # When greater, reassign the package version.
 if (_AvailQtVer)
 	if ("${_AvailQtVer}" VERSION_GREATER "${PACKAGE_VERSION}")

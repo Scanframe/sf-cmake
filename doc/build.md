@@ -2,8 +2,9 @@
 
 ## Overview
 
-Script `build.py` is a comprehensive CMake build system helper that provides a unified interface for configuring, building,
-testing, and packaging C++ projects across multiple platforms and toolchains. It automates complex build workflows using
+Script `build.py` is a comprehensive CMake build system helper that provides a unified interface for configuring,
+building, testing, and packaging C++ projects across multiple platforms and toolchains. It automates complex build
+workflows using
 `CMakePresets.json` configuration and supports nested execution environments (native, Docker, Wine).
 
 ## Key Features
@@ -132,8 +133,8 @@ Install required development packages and dependencies depending on the OS it is
 
 ### Run Command
 
-Execute compiled applications with the proper environment configuration from the `CMakePreset.json` file 
-preceeded by an environment configured from `build.ini` file.
+Execute compiled applications with the proper environment configuration from the `CMakePreset.json` file preceeded by an
+environment configured from `build.ini` file.
 
 **Usage**: `./build.py run -p <preset> -- <executable> [args]`
 
@@ -163,11 +164,11 @@ SF_EXEC_DIR_SUFFIX=-msvc ./build.py run -p msvc-debug -- hello-world.exe
 
 | Toolchain              | Abbrev. | Linux | Windows | Wine | Dckr | Description                                       |
 |------------------------|---------|-------|---------|------|------|---------------------------------------------------|
-| **GNU x86_64/aarch64** | `gnu`   | ✓¹    | ✗       | ✗    | ✓    | Native Linux GNU compiler (on x86_64 or aarch64)  |
-| **GNU aarch64**        | `ga`    | ✓²    | ✗       | ✗    | ✓    | Linux GNU cross-compiler for aarch64 (on x86_64)  |
-| **GNU for Win64**      | `gw`    | ✓     | ✗       | ✓    | ✓    | Linux GNU MinGW cross-compiler for Windows builds |
-| **MinGW**              | `mingw` | ✗     | ✓       | ✗    | ✗³   | Windows MinGW-w64 compiler for Windows builds     |
-| **MSVC**               | `msvc`  | ✗     | ✓       | ✓    | ✓    | Windows Microsoft Visual C++ compiler builds      |
+| **GNU x86_64/aarch64** | `gnu`   | ✓¹   | ✗      | ✗   | ✓   | Native Linux GNU compiler (on x86_64 or aarch64)  |
+| **GNU aarch64**        | `ga`    | ✓²   | ✗      | ✗   | ✓   | Linux GNU cross-compiler for aarch64 (on x86_64)  |
+| **GNU for Win64**      | `gw`    | ✓    | ✗      | ✓   | ✓   | Linux GNU MinGW cross-compiler for Windows builds |
+| **MinGW**              | `mingw` | ✗    | ✓      | ✗   | ✓   | Windows MinGW-w64 compiler for Windows builds     |
+| **MSVC**               | `msvc`  | ✗    | ✓      | ✓   | ✓   | Windows Microsoft Visual C++ compiler builds      |
 
 **Legend**:
 
@@ -175,7 +176,6 @@ SF_EXEC_DIR_SUFFIX=-msvc ./build.py run -p msvc-debug -- hello-world.exe
 - ✗ = Not supported.
 - `1` = Only available on Linux aarch64.
 - `2` = Only available on Linux x86_64.
-- `3` = Not useful, a cross-compiler is available on Linux x86_64.
 
 ### Toolchain Details
 
@@ -193,7 +193,7 @@ SF_EXEC_DIR_SUFFIX=-msvc ./build.py run -p msvc-debug -- hello-world.exe
 - **Use Case**: Cross-compile for aarch64 targets.
 - **Configuration**: `env.ga.docker@` in `build.ini`.
 
-#### GNU for Windows (gw) x86_64 
+#### GNU for Windows (gw) x86_64
 
 - **Environment**: Linux with MinGW cross-compiler.
 - **Compiler**: x86_64-w64-mingw32-gcc/g++.
@@ -203,25 +203,25 @@ SF_EXEC_DIR_SUFFIX=-msvc ./build.py run -p msvc-debug -- hello-world.exe
 
 #### MinGW (mingw) x86_64
 
-- **Environment**: Native Windows.  
+- **Environment**: Native Windows.
 - **Compiler**: mingw-w64 (gcc/g++ Windows port).
 - **Use Case**: Windows development with GNU toolchain.
 - **Configuration**: `env.mingw@` in build.ini.
 - **Path Example**: `P:\toolchain\mingw1320_64-posix\bin`
 
-> Due to a MinGW v13 bug, it cannot be run from a shared drive since it converts its 
+> Due to a MinGW v13 bug, it cannot be run from a shared drive since it converts its
 > install-directory to a UNC path which breaks the compiler.  
 > _(A workaround is using a slower SSHFS share instead of Samba and
 > requires [Cygwin](https://github.com/Scanframe/sf-cygwin-bin "Easy install Cygwin repo.").)_
 
-#### MSVC (msvc) x86_64 
+#### MSVC (msvc) x86_64
 
 - **Environment**: Native Windows or Wine on Linux.
 - **Compiler**: Microsoft Visual C++ (cl.exe).
 - **Use Case**: Windows development with Visual Studio toolchain.
 - **Configuration**: `env.msvc@`, `env.msvc.wine@`, `env.msvc.wine.docker@` in `build.ini`.
 
-> This standalone script [`portable-msvc.py`](https://github.com/Scanframe/sf-cygwin-bin/blob/master/portable-msvc.py) 
+> This standalone script [`portable-msvc.py`](https://github.com/Scanframe/sf-cygwin-bin/blob/master/portable-msvc.py)
 > installs the 'Microsoft Visual C++ Compiler' using the CLI only in a portable way.
 
 ## Configuration File (build.ini)

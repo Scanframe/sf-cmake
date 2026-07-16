@@ -156,10 +156,44 @@ function(Sf_QtLibraryDownload _Version)
 endfunction()
 
 ##!
+# Finds all the Qt versions located in defined positions for Linux or Windows.
+# @param _VarOut Out: List of all found Qt versions.
+#
+function(Sf_FindQtVersions _VarOut)
+	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		set(_Locations "${SF_COMMON_LIB_DIR}/qt/lnx-${SF_ARCHITECTURE}")
+	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		set(_Locations "${SF_COMMON_LIB_DIR}/qt/win-${SF_ARCHITECTURE}")
+	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+		# Iterate through all the specified locations.
+		set(_Locations
+			"${SF_COMMON_LIB_DIR}/qt/w64-${SF_ARCHITECTURE}"
+			"C:/Qt" "D:/Qt" "E:/Qt" "F:/Qt" "G:/Qt" "H:/Qt" "I:/Qt" "J:/Qt" "K:/Qt" "L:/Qt" "M:/Qt" "N:/Qt"
+			"O:/Qt" "P:/Qt" "Q:/Qt" "R:/Qt" "S:/Qt" "T:/Qt" "U:/Qt" "V:/Qt" "W:/Qt" "X:/Qt" "Y:/Qt" "Z:/Qt"
+		)
+	endif ()
+	# Iterate through the location and use the first one that matches.
+	foreach (_Location ${_Locations})
+		if (EXISTS "${_Location}")
+			message(STATUS "A Qt library root found in '${_Location}'!")
+			Sf_GetSubDirectories(_SubDirs "${_Location}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+			list(LENGTH _SubDirs _Len)
+			if (NOT ${_Len})
+				message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt versioned library not found in '${_Location}'!")
+				return()
+			endif ()
+		endif ()
+	endforeach ()
+	list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
+	set(${_VarOut} "${_SubDirs}" PARENT_SCOPE)
+endfunction()
+
+##!
 # Finds the Qt directory located a defined position for Linux and Windows.
 # @param _VarOut Out: Highest of the found Qt version directories and "${_OutVar}-NOTFOUND" when not found.
 #
 function(Sf_FindQtVersionDirectory _VarOut)
+	Sf_GetOptionalArgument(_Version 0 "${ARGN}")
 	set(_QtDir "")
 	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 		set(_Locations "${SF_COMMON_LIB_DIR}/qt/lnx-${SF_ARCHITECTURE}")
@@ -185,7 +219,11 @@ function(Sf_FindQtVersionDirectory _VarOut)
 		message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt library for architecture '${SF_ARCHITECTURE}' not found!")
 		set(${_VarOut} "" PARENT_SCOPE)
 	else ()
-		Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+		if (DEFINED _Version)
+			Sf_GetSubDirectories(_SubDirs "${_QtDir}" "${_Version}")
+		else ()
+			Sf_GetSubDirectories(_SubDirs "${_QtDir}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+		endif ()
 		list(LENGTH _SubDirs _Len)
 		if (NOT ${_Len})
 			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt versioned library not found in '${_QtDir}'!")
@@ -204,7 +242,8 @@ endfunction()
 # @param _VarOut Out: Highest of the found Qt version directories and and "${_OutVar}-NOTFOUND" when not found.
 #
 function(Sf_FindQtVersion _VarOut)
-	Sf_FindQtVersionDirectory(_Dir)
+	Sf_GetOptionalArgument(_Version 0 "${ARGN}")
+	Sf_FindQtVersionDirectory(_Dir "${_Version}")
 	if (_Dir)
 		get_filename_component(_Dir "${_Dir}" NAME)
 		set(${_VarOut} "${_Dir}" PARENT_SCOPE)

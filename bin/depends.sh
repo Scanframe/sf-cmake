@@ -11,9 +11,9 @@ function show_help {
 	echo "Usage: $(basename "${0}") <options> [--] <file(s)>
   Lists the dependent dynamic libraries of the passed file(1).
   Options:
-     -c|--check   : Check if the DLL can be found in the path.
-     -r|--recurse : Do a recursive check on libraries.
-     -a|--app     : Application or library which provides Windows executable directory (Windows targets only).
+     -c, --check   : Check if the DLLs can be found in the path.
+     -r, --recurse : Do a recursive check on libraries.
+     -a, --app     : Application or library which provides Windows executable directory (Windows targets only).
 "
 }
 
@@ -54,7 +54,7 @@ while true; do
 	case "$1" in
 
 		-h | --help)
-			ShowHelp
+			show_help
 			exit 0
 			;;
 
@@ -84,6 +84,26 @@ while true; do
 			;;
 	esac
 done
+
+# Columns of the reported table which depend on the check flag.
+if $flag_check; then
+	table_columns='Library,Via,Directory'
+else
+	table_columns='Library'
+fi
+
+##
+# Colorizes the 'Missing' marker of the formatted table.
+# Applied after formatting since escape sequences are counted as
+# characters by 'column' and would break the column alignment.
+#
+function ColorizeTable {
+	if [[ -z "${col_fg[red]}" ]]; then
+		cat
+	else
+		sed --regexp-extended "s/(^|[[:space:]])Missing($|[[:space:]])/\\1${col_fg[red]}Missing${col_fg[reset]}\\2/"
+	fi
+}
 
 # Determine if Windows or Linux is targeted.
 if [[ "$(uname -o)" == "Cygwin" ]]; then
@@ -149,7 +169,8 @@ if $flag_win; then
 				if $flag_check; then
 					found=0
 					if [[ -n "${app_dir}" ]]; then
-						if [[ -f "${app_dir}/${dep}" ]]; then
+						candidate="${app_dir}/${dep}"
+						if [[ -f "${candidate}" ]]; then
 							echo "${dep}→EXE_DIR→${app_dir}"
 							found=1
 							$flag_recurse && echo "${candidate}" >> "${dl_name_file}"
@@ -191,14 +212,14 @@ if $flag_win; then
 						done
 					fi
 					if [[ "${found}" -eq 0 ]]; then
-						echo "${dep}→${col_fg[red]}Missing${col_fg[reset]}"
+						echo "${dep}→Missing→"
 					fi
 				else
 					echo "$dep"
 				fi
 			done
 		done
-	} | column --table --separator '→' --table-columns 'Library,Via,Directory'
+	} | column --table --separator '→' --table-columns "${table_columns}" | ColorizeTable
 else
 	if $flag_check; then
 		## Create array variables.
@@ -222,14 +243,23 @@ else
 		fi
 	fi
 	for dl_name in "${@}"; do
+		# Reset the run-path directories since they are file specific.
+		path_dirs=()
+		run_path_dirs=()
 		# Check if an application or other dynamic library has been passed.
 		WriteLog "# File RUNPATH: ${dl_name}"
 		dl_fullname="$(realpath "${dl_name}")"
 		origin="$(dirname "${dl_fullname}")"
-		IFS=':' read -r -a path_dirs <<<"$(readelf -d "${dl_fullname}" | egrep -i "\\(RUNPATH\\)" | sed --regexp-extended "s/.*Library runpath: \\[(.*)\\]/\\1/")"
+		# Get the RUNPATH or when absent the deprecated RPATH entry.
+		IFS=':' read -r -a path_dirs <<<"$(readelf -d "${dl_fullname}" | sed --quiet --regexp-extended "s/.*Library (runpath|rpath): \\[(.*)\\]/\\2/p" | head --lines=1)"
 		for dir in "${path_dirs[@]}"; do
-			rdir="${dir/$\{ORIGIN\}/${origin}}"
-			rdir="${rdir/$ORIGIN/${origin}}"
+			# Skip empty entries.
+			[[ -z "${dir}" ]] && continue
+			# Expand the literal '$ORIGIN' and '${ORIGIN}' place holders which the shell must not expand.
+			# Do not use: "${dir//'${ORIGIN}'/${origin}}"
+			# It breaks the syntax highlighting in JEtBrains.
+			rdir="${dir//$\{ORIGIN\}/${origin}}"
+			rdir="${rdir//$ORIGIN/${origin}}"
 			if [[ "${rdir}" == "${dir}" ]]; then
 				WriteLog "- ${dir}"
 			else
@@ -247,6 +277,8 @@ else
 		{
 			# Extract the SO list and iterate.
 			while read -r dep; do
+				# Skip the empty line a here-string produces when there are no dependencies.
+				[[ -z "${dep}" ]] && continue
 				if $flag_check; then
 					found=0
 					for dir in "${ld_path_dirs[@]}"; do
@@ -272,23 +304,23 @@ else
 					fi
 					# When not found continue...
 					if [[ "${found}" -eq 0 ]]; then
-						if ldconfig -p | grep -q "^\s*$(EscapeRegularExpression "${dep}")\s"; then
-							echo "${dep}→LD_CONF→..."
+						# Resolve the actual file the loader configuration cache points to.
+						candidate="$(ldconfig -p | sed --quiet "s|^\s*$(EscapeRegularExpression "${dep}")\s.*=>\s*||p" | head --lines=1)"
+						if [[ -n "${candidate}" ]]; then
+							echo "${dep}→LD_CONF→$(dirname "${candidate}")"
 							found=3
+							# Not recursing into system libraries on purpose.
 							#$flag_recurse && echo "${candidate}" >> "${dl_name_file}"
 						fi
 					fi
 					if [[ "${found}" -eq 0 ]]; then
-						echo "${dep}→${col_fg[red]}Missing${col_fg[reset]}"
+						echo "${dep}→Missing→"
 					fi
 				else
 					echo "${dep}"
 				fi
 			done <<<"$(objdump --private-headers "${dl_name}" | grep --ignore-case "NEEDED" | sed --regexp-extended "s/^\s*NEEDED\s*//")"
-			for dep in "${dep_list[@]}"; do
-				WriteLog "# Dependency: ${dep}"
-			done
-		} | column --table --separator '→' --table-columns 'Library,Via,Directory'
+		} | column --table --separator '→' --table-columns "${table_columns}" | ColorizeTable
 	done
 fi
 

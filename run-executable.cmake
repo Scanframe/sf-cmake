@@ -1,6 +1,7 @@
 #[[
-Execute this file using
-	cmake --preset gnu-debug -DSF_EXECUTABLE=123.bin -P cmake/lib/run-executable.cmake
+Execute this file from the 'build.py' script using the 'run' sub-command like:
+	./build.py run --preset gnu-debug -- hello-world.bin
+
 ]]
 
 cmake_minimum_required(VERSION 3.29)

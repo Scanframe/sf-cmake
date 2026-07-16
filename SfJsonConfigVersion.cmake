@@ -34,6 +34,7 @@ if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")
 			set(SF_JSON_VERSION "${PACKAGE_VERSION}" CACHE INTERNAL "Version of the framework from GitHub.")
 		endif ()
 	else ()
+		message(STATUS "Project '${PACKAGE_FIND_NAME}' packages using earlier set version ${SF_JSON_VERSION}")
 	endif ()
 endif ()
 

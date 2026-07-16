@@ -15,7 +15,7 @@ set(PACKAGE_VERSION 3.12.0)
 # Check if a certain version is requested.
 if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")
 	# Check if a version has been requested.
-	if ("${SF_CATCH2_VERSION}" STREQUAL "")
+	if ("${SF_LIB_CATCH2_VERSION}" STREQUAL "")
 		# Get versions from GitHub through its API.
 		Sf_GetGitHubVersions(_Versions "catchorg" "Catch2")
 		# Check a version list was retrieved.
@@ -31,15 +31,16 @@ if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")
 				message(WARNING "Project '${PACKAGE_FIND_NAME}' failed on version '${PACKAGE_FIND_VERSION}' using now default '${PACKAGE_VERSION}'.")
 			endif ()
 			# Write the SfCatch2 cached version.
-			set(SF_CATCH2_VERSION "${PACKAGE_VERSION}" CACHE INTERNAL "Version of the framework from GitHub.")
+			set(SF_LIB_CATCH2_VERSION "${PACKAGE_VERSION}" CACHE INTERNAL "Version of the framework from GitHub.")
 		endif ()
 	else ()
+		message(STATUS "Project '${PACKAGE_FIND_NAME}' packages using earlier set version ${SF_LIB_CATCH2_VERSION}")
 	endif ()
 endif ()
 
 # When a version is cached use it to set the package version from there.
-if (NOT "${SF_CATCH2_VERSION}" STREQUAL "")
-	set(PACKAGE_VERSION "${SF_CATCH2_VERSION}")
+if (NOT "${SF_LIB_CATCH2_VERSION}" STREQUAL "")
+	set(PACKAGE_VERSION "${SF_LIB_CATCH2_VERSION}")
 endif ()
 
 # Define the compatibility logic.

@@ -1,39 +1,62 @@
 # Semantic Versioning {#semantic-versioning}
 ## Conventional Commits Auto Version Bumping
 
-To automatically bumping the version using conventional commits
-the script [VersionBump.sh](../bin/version-bump.sh) can be called indirect by creating
-bash script in the project root called `version-bump.sh` like:
+To automatically bump the version using conventional commits, the [build.py](../bin/build.py) script provides 
+a subcommand for it.
+
+
+The script analyzes the commit messages up-to a certain commit and computes a new semantic version.
+At the same time generates release-notes for this version.
 
 ```bash
-#!/bin/bash
-
-dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-script_dir="${dir}" "${dir}/cmake/lib/bin/version-bump.sh" "${@}"
+# List all 
+./build.py version info
 ```
-
-The script analyses the commit messages up-to a certain commit and computes a new semantic version.
-At the same time generates release-notes for this version.
 
 ## Commit Message Format
 
-The Conventional Commit format is based on [Angular](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#commit)
+The Conventional Commit format is based on [ConventionalCommits.Orgte ](https://www.conventionalcommits.org/en/v1.0.0/)
 and is as follows where the blank lines are separators between description, body and footer.
 
 ```
-<type>(<scope>): <subject>
-<BLANK LINE>
-<body>
-<BLANK LINE>
-<footer>
+<header>
+
+[optional body]
+
+[optional footer]
 ```
 
-The description which is the first message line and is mandatory formatted as follows:
+### A Full Example
+
+Below is a full example of a commit message where the body has multiple paragraphs and the footers are identifiable.
+
+```
+feat(compiler): add strict null pointer checking optimizations
+
+The optimizer framework currently treats all pointer arithmetic as potentially 
+null-unsafe, forcing redundant safety branches into the generated assembly. 
+This heavily degrades pipeline execution speeds on tight loop structures.
+
+Overhaul the pointer tracking system to identify statically proven non-null 
+references. This allows the compiler to strip unnecessary branch instructions 
+during the final code emission phase.
+
+Fixes: #1420
+Signed-off-by: Jane Doe <jane.doe@example.com>
+Co-authored-by: Alex Smith <alex.smith@example.com>
+Co-authored-by: Bob Jones <bob.jones@example.com>
+Reviewed-by: Sarah Connor <sarah.connor@example.com>
+See-also: https://github.com
+```
+
+### Header
+
+The **header** and the first mandatory line of the commit message has a format as:
 
 ```
 <type>(<scope>)!: <short summary>
 │       │      │      │
-│       │      │      └─⫸ Summary in present tense.
+│       │      │      └─⫸ Summary in an imperative mood.
 │       │      │      
 │       │      └─⫸ Optional exclamation mark '!' indicating a breaking change.
 │       │
@@ -41,6 +64,38 @@ The description which is the first message line and is mandatory formatted as fo
 │
 └─⫸ Commit Type: build|ci|chore|docs|feat|fix|perf|refactor|style|test|revert
 ```
+
+The commit message should be written in an imperative mood, which means it should describe 
+the action that the commit will perform, rather than the action that has been performed. 
+For example, "Fix bug" rather than "Fixed bug".
+
+### The Body (Optional)
+
+The body provides a detailed description of the change.
+The Context: You may use past tense to describe the historical problem or the old state of the codebase.
+The Solution: Use the imperative mood when describing the specific actions the new code executes to resolve the issue.
+
+### The Footer(s) (Optional)
+
+```
+<token>: <description/value>
+ │        │
+ │        └─⫸ Description or a value. 
+ │      
+ └─⫸ Token without spaces.
+```
+
+The footer is reserved for tracking issues (e.g., Fixes: #123) or providing notes on changes.
+
+```
+Fixes: #1420
+Signed-off-by: Jane Doe <jane.doe@example.com>
+Co-authored-by: Alex Smith <alex.smith@example.com>
+Co-authored-by: Bob Jones <bob.jones@example.com>
+Reviewed-by: Sarah Connor <sarah.connor@example.com>
+See-also: https://github.com
+```
+
 
 ## Type of Commits
 
@@ -94,23 +149,3 @@ The description which is the first message line and is mandatory formatted as fo
     Adding tests (`test`) is a good practice and doesn't affect the project's functionality or introduce breaking changes, so the version likely remains
     unchanged.
 
-## Examples of Full Messages
-
-**Example having a multiline body**
-
-```
-docs(config): Update deployment instructions.
-
-Updated deployment instructions in README.md to 
-include new environment variables.
-```
-
-**Example with ignored `BREAKING CHANGE` footer**
-
-```
-feat(iface)!: Added argument to user authentication function. 
-
-Feature is added for which the interface.
-
-BREAKING CHANGE: Interface has changed for plugins.
-```

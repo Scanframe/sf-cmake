@@ -5,7 +5,7 @@ github_versions.py
 Usage:
   github_versions.py [-o OWNER] [-n REPO] [-u URL] [-f FIND] [-l] [-j] [--json]
 
-Matches behavior of the provided bash script:
+Matches the behavior of the provided bash script:
 - Fetches tags from GitHub API and caches them in a temp file.
 - Filters tags of the form vX.Y.Z and returns versions (without leading 'v').
 - --find returns the nearest version <= requested version.
@@ -64,6 +64,7 @@ def version_compare(a: str, b: str) -> int:
 def load_cache(cache_file: Path) -> Optional[List[dict]] | None:
 	if not cache_file.exists():
 		return None
+	# noinspection PyBroadException
 	try:
 		with cache_file.open("r", encoding="utf-8") as f:
 			return json.load(f)
@@ -139,6 +140,7 @@ def main(argv: List[str]) -> int:
 		cache_age = file_age_seconds(cache_file)
 		# Renew after 1800 seconds (30 minutes)
 		if cache_age > 1800:
+			# noinspection PyBroadException
 			try:
 				cache_file.unlink()
 			except Exception:
@@ -158,7 +160,7 @@ def main(argv: List[str]) -> int:
 			if tags is None:
 				return 1
 	else:
-		print(f"# Using cache file ({int(cache_age)}s): {cache_file}", file=sys.stderr)
+		print(f"# Using cache file ({cache_age:.0f}s): {cache_file}", file=sys.stderr)
 
 	if args.json:
 		# Print raw JSON.

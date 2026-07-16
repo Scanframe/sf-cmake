@@ -1,5 +1,6 @@
 include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
 
+# Download the required library when not found.
 Sf_QtLibraryDownload("${SfQtLibrary_VERSION}")
 
 # When the Qt version directory was found/installed set the cmake prefix path.
@@ -18,6 +19,7 @@ if (NOT "$ENV{QT_VER_DIR}" STREQUAL "")
 		message(FATAL_ERROR "Compiler '${SF_COMPILER}' QT cmake library prefix directory '${_QtVerCompiler}/lib/cmake' does not exist!")
 	endif ()
 	# When the Windows cross compiler is selected, the QT_HOST_PATH is required.
+	set(ENV_QT_HOST_PATH "$ENV{QT_HOST_PATH}")
 	if (SF_COMPILER STREQUAL "gw" AND NOT DEFINED QT_HOST_PATH AND NOT DEFINED ENV{QT_HOST_PATH})
 		string(REPLACE "/win-x86_64/" "/lnx-x86_64/" QT_HOST_PATH "$ENV{QT_VER_DIR}/gcc_64")
 		if (NOT EXISTS "${QT_HOST_PATH}")
