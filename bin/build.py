@@ -1586,7 +1586,7 @@ class SubCommand(ABC):
 
 
 class SubCommandNative(SubCommand):
-	"""Subcommand handler for native execution."""
+	"""Subcommand handler for 'native' command."""
 
 	def __init__(self):
 		super().__init__("native", ["n", "_"])
@@ -1821,7 +1821,7 @@ examples:
 
 
 class SubCommandWine(SubCommand):
-	"""Subcommand handler for the '_' command."""
+	"""Subcommand handler for the 'wine' command."""
 
 	def __init__(self):
 		super().__init__("wine", ["w"])
@@ -2092,7 +2092,7 @@ This ignores the options: --qt-ver, --platform'
 
 
 class SubCommandInstall(SubCommand):
-	"""Subcommand handler for the 'create' command."""
+	"""Subcommand handler for the 'install' command."""
 
 	def __init__(self):
 		super().__init__("install", ["i"])
@@ -2708,7 +2708,7 @@ Signed-By:
 
 
 class SubCommandVersion(SubCommand):
-	"""Subcommand handler for repository version reporting and bumping."""
+	"""Subcommand handler for the 'version' command for repository version reporting and bumping."""
 
 	_header_regex = re.compile(r"^([a-z_\-]+)(\(([a-z_\-]+)\))?(!)?:\s(.*)$")
 	_increment_order = {"none": 0, "patch": 1, "minor": 2, "major": 3}
@@ -3117,7 +3117,7 @@ examples:
 
 
 class SubCommandRun(SubCommand):
-	"""Subcommand handler for the 'create' command."""
+	"""Subcommand handler for the 'run' command."""
 
 	def __init__(self):
 		super().__init__("run", ["r"])
