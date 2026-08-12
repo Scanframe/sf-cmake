@@ -179,6 +179,13 @@ WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posi
 ; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
 
+; Environment added when running wine natively to execute the Aarch64 cross-compiled targets.
+[env.ga@]
+__inherit__=qt-ver
+SF_EXEC_DIR_SUFFIX=-ga
+# Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
+LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/lib
+
 ; Environment added before running the 'mingw' compiler natively.
 [env.mingw@]
 __inherit__=qt-ver
@@ -412,7 +419,7 @@ def _widen_console_buffer() -> None:
 			return
 		# Use the COLUMNS environment variable when available, otherwise a large default.
 		target_width = 1024
-		#target_width = int(os.environ.get("COLUMNS", 1024))
+		# target_width = int(os.environ.get("COLUMNS", 1024))
 		if info.dwSize.X < target_width:
 			new_size = COORD(target_width, info.dwSize.Y)
 			kernel32.SetConsoleScreenBufferSize(handle, new_size)
@@ -1626,6 +1633,8 @@ examples:
 			help="Optional flag for adding (cmake option --fresh).")
 		parser.add_argument("-D", "--debug", action="store_true",
 			help="Optional flag for adding (cmake option --debug-output).")
+		parser.add_argument("-V", "--verbose", action="store_true",
+			help="Optional flag for adding (cmake/cpack option --verbose).")
 		parser.add_argument("-F", "--fresh-all", action="store_true",
 			help="Clears the build tree of all 'CMakeCache.txt' files.")
 		parser.add_argument("-C", "--wipe", action="store_true", help="Wipe build directory contents.")
@@ -1772,7 +1781,7 @@ examples:
 			if args.target:
 				cmd.extend(["--target", args.target])
 				logger.debug(f"# Select build target: {args.target}")
-			if args.debug:
+			if args.verbose:
 				cmd.append("--verbose")
 			if not args.target_select or args.target_select and not args.target is None:
 				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
@@ -1787,15 +1796,19 @@ examples:
 				target = select_target(PresetTypes.TEST, preset_name)
 				if target is None:
 					return 0
-				run_command(["ctest", "--preset", preset_name, '--tests-regex', f"^{target}$"],
-					dbg_mode=DebugMode.REPORT_ONLY)
+				cmd = ["ctest", "--preset", preset_name]
+				cmd.extend(['--tests-regex', f"^{target}$"])
+				if args.verbose:
+					cmd.append("--verbose")
+				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 			else:
 				cmd = ["ctest", "--preset", preset_name]
 				if args.list_only:
 					cmd.append("--show-only")
 				if args.test_regex:
 					cmd.extend(["--tests-regex", args.test_regex])
-				cmd.append("--verbose")
+				if args.verbose:
+					cmd.append("--verbose")
 				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 
 		if args.package:
@@ -1804,7 +1817,9 @@ examples:
 				return 0
 			# Set the environment variables according to the 'configure' preset.
 			set_environment_by_preset(preset_name, PresetTypes.PACKAGE)
-			cmd = ["cpack", "--preset", preset_name, "--verbose"]
+			cmd = ["cpack", "--preset", preset_name]
+			if args.verbose:
+				cmd.append("--verbose")
 			run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 
 		if args.workflow:
@@ -1815,7 +1830,8 @@ examples:
 			set_environment_by_preset(preset_name, PresetTypes.PACKAGE)
 			cmd = ["cmake", "--workflow", "--preset", preset_name]
 			run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
-
+			if args.verbose:
+				cmd.append("--verbose")
 		logger.info("# Build script completed successfully.")
 		return 0
 

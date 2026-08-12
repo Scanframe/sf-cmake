@@ -5,13 +5,13 @@ set -e
 set -o pipefail
 
 # This scripts directory.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Credential file for testing
 cred_file=".nexus-upload-credentials"
 
 # Include the WriteLog function.
-source "${SCRIPT_DIR}/inc/Miscellaneous.sh"
+source "${script_dir}/inc/Miscellaneous.sh"
 
 # Prints the help to stderr.
 #
@@ -162,17 +162,17 @@ for command in "${commands[@]}"; do
 	fi
 done
 
-# Curl command to execute basically.
-curl_cmd=(curl)
-curl_cmd+=(--silent)
-curl_cmd+=(--include)
-if "${flag_debug}"; then
-	curl_cmd+=(--verbose)
-fi
-curl_cmd+=(--user "${NEXUS_USER}:${NEXUS_PASSWORD}")
 
 # Iterate over all the command-line arguments.
 for upload_file in "${argument[@]}"; do
+	# Curl command to execute basically.
+	curl_cmd=(curl)
+	curl_cmd+=(--silent)
+	curl_cmd+=(--include)
+	if "${flag_debug}"; then
+		curl_cmd+=(--verbose)
+	fi
+	curl_cmd+=(--user "${NEXUS_USER}:${NEXUS_PASSWORD}")
 	# Check if the file exists.
 	if [[ ! -f "${upload_file}" ]]; then
 		WriteLog "! File not found: ${upload_file}"
@@ -198,7 +198,7 @@ for upload_file in "${argument[@]}"; do
 			fi
 			;;
 
-		zip | exe)
+		zip | exe | gz)
 			WriteLog "- Uploading RAW repo file: ${upload_file}"
 			curl_cmd_add=(--upload-file "${upload_file}")
 			curl_cmd_add+=("${NEXUS_SERVER_URL}/repository/$(UrlEncode "${NEXUS_RAW_REPO}")/${NEXUS_RAW_SUBDIR}/$(basename -- "${upload_file}")")

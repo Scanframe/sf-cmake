@@ -15,6 +15,7 @@ set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of comm
 set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library" CACHE INTERNAL "Nexus repository server for downloads of libraries.")
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
+set(SF_CPACK_PREPARE_FILE "${CMAKE_CURRENT_LIST_DIR}/tpl/cpack/prepare.cmake" CACHE STRING "Preparation script for running CPack project script.")
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -28,6 +29,17 @@ if (${CMAKE_VERSION} VERSION_LESS 3.14)
 		endif ()
 	endmacro()
 endif ()
+
+##!
+# Prints the current callstack.
+#
+function(Sf_PrintStack)
+	message(STATUS "--- Current Call Stack ---")
+	# Loop through the function names in the stack
+	foreach (_func IN LISTS CMAKE_CURRENT_FUNCTION_STACK)
+		message(STATUS "  ++Called: ${_func}")
+	endforeach ()
+endfunction()
 
 ##!
 # Fix for an optional argument in a nested function where a variable ARGV4 when not passed
@@ -46,19 +58,23 @@ function(Sf_GetOptionalArgument _VarOut _Index _Argn)
 endfunction()
 
 ##!
-# Gets all sub directories which match the passed regex.
+# Gets all sub directories which optionally match the passed regex.
+# @param _VarOut Output variable.
+# @param _Directory Directory to search in.
+# @param _MatchStr Optional: Regular expression.
 #
-function(Sf_GetSubDirectories VarOut Directory MatchStr)
-	file(GLOB _Children RELATIVE "${Directory}" "${Directory}/*")
+function(Sf_GetSubDirectories _VarOut _Directory)
+	Sf_GetOptionalArgument(_MatchStr 0 "${ARGN}")
+	file(GLOB _children RELATIVE "${_Directory}" "${_Directory}/*")
 	set(_List "")
-	foreach (_Child ${_Children})
-		if (IS_DIRECTORY "${Directory}/${_Child}")
-			if ("${_Child}" MATCHES "${MatchStr}")
-				list(APPEND _List "${_Child}")
+	foreach (_child ${_children})
+		if (IS_DIRECTORY "${_Directory}/${_child}")
+			if (NOT DEFINED _MatchStr OR "${_child}" MATCHES "${_MatchStr}")
+				list(APPEND _list "${_child}")
 			endif ()
 		endif ()
 	endforeach ()
-	set(${VarOut} ${_List} PARENT_SCOPE)
+	set(${_VarOut} ${_list} PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -139,6 +155,45 @@ function(Sf_AppendCmakePrefixPath _Dir)
 	else ()
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(): Directory '${_Dir}' not found! ")
 	endif ()
+endfunction()
+
+##!
+# Gets the safe filename version of the current or passed architecture.
+# @param _OutVar Resulting architecture name.
+# @param _Arch  Optional architecture string.
+#
+function(Sf_GetSafeArchitectureName _OutVar)
+	# Default to the host system processor if no argument is passed
+	Sf_GetOptionalArgument(_Arch 0 "${ARGN}")
+	if (NOT DEFINED _Arch)
+		set(_Arch "${CMAKE_SYSTEM_PROCESSOR}")
+	endif ()
+	# Normalize to lowercase.
+	string(TOLOWER "${_Arch}" _arch_lower)
+	# Map the architecture to a file-safe naming convention.
+	if (_arch_lower STREQUAL "x86_64" OR _arch_lower STREQUAL "amd64")
+		set(_arch_safe "amd64")
+	elseif (_arch_lower STREQUAL "aarch64" OR _arch_lower STREQUAL "arm64")
+		set(_arch_safe "arm64")
+	elseif (_arch_lower STREQUAL "armv7l" OR _arch_lower STREQUAL "armv8l")
+		set(_arch_safe "armv7")
+	elseif (_arch_lower STREQUAL "armv6l")
+		set(_arch_safe "armv6")
+	elseif (_arch_lower MATCHES "i.86" OR _arch_lower STREQUAL "x86" OR _arch_lower STREQUAL "386")
+		set(_arch_safe "i386")
+	elseif (_arch_lower STREQUAL "ppc64le" OR _arch_lower STREQUAL "ppc64el")
+		set(_arch_safe "ppc64le")
+	elseif (_arch_lower STREQUAL "s390x")
+		set(_arch_safe "s390x")
+	elseif (_arch_lower STREQUAL "riscv64")
+		set(_arch_safe "riscv64")
+	else ()
+		# Fallback safety: Replace any underscores or slashes with hyphens.
+		string(REPLACE "_" "-" _arch_lower "${_arch_lower}")
+		string(REPLACE "/" "-" _arch_safe "${_arch_lower}")
+	endif ()
+	# Pass the value back up to the parent scope
+	set(${_OutVar} "${_arch_safe}" PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -304,19 +359,19 @@ function(Sf_SetTargetDefaultOptions _Target)
 			# This bellow could also be the default already.
 			#target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
-#[[
-			# When compiling with MSVC in Wine and the target is a dynamic library.
-			if (DEFINED ENV{WINE_HOST_HOME})
-				message(STATUS "Forces MSVC to link standard Release runtimes on target: ${_Target}")
-				# Use the multithread-specific and DLL-specific version of the runtime library.
-				# Defines _MT and _DLL. The linker uses the MSVCRT.lib import library to resolve runtime symbols.
-				if (_Type STREQUAL "SHARED_LIBRARY")
-					set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-				elseif (_Type STREQUAL "EXECUTABLE")
-					set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
-				endif ()
-			endif ()
-]]
+			#[[
+						# When compiling with MSVC in Wine and the target is a dynamic library.
+						if (DEFINED ENV{WINE_HOST_HOME})
+							message(STATUS "Forces MSVC to link standard Release runtimes on target: ${_Target}")
+							# Use the multithread-specific and DLL-specific version of the runtime library.
+							# Defines _MT and _DLL. The linker uses the MSVCRT.lib import library to resolve runtime symbols.
+							if (_Type STREQUAL "SHARED_LIBRARY")
+								set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+							elseif (_Type STREQUAL "EXECUTABLE")
+								set_target_properties("${_Target}" PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
+							endif ()
+						endif ()
+			]]
 			#target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
 			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
@@ -396,6 +451,22 @@ function(Sf_SetTargetVersion _Target)
 			set_target_properties("${_Target}" PROPERTIES SOVERSION "${_Version}")
 		endif ()
 	endif ()
+endfunction()
+
+##!
+# Gets the output path of the given target at configure time.
+#
+function(Sf_GetTargetOutputPath _target _result)
+	get_target_property(_out_name ${_target} OUTPUT_NAME)
+	get_target_property(_out_suffix "${_target}" SUFFIX)
+	get_target_property(_out_dir ${_target} RUNTIME_OUTPUT_DIRECTORY)
+	if (NOT _out_dir)
+		set(_out_dir "${CMAKE_CURRENT_BINARY_DIR}")
+	endif ()
+	if (NOT _out_name)
+		set(_out_name "${_target}")
+	endif ()
+	set(${_result} "${_out_dir}/${_out_name}${_out_suffix}" PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -735,24 +806,24 @@ endfunction()
 ##!
 # Adds the passed target for coverage only when the build type is 'Coverage'.
 #
-function(Sf_AddTargetForCoverage _Target)
+function(Sf_AddTargetForCoverage _target)
 	# Set options only when the build type is coverage and the variable 'SF_COVERAGE_ONLY_TARGETS' is empty.
 	if (CMAKE_BUILD_TYPE STREQUAL "Coverage" AND
 	(
-		SF_COVERAGE_ONLY_TARGETS STREQUAL "" OR _Target IN_LIST SF_COVERAGE_ONLY_TARGETS
+		SF_COVERAGE_ONLY_TARGETS STREQUAL "" OR _target IN_LIST SF_COVERAGE_ONLY_TARGETS
 	))
 		# Get the type of the target.
-		get_target_property(_Type "${_Target}" TYPE)
+		get_target_property(_type "${_target}" TYPE)
 		# When the GNU compiler is involved.
 		if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-			message(STATUS "Target '${_Target}' added for coverage.")
+			message(STATUS "Target '${_target}' added for coverage.")
 			# No optimization when compiling for coverage.
-			target_compile_options("${_Target}" BEFORE PRIVATE -g -O0 -coverage -fprofile-arcs -ftest-coverage)
+			target_compile_options("${_target}" BEFORE PRIVATE -g -O0 -coverage -fprofile-arcs -ftest-coverage)
 			# Only add linking options for target types that are linked.
-			if (_Type STREQUAL "EXECUTABLE" OR _Type STREQUAL "SHARED_LIBRARY")
-				target_link_options("${_Target}" BEFORE PRIVATE -coverage)
+			if (_Type STREQUAL "EXECUTABLE" OR _type STREQUAL "SHARED_LIBRARY")
+				target_link_options("${_target}" BEFORE PRIVATE -coverage)
 				# Probably superfluous since it is probably linked already using the option.
-				target_link_libraries("${_Target}" PRIVATE gcov)
+				target_link_libraries("${_target}" PRIVATE gcov)
 			endif ()
 		endif ()
 	else ()
@@ -846,6 +917,56 @@ function(Sf_AddExamples _Files _Prefix)
 endfunction()
 
 ##!
+# Lazy way for a project to installs all non-test targets in a project.
+# @param _executables Optional: Variable to return the executables in.
+#
+function(Sf_TargetsInstall)
+	Sf_GetOptionalArgument(_executables 0 "${ARGN}")
+	set(_execs)
+	# Retrieve all targets from this project.
+	Sf_GetAllTargets(_AllTargets "${PROJECT_SOURCE_DIR}" "TRUE")
+	# Iterate through all targets.
+	foreach (_target ${_AllTargets})
+		get_target_property(_type "${_target}" TYPE)
+		# Only install executables and shared libraries.
+		if (_type STREQUAL "EXECUTABLE")
+			# Skip all test targets for packaging.
+			if ("${_target}" MATCHES "^${SF_TEST_NAME_PREFIX}.*$")
+				message(VERBOSE "Skipping Test Exec: ${_target}")
+			else ()
+				message(VERBOSE "Installing Executable: ${_target}")
+				list(APPEND _targets "${_target}")
+				if (DEFINED _executables)
+					list(APPEND _execs "${_target}")
+				endif ()
+			endif ()
+		elseif (_type STREQUAL "SHARED_LIBRARY")
+			list(APPEND _targets "${_target}")
+			message(VERBOSE "Installing Dyn Library: ${_target}")
+		endif ()
+	endforeach ()
+	# Install all the targets in the designated relative paths.
+	if (WIN32)
+		# Do not include the import libraries.
+		install(TARGETS ${_targets}
+			RUNTIME DESTINATION . COMPONENT "runtime"
+			LIBRARY DESTINATION . COMPONENT "runtime"
+			#CONFIGURATIONS Debug
+		)
+	else ()
+		install(TARGETS ${_targets}
+			RUNTIME DESTINATION . COMPONENT "runtime"
+			LIBRARY DESTINATION lib COMPONENT "runtime"
+			ARCHIVE DESTINATION arc COMPONENT "devel"
+			#CONFIGURATIONS Debug
+		)
+	endif ()
+	if (DEFINED _executables)
+		set("${_executables}" "${_execs}" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
 # Notifies all available tools from CMake.
 # Used for debugging.
 #
@@ -900,6 +1021,57 @@ function(Sf_ListPath _Path)
 		message(STATUS "${_Prefix}[${_Counter}]: ${_Dir}")
 		math(EXPR _Counter "${_Counter} + 1")
 	endforeach ()
+endfunction()
+
+#[[
+Retrieves dynamic library dependencies for a binary file.
+
+  Sf_GetDependencies(<out-var> <bin-file> [IGNORE_PATHS path1 ...])
+
+  <out-var>
+  Variable to store the resulting list of dependencies.
+
+  <bin-file>
+  Target binary file to analyze.
+
+  IGNORE_PATHS
+  Optional list of directory path prefixes to ignore.
+]]
+function(Sf_GetDependencies _OutVar _BinFile)
+	# Parse the function arguments.
+	cmake_parse_arguments(PARSE_ARGV 2 ARG "" "" "IGNORE_PATHS")
+	# Covert to real path.
+	foreach (_ignore IN LISTS ARG_IGNORE_PATHS)
+		get_filename_component(_ignore_real "${_ignore}" REALPATH)
+		list(APPEND _ignored_paths "${_ignore_real}")
+	endforeach ()
+	# Windows only knows the 'python' command.
+	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
+	# Get the dependencies using the special python script.
+	execute_process(
+		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --recurse --cmake --exclude-system "${_BinFile}"
+		OUTPUT_VARIABLE _deps
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ECHO_ERROR_VARIABLE
+		COMMAND_ERROR_IS_FATAL ANY
+	)
+	# Variable to hold the non-ignored dependencies.
+	set(_bin_deps)
+	# Filter dependencies safely by appending non-ignored items
+	foreach (_dep IN LISTS _deps)
+		set(_is_ignored FALSE)
+		foreach (_ignore IN LISTS _ignored_paths)
+			cmake_path(IS_PREFIX _ignore "${_dep}" NORMALIZE _is_inside)
+			if (_is_inside)
+				set(_is_ignored TRUE)
+				break()
+			endif ()
+		endforeach ()
+		if (NOT _is_ignored)
+			list(APPEND _bin_deps "${_dep}")
+		endif ()
+	endforeach ()
+	set("${_OutVar}" "${_bin_deps}" PARENT_SCOPE)
 endfunction()
 
 

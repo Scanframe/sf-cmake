@@ -1,5 +1,5 @@
 # Import Qt common functions.
-include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommonConfig.cmake")
 # Latest known available version.
 set(PACKAGE_VERSION 6.10.1)
 

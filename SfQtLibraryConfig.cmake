@@ -1,4 +1,4 @@
-include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
+find_package(SfQtLibraryCommon CONFIG REQUIRED)
 
 # Download the required library when not found.
 Sf_QtLibraryDownload("${SfQtLibrary_VERSION}")

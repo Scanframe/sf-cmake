@@ -3,7 +3,7 @@
 # Only one version can be specified per top level project.
 # The first call to find_package() with a version sets it for all others sub projects.
 #
-# To set the library version used for all sub projects add the following in the top level CMakeLists.txt file.
+# To set the library version used for all sub projects add the following in the top level pkg-qt-lib.cmake file.
 
 find_package(SfJson 3.11.3 CONFIG)
 

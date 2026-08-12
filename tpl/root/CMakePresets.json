@@ -39,6 +39,10 @@
 					"type": "STRING",
 					"value": "Debug"
 				},
+				"CPACK_OUTPUT_FILE_PREFIX": {
+					"type": "PATH",
+					"value": "${sourceDir}/bin/pkg"
+				},
 				"SF_BUILD_QT": {
 					"type": "BOOL",
 					"value": "OFF"
@@ -776,7 +780,7 @@
 			"name": ".pack",
 			"displayName": "Package Template",
 			"description": "Template for packaging.",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "",
 			"output": {
 				"verbose": false,
 				"debug": false
@@ -810,10 +814,10 @@
 				".lnx-only"
 			],
 			"configurePreset": "gnu-debug",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
-				"DEB",
-				"RPM"
+				"TGZ",
+				"DEB"
 			]
 		},
 		{
@@ -826,10 +830,10 @@
 			"displayName": "Debug GA",
 			"description": "GA ZIP + NSIS package debug.",
 			"configurePreset": "ga-debug",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
 			"generators": [
-				"DEB",
-				"RPM"
+				"TGZ",
+				"DEB"
 			]
 		},
 		{
@@ -842,10 +846,11 @@
 			"displayName": "Debug GW",
 			"description": "GW ZIP + NSIS package debug.",
 			"configurePreset": "gw-debug",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"TGZ",
+				"NSIS64"
 			]
 		},
 		{
@@ -858,10 +863,10 @@
 				".lnx-only"
 			],
 			"configurePreset": "gnu-release",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
-				"DEB",
-				"RPM"
+				"TGZ",
+				"DEB"
 			]
 		},
 		{
@@ -874,10 +879,10 @@
 				".lnx-only"
 			],
 			"configurePreset": "ga-release",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
 			"generators": [
-				"DEB",
-				"RPM"
+				"TGZ",
+				"DEB"
 			]
 		},
 		{
@@ -890,10 +895,10 @@
 			"displayName": "Release GW",
 			"description": "GW ZIP + NSIS package release.",
 			"configurePreset": "gw-release",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"NSIS64"
 			]
 		},
 		{
@@ -906,10 +911,10 @@
 			"displayName": "MinGW ZIP + NSIS",
 			"description": "MinGW ZIP + NSIS package debug.",
 			"configurePreset": "mingw-debug",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "$env{TMP}/mingw",
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"NSIS64"
 			]
 		},
 		{
@@ -922,10 +927,10 @@
 			"displayName": "MinGW ZIP + NSIS",
 			"description": "MinGW ZIP + NSIS package debug.",
 			"configurePreset": "mingw-release",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "$env{TMP}/mingw",
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"NSIS64"
 			]
 		},
 		{
@@ -938,10 +943,13 @@
 			"displayName": "MSVC ZIP + NSIS",
 			"description": "MSVC ZIP + NSIS package debug.",
 			"configurePreset": "msvc-debug",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "$env{TMP}/msvc",
+			"variables": {
+				"KLM": "123456789"
+			},
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"NSIS64"
 			]
 		},
 		{
@@ -954,10 +962,10 @@
 			"displayName": "MSVC ZIP + NSIS",
 			"description": "MSVC ZIP + NSIS package debug.",
 			"configurePreset": "msvc-release",
-			"packageDirectory": "${sourceDir}/bin/pkg",
+			"packageDirectory": "$env{TMP}/msvc",
 			"generators": [
-				"NSIS64",
-				"ZIP"
+				"ZIP",
+				"NSIS64"
 			]
 		}
 	],

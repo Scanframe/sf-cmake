@@ -19,7 +19,7 @@ if (SF_VERBOSE)
 endif ()
 
 include("${CMAKE_CURRENT_LIST_DIR}/SfBaseConfig.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommon.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommonConfig.cmake")
 
 function(Sf_ArgDecode _VarRef)
 	set(_work_str "${${_VarRef}}")

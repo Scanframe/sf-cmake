@@ -1,3 +1,5 @@
+set(SF_QT_COMPONENT_PREFIX "sf_qt_" CACHE INTERNAL "The install component prefix used to identify them (NSIS does not handle '-' hyphens).")
+
 ##!
 # Downloads a QT-library zip files and unzips it the directory specified by variable 'SF_COMMON_LIB_DIR'.
 # @param _Version Version to download Qt version and an empty string  when not found.
@@ -277,17 +279,103 @@ endfunction()
 # @param _VarOut Out: Resolved subdirectory.
 #
 function(Sf_GetQtCompilerSubdirectory _VarOut)
-	set(_QtCompileName "")
+	set(_QtCompilerName "")
 	if (SF_COMPILER STREQUAL "gnu" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-		set(_QtCompileName "gcc_64")
+		set(_QtCompilerName "gcc_64")
 	elseif (SF_COMPILER STREQUAL "ga" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-		set(_QtCompileName "gcc_64")
+		set(_QtCompilerName "gcc_64")
 	elseif (SF_COMPILER STREQUAL "mingw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-		set(_QtCompileName "mingw_64")
+		set(_QtCompilerName "mingw_64")
 	elseif (SF_COMPILER STREQUAL "gw" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-		set(_QtCompileName "mingw_64")
+		set(_QtCompilerName "mingw_64")
 	elseif (SF_COMPILER STREQUAL "msvc" AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-		set(_QtCompileName "msvc_64")
+		set(_QtCompilerName "msvc_64")
 	endif ()
-	set(${_VarOut} "${_QtCompileName}" PARENT_SCOPE)
+	set(${_VarOut} "${_QtCompilerName}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Gets the Qt architecture subdirectory in the QT version directory.
+# @param _VarOut Out: Resolved subdirectory.
+#
+function(Sf_GetQtArchitectureSubdirectory _VarOut)
+	# When the host is Linux and the targeted system is Linux use the linux Qt library.
+	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+		set(_QtArchDir "lnx-${SF_ARCHITECTURE}")
+		# When the host is Linux and the targeted system is Windows use the cross compiler enabled QtWin library.
+	elseif ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Linux" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+		set(_QtArchDir "win-${SF_ARCHITECTURE}")
+		# When the host is Windows and the targeted system is Windows use the Windows native compiler QtW64 library.
+	elseif ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows" AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+		set(_QtArchDir "w64-${SF_ARCHITECTURE}")
+	else ()
+		message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}(): Combination of host OS '${CMAKE_HOST_SYSTEM_NAME}' and target OS '${CMAKE_SYSTEM_NAME}' is not possible!")
+	endif ()
+	set(${_VarOut} "${_QtArchDir}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Installs the current Qt
+# @param _IncDev Flag to include development.
+# @param _QtDir Optional Qt directory default to global 'QT_DIR'.
+#
+function(Sf_QtLibraryInstall _IncDev)
+	Sf_GetOptionalArgument(_QtDir 0 "${ARGN}")
+	set(_base "." #[["qt"]])
+	if (NOT DEFINED _QtDir)
+		set(_QtDir "${QT_DIR}")
+	endif ()
+	if (NOT EXISTS "${_QtDir}")
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Missing QT directory location.")
+	endif ()
+	# Get the toolchain part of the current selected Qt directory where the QT_DIR is
+	# like '.../lib/qt/lnx-x86_64/6.10.1/gcc_64/lib/cmake/Qt6'.
+	cmake_path(GET _QtDir PARENT_PATH _ParentDir)
+	cmake_path(GET _ParentDir PARENT_PATH _ParentDir)
+	cmake_path(GET _ParentDir PARENT_PATH _QtSourceDir)
+	# Runtime dirs.
+	set(_rt_dirs lib plugins qml translations)
+	# Install runtime assets.
+	foreach (_dir IN LISTS _rt_dirs)
+		if (EXISTS "${_QtSourceDir}/${_dir}")
+			if (_dir STREQUAL "lib")
+				file(GLOB _qt_libs LIST_DIRECTORIES FALSE "${_QtSourceDir}/lib/*.so" "${_QtSourceDir}/lib/*.so.[0-9]*")
+				install(FILES ${_qt_libs} DESTINATION "${_base}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+			else ()
+				install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "${_base}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+			endif ()
+		endif ()
+	endforeach ()
+	# Install development assets.
+	if (_IncDev)
+		Sf_GetSubDirectories(_dev_dirs "${_QtSourceDir}")
+		list(REMOVE_ITEM _dev_dirs ${_rt_dirs})
+		# The lib directory also contains development elements.
+		list(APPEND _dev_dirs lib)
+		foreach (_dir IN LISTS _dev_dirs)
+			if (_dir STREQUAL "lib")
+				# Get all items (files and folders) in the root directory
+				file(GLOB _all_items "${_QtSourceDir}/lib/*")
+				set(_subdirs "")
+				set(_non_so_files "")
+				foreach (_item IN LISTS _all_items)
+					if (IS_DIRECTORY "${_item}")
+						list(APPEND _subdirs "${_item}")
+					elseif (NOT _item MATCHES "\\.so(\\.[0-9]+)?(\\.[0-9]+)?(\\.[0-9]+)?$")
+						list(APPEND _non_so_files "${_item}")
+					endif ()
+				endforeach ()
+				# Install all subdirectories (including their entire sub-contents).
+				if (_subdirs)
+					install(DIRECTORY ${_subdirs} DESTINATION "${_base}/lib" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+				endif ()
+				# Install root files excluding '.so' files.
+				if (_non_so_files)
+					install(FILES ${_non_so_files} DESTINATION "${_base}/lib" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+				endif ()
+			else ()
+				install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "${_base}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+			endif ()
+		endforeach ()
+	endif ()
 endfunction()

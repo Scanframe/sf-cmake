@@ -22,6 +22,9 @@
     * [Tools](#tools)
     * [CMake Functions](#cmake-functions)
   * [Code Format Checking and Fixing with Clang](#code-format-checking-and-fixing-with-clang)
+  * [Packaging](#packaging)
+    * [Project](#project)
+    * [Qt for Distribution](#qt-for-distribution)
 <!-- TOC -->
 
 # Introduction
@@ -285,14 +288,14 @@ find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
 ## Doxygen Document
 
 For generating documentation from the code using [Doxygen](https://www.doxygen.nl/) the `doc` subdirectory is added to
-the main `CMakeLists.txt` file.
+the main `pkg-qt-lib.cmake` file.
 
 ```cmake
 # Add Doxygen document project.
 add_subdirectory(doc)
 ```
 
-See the `doc` directory [`CMakeLists.txt`](tpl/root/doc/CMakeLists.txt) to see how files are automatically included in
+See the `doc` directory [`pkg-qt-lib.cmake`](tpl/root/doc/CMakeLists.txt) to see how files are automatically included in
 the manual.
 
 Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ header comment blocks or Markdown files.
@@ -428,3 +431,26 @@ fi
 This same script is used in the main pipeline configuration script
 [`main.gitlab-ci.yml`](tpl/root/gitlab-ci/main.gitlab-ci.yml) in the job named '**check-env**'.  
 When the formatting of changed files is incorrect, the first job in the pipeline will fail.
+
+## Packaging
+
+### Project
+
+Option `-p` or `--package` will package the executable files and its dependent dynamic libraries 
+by checking non-system dynamic library usage.
+
+```bash
+./build.py --package gnu-debug
+```
+
+> Dependencies found are mostly from the used toolchain.
+
+### Qt for Distribution
+
+To package the Qt library for distribution, set environment variable `SF_PACKAGE_QT` 
+which is also the Debian revision package number (use `0` for the first version).
+
+```bash
+SF_PACKAGE_QT=0 ./build.py --package gnu-debug
+```
+> The same name is also used for non debian package generators.

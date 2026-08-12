@@ -11,6 +11,7 @@ find_package(SfToolChain CONFIG REQUIRED)
 
 # Get the Git versions from the repository of this files directory.
 Sf_GetGitTagVersion(_Versions "${CMAKE_CURRENT_LIST_DIR}")
+
 # Report the found Git tag found version.
 Sf_ReportGitTagVersion("${_Versions}")
 # Split the list into separate values.
@@ -18,10 +19,7 @@ list(GET _Versions 0 SF_GIT_TAG_VERSION)
 list(GET _Versions 1 SF_GIT_TAG_RC)
 list(GET _Versions 2 SF_GIT_TAG_COMMITS)
 
-
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lucrt -lucrtbase")
-
-# Set the global project name.
+# Start the top level project.
 project("devops-shared"
 	VERSION "${SF_GIT_TAG_VERSION}"
 	DESCRIPTION "Scanframe DevOps Trial App"
@@ -103,7 +101,7 @@ Sf_AddTestCoverageReport("coverage-report" "${CMAKE_CURRENT_LIST_DIR}/bin/gcov" 
 
 # Add package build config when not building coverage.
 if (NOT CMAKE_BUILD_TYPE STREQUAL "Coverage")
-	if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/cmake/cpack/CPackConfig.cmake")
-		include(cmake/cpack/CPackConfig.cmake)
+	if (EXISTS "${SF_CPACK_PREPARE_FILE}")
+		include("${SF_CPACK_PREPARE_FILE}")
 	endif ()
 endif ()
