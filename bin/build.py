@@ -1677,7 +1677,7 @@ examples:
   When configuring fails due to 'CMakeCache.txt' issues:
     {self.script} -fm gnu-debug  (Applies only to the  main project)
     {self.script} -Fm gnu-debug  (Applies to all projects and modules)
-    {self.script} -Cm gnu-debug  (Nuclear option, wipes the build directory clean.))
+    {self.script} -Cm gnu-debug  (Nuclear option which wipes the build directory clean)
 """
 		return parser
 

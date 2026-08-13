@@ -372,6 +372,7 @@ def handle_linux(
 	flag_recurse: bool,
 	flag_cmake: bool,
 	flag_verbose: bool,
+	flag_exclude_system: bool,
 ) -> None:
 	"""Handle dependency reporting for ELF targets on Linux."""
 	ld_path_dirs: List[str] = []
@@ -396,8 +397,13 @@ def handle_linux(
 	cmake_seen: set = set()
 	resolve_dependencies = flag_check or flag_cmake
 
+	def is_system_file(path: Path) -> bool:
+		"""Check if the file is a system file."""
+		regex = r"^.+/x86_64-linux-gnu/(libc|libstdc\+\+|libgcc_s|libm|libpthread|libdl)\.so\..*$"
+		return bool(re.match(regex, str(path)))
+
 	def add_cmake_dependency(path: str) -> None:
-		"""Add a resolved dependency path to the exported CMake list once."""
+		"""Add a resolved dependency path to the exported CMake list at once."""
 		resolved_path = os.path.abspath(path)
 		if resolved_path not in cmake_seen:
 			cmake_seen.add(resolved_path)
@@ -407,6 +413,7 @@ def handle_linux(
 		"""Report the dependencies of a single ELF file and recurse when requested."""
 		# Skip the ones already reported on.
 		key = processed_key(bin_path)
+		bin_dir: Path = Path(bin_path).absolute().parent
 		if key in processed:
 			return
 		processed.add(key)
@@ -448,9 +455,13 @@ def handle_linux(
 				for directory in run_path_dirs:
 					candidate = os.path.join(directory, dep)
 					if os.path.isfile(candidate):
-						if flag_cmake:
-							add_cmake_dependency(candidate)
-						rows.append(f"{dep}{SEPARATOR}RUNPATH{SEPARATOR}{os.path.dirname(candidate)}")
+						if not flag_exclude_system or (flag_exclude_system and not Path(candidate).is_relative_to(bin_dir)):
+							if flag_cmake:
+								add_cmake_dependency(candidate)
+							rows.append(f"{dep}{SEPARATOR}RUNPATH{SEPARATOR}{os.path.dirname(candidate)}")
+						else:
+							if flag_verbose:
+								write_log(f"# Excluding: {candidate}")
 						found = 2
 						if flag_recurse:
 							recurse_queue.append(candidate)
@@ -459,9 +470,13 @@ def handle_linux(
 			if found == 0:
 				candidate_path = ld_config_lookup(dep)
 				if candidate_path:
-					if flag_cmake:
-						add_cmake_dependency(str(candidate_path))
-					rows.append(f"{dep}{SEPARATOR}LD_CONF{SEPARATOR}{candidate_path.parent}")
+					if not flag_exclude_system or (flag_exclude_system and not is_system_file(candidate_path)):
+						if flag_cmake:
+							add_cmake_dependency(str(candidate_path))
+						rows.append(f"{dep}{SEPARATOR}LD_CONF{SEPARATOR}{candidate_path.parent}")
+					else:
+						if flag_verbose:
+							write_log(f"# Excluding: {candidate_path}")
 					found = 3
 			# Not recursing into system libraries on purpose.
 			if found == 0:
@@ -521,7 +536,7 @@ def main(argv: Sequence[str]) -> int:
 	if is_windows_host() or is_pe_file(targets[0]):
 		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system)
 	else:
-		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose)
+		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system)
 	return 0
 
 
