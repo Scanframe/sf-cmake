@@ -96,13 +96,6 @@ if [[ "${bin_file:0:1}" == '@' ]]; then
 	"${bin_file}" "${@}"
 else
 	WriteLog "- $(chrpath --list "${dir_bin}/${bin_file}" | sed 's/.*: //')"
-	# Create array from the ctest arguments variable.
-	IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
-	# Check if 'CTEST_ARGS' arguments were passed before reporting them.
-	if [[ -n "${CTEST_ARGS}" ]]; then
-		# Argument CTEST_ARGS allows passing arguments to a ctest call.
-		WriteLog "- CTEST_ARGS[${#ctest_arguments[@]}]:" "${ctest_arguments[@]}"
-	fi
 	# When the path is relative add './' to it.
 	if [[ "${bin_file:0:1}" != "/" ]]; then
 		bin_file="./${bin_file}"
@@ -110,8 +103,8 @@ else
 	# Execute it in its own directory.
 	cd "${dir_bin}"
 	if [[ -n "${qemu_static}" ]]; then
-		"${qemu_static}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
+		"${qemu_static}" "${bin_file}" "${@}"
 	else
-		"${bin_file}" "${@}" "${ctest_arguments[@]}"
+		"${bin_file}" "${@}"
 	fi
 fi

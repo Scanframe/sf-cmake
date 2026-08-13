@@ -393,35 +393,38 @@ def _widen_console_buffer() -> None:
 		import ctypes
 		from ctypes import wintypes
 
-		class COORD(ctypes.Structure):
+		class WtCoord(ctypes.Structure):
 			_fields_ = [("X", wintypes.SHORT), ("Y", wintypes.SHORT)]
 
-		class SMALL_RECT(ctypes.Structure):
+		class WtSmallRect(ctypes.Structure):
 			_fields_ = [
 				("Left", wintypes.SHORT), ("Top", wintypes.SHORT),
 				("Right", wintypes.SHORT), ("Bottom", wintypes.SHORT),
 			]
 
-		class CONSOLE_SCREEN_BUFFER_INFO(ctypes.Structure):
+		class WtConsoleScreenBufferInfo(ctypes.Structure):
 			_fields_ = [
-				("dwSize", COORD),
-				("dwCursorPosition", COORD),
+				("dwSize", WtCoord),
+				("dwCursorPosition", WtCoord),
 				("wAttributes", wintypes.WORD),
-				("srWindow", SMALL_RECT),
-				("dwMaximumWindowSize", COORD),
+				("srWindow", WtSmallRect),
+				("dwMaximumWindowSize", WtCoord),
 			]
 
-		STD_OUTPUT_HANDLE = ctypes.c_ulong(-11 & 0xFFFFFFFF)
+		std_output_handle = ctypes.c_ulong(-11 & 0xFFFFFFFF)
 		kernel32 = ctypes.windll.kernel32
-		handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-		info = CONSOLE_SCREEN_BUFFER_INFO()
+		# noinspection unresolved-references
+		handle = kernel32.GetStdHandle(std_output_handle)
+		info = WtConsoleScreenBufferInfo()
+		# noinspection unresolved-references
 		if not kernel32.GetConsoleScreenBufferInfo(handle, ctypes.byref(info)):
 			return
 		# Use the COLUMNS environment variable when available, otherwise a large default.
 		target_width = 1024
 		# target_width = int(os.environ.get("COLUMNS", 1024))
 		if info.dwSize.X < target_width:
-			new_size = COORD(target_width, info.dwSize.Y)
+			new_size = WtCoord(target_width, info.dwSize.Y)
+			# noinspection unresolved-references
 			kernel32.SetConsoleScreenBufferSize(handle, new_size)
 	except (OSError, AttributeError, ValueError):
 		pass
@@ -1648,6 +1651,8 @@ examples:
 		parser.add_argument("-T", "--test-select", action="store_true", help="Runs ctest using a dialog selecting a test.")
 		parser.add_argument("-R", "--test-regex", type=str, metavar="<regex>",
 			help="Regular expression on which test names are to be executed.")
+		parser.add_argument("-L", "--label-regex", type=str, metavar="<regex>",
+			help="Regular expression selecting labels of tests to be executed.")
 		parser.add_argument("-p", "--package", action="store_true", help="Create packages.")
 		parser.add_argument("-w", "--workflow", action="store_true", help="Runs workflow presets.")
 		parser.add_argument("-n", "--target", type=str, metavar="<trg>",
@@ -1671,7 +1676,12 @@ examples:
   Run all tests on a preset:
     {self.script} --test gnu-debug
   Run specific tests using a regex:
-    {self.script} -t gnu-debug -r '^t_my-test'
+    {self.script} -t gnu-debug -R '^t_my-test'
+    {self.script} -t gnu-debug -L 'Catch2'
+  Run 'Catch2' labelled tests passing arguments to the test executable:
+    {self.script} -t gnu-debug -L '^Catch2$' -- sf::Hello -section World
+  Package a preset including an additional argument to cpack:
+    {self.script} --package gnu-debug -- -DMY_VAR=4
   Workflow (Make/Build/Test/Pack) a preset:
     {self.script} --workflow gnu-debug
   When configuring fails due to 'CMakeCache.txt' issues:
@@ -1807,8 +1817,15 @@ examples:
 					cmd.append("--show-only")
 				if args.test_regex:
 					cmd.extend(["--tests-regex", args.test_regex])
+				if args.label_regex:
+					cmd.extend(["--label-regex", args.label_regex])
 				if args.verbose:
 					cmd.append("--verbose")
+				# Add the additional arguments from the command line to the executable run by ctest.
+				if args_right:
+					# Add separator as ctest requires it to pass the arguments to the test executable.
+					cmd.append("--")
+					cmd += args_right
 				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 
 		if args.package:
@@ -1820,6 +1837,9 @@ examples:
 			cmd = ["cpack", "--preset", preset_name]
 			if args.verbose:
 				cmd.append("--verbose")
+			# Add the additional arguments from the command line to cpack.
+			if args_right:
+				cmd += args_right
 			run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 
 		if args.workflow:
@@ -2392,7 +2412,8 @@ Choices are depended on the host platform:
 		# Template files and their destinations.
 		tpl_files = [("default.clang-format", [".clang-format"]), ("default.gitignore", [".gitignore"]),
 			("git-pre-commit-hook.sh", [".git", "hooks", "pre-commit"]),  # ("user.cmake", ["user.cmake"]),
-			("CMakePresets.json", ["CMakePresets.json"]), ("CMakeLists.cmake", ["CMakeLists.txt"]), ]
+			("CMakePresets.json", ["CMakePresets.json"]), ("CMakeLists.cmake", ["CMakeLists.txt"]),
+			("README.md", ["README.md"]), ("AGENTS.md", ["AGENTS.md"])]
 		# Template directories to copy from and to using lists.
 		tpl_dirs = [(["cpack"], ["cmake", "cpack"])]
 		# Check if Git is part of the project.

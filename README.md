@@ -196,7 +196,7 @@ For compiling a document with DoxyGen:
 
 ```shell
 # Compile the non-default DoxGen documentation project.
-./build.py -b gnu-debug -n document
+./build.py --build gnu-debug -n document
 # Opens the Chrome browser in application mode with the generated pages.
 bin/man/open.sh
 ```
@@ -451,6 +451,6 @@ To package the Qt library for distribution, set environment variable `SF_PACKAGE
 which is also the Debian revision package number (use `0` for the first version).
 
 ```bash
-SF_PACKAGE_QT=0 ./build.py --package gnu-debug
+./build.py --package gnu-debug -- -DSF_PACKAGE_QT=1
 ```
 > The same name is also used for non debian package generators.

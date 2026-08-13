@@ -103,14 +103,15 @@ else ()
 endif ()
 
 # Package the Qt library instead of the Application when the flag is set.
-if ("$ENV{SF_PACKAGE_QT}" STREQUAL "")
+if (NOT DEFINED SF_PACKAGE_QT AND NOT SF_PACKAGE_QT STREQUAL "")
 	set(SF_PACKAGE_QT FALSE)
 else ()
-	set(SF_PACKAGE_QT TRUE)
 	# Version Configuration using optional tweak.
-	math(EXPR QT_TWEAK_VERSION "$ENV{SF_PACKAGE_QT}" OUTPUT_FORMAT DECIMAL)
+	math(EXPR QT_TWEAK_VERSION "${SF_PACKAGE_QT}" OUTPUT_FORMAT DECIMAL)
 	# override previous application version for this time.
 	set(CPACK_PACKAGE_VERSION "${SF_QT_VERSION}-${QT_TWEAK_VERSION}")
+	# Make flag boolean.
+	set(SF_PACKAGE_QT TRUE)
 endif ()
 
 # This the also the default for variable CPACK_DEBIAN_PACKAGE_MAINTAINER.

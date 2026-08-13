@@ -72,13 +72,6 @@ export WINEARCH=win64
 
 # Report some useful information.
 WriteLog "- WINEPATH: ${WINEPATH}"
-# Create array from the ctest arguments variable.
-IFS=" " read -ra ctest_arguments <<<"${CTEST_ARGS}"
-# Check if 'CTEST_ARGS' arguments were passed before reporting them.
-if [[ -n "${CTEST_ARGS}" ]]; then
-	# Argument CTEST_ARGS allows passing arguments to a ctest call.
-	WriteLog "- CTEST_ARGS:" "${ctest_arguments[@]}"
-fi
 
 ## Execute it in its own shell to contain the temp dir change.
 ## Redirect wine stderr to be ignored.
@@ -89,8 +82,8 @@ if [[ -n "${GDBSERVER_BIN}" ]]; then
 	# Run the GDB-server infinitely.
 	while true; do
 		# Execute the binary with all options.
-		WriteLog "- ${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@" "${ctest_arguments[@]}"
-		"${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@" "${ctest_arguments[@]}"
+		WriteLog "- ${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@"
+		"${wine_bin}" "${GDBSERVER_BIN}" :1234 "${bin_file}" "$@"
 		WriteLog "Exit code ($?)!"
 	done
 else
@@ -104,7 +97,7 @@ if [[ "${bin_file:0:1}" == '@' ]]; then
 	"${bin_file}" "${@}"
 else
 	# Execute the binary with all options.
-	"${wine_bin}" "${bin_file}" "${@}" "${ctest_arguments[@]}"
+	"${wine_bin}" "${bin_file}" "${@}"
 fi
 fi
 
