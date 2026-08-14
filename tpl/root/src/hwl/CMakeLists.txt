@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.25...4.4)
 
 # Set the project name which is also used as the target name.
 project("hello-lib"

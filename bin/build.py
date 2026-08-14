@@ -2929,9 +2929,9 @@ examples:
 		version, rc, commits, _ = version_info
 		result = version
 		if rc:
-			result += f"-rc.{rc}"
+			result += f"~rc{rc}"
 		if commits:
-			result += f"~{commits}"
+			result += f"+{commits}"
 		return result
 
 	# noinspection PyMethodMayBeStatic

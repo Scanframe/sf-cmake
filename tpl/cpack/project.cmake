@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.25...4.4)
 
 # Include the CPackComponent module.
 include(CPackComponent)
@@ -56,7 +56,10 @@ endif ()
 set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-${SF_TOOLCHAIN_STRING}")
 # Set the package version for all generator types when not overridden.
 set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}~${SF_PACKAGE_RELEASE}")
-
+# Add the package revision to the package version.
+if (SF_PACKAGE_REVISION)
+	set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}.${SF_PACKAGE_REVISION}")
+endif ()
 ##
 ## To check the format of a version is correct use dpkg:
 ##   dpkg --compare-versions "0.1.0.rc2" le "0.1.0.rc2+4" && echo ignore || echo upgrade
@@ -112,6 +115,15 @@ else ()
 	set(CPACK_PACKAGE_VERSION "${SF_QT_VERSION}-${QT_TWEAK_VERSION}")
 	# Make flag boolean.
 	set(SF_PACKAGE_QT TRUE)
+endif ()
+
+# Check if the package revision was given.
+if (DEFINED SF_PACKAGE_REVISION)
+	# Number is required.
+	math(EXPR SF_PACKAGE_REVISION "${SF_PACKAGE_REVISION}" OUTPUT_FORMAT DECIMAL)
+	message(NOTICE "SF_PACKAGE_REVISION: ${SF_PACKAGE_REVISION}")
+else ()
+	message(NOTICE "SF_PACKAGE_REVISION: Not required and set.")
 endif ()
 
 # This the also the default for variable CPACK_DEBIAN_PACKAGE_MAINTAINER.

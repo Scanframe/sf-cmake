@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.29...4.4)
 ##!
 # Declare some cmake flags for decisions on building targets.
 #
@@ -510,7 +510,7 @@ function(Sf_AddExifTarget _Target)
 			COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/exiftool.py" $<SHELL_PATH:$<TARGET_FILE:${_Target}>>
 			WORKING_DIRECTORY "$<TARGET_FILE_DIR:${_Target}>"
 			DEPENDS "$<TARGET_FILE:${_Target}>"
-			COMMENT "Reading resource information from '$<TARGET_FILE:${_Target}>'."
+			COMMENT "Resource information: $<TARGET_FILE:${_Target}>"
 			VERBATIM
 		)
 		add_dependencies("exif" "exif-${_Target}")
@@ -916,6 +916,103 @@ function(Sf_AddExamples _Files _Prefix)
 	endforeach ()
 endfunction()
 
+
+##!
+# Sets $ORIGIN-relative RUNPATH/RPATH properties on the given targets.
+#
+# sf_SetRunPath([TARGETS <target1> [<target2> ...]] [REPORT])
+#
+# @param TARGETS Optional list of targets to process. If omitted, all
+#        targets in the current project (via Sf_GetAllTargets) are used.
+# @param REPORT  Optional flag. If given, prints the resulting BUILD_RPATH
+#        and INSTALL_RPATH for each processed target.
+#
+function(sf_SetRunPath)
+	set(_options REPORT)
+	set(_one_value_args)
+	set(_multi_value_args TARGETS)
+	cmake_parse_arguments(PARSE_ARGV 0 _arg
+		"${_options}" "${_one_value_args}" "${_multi_value_args}")
+	if (_arg_UNPARSED_ARGUMENTS)
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Unknown arguments: ${_arg_UNPARSED_ARGUMENTS}")
+	endif ()
+	# No effect for Windows targets so bailout here after parsing the arguments.
+	if (WIN32)
+		return()
+	endif ()
+	# Fall back to all project targets when TARGETS was not given.
+	if (DEFINED _arg_TARGETS)
+		set(_targets "${_arg_TARGETS}")
+	else ()
+		Sf_GetAllTargets(_targets "${PROJECT_SOURCE_DIR}" "TRUE")
+	endif ()
+	foreach (_target IN LISTS _targets)
+		set(_rpath)
+		get_target_property(_type ${_target} TYPE)
+		if (_type STREQUAL "EXECUTABLE")
+			set(_var_name "RUNTIME")
+			# Required in any case.
+			list(APPEND _rpath "\$ORIGIN/lib")
+		elseif (_type STREQUAL "SHARED_LIBRARY" OR _type STREQUAL "MODULE_LIBRARY")
+			set(_var_name "LIBRARY")
+			# Required in any case.
+			list(APPEND _rpath "\$ORIGIN")
+		else ()
+			# static libs, interfaces: nothing to do
+			continue()
+		endif ()
+		get_target_property(_rpath_build "${_target}" BUILD_RPATH)
+		get_target_property(_rpath_install "${_target}" INSTALL_RPATH)
+		get_target_property(_output_dir "${_target}" "${_var_name}_OUTPUT_DIRECTORY")
+		if (NOT _output_dir)
+			if (CMAKE_${_var_name}_OUTPUT_DIRECTORY)
+				set(_output_dir "${CMAKE_${_var_name}_OUTPUT_DIRECTORY}")
+			else ()
+				message(FATAL_ERROR "Cannot continue without an output directory!")
+			endif ()
+		endif ()
+		if (NOT _rpath_build)
+			set(_rpath_build "")
+		endif ()
+		if (NOT _rpath_install)
+			set(_rpath_install "")
+		endif ()
+		if (SF_BUILD_QT)
+			Sf_IsQtLinked("${_target}" _qt_linked)
+			if (_qt_linked)
+				Sf_GetQtVersionLibraryDirectory(_qt_lib_dir)
+				cmake_path(RELATIVE_PATH _qt_lib_dir BASE_DIRECTORY "${_output_dir}" OUTPUT_VARIABLE _qt_rel_dir)
+				list(APPEND _rpath_build "\$ORIGIN/${_qt_rel_dir}")
+				Sf_GetQtCompilerSubdirectory(_qt_compiler)
+				if (WIN32)
+					list(APPEND _rpath_install "\$ORIGIN/../qt/${SfQtLibrary_VERSION}/${_qt_compiler}/bin")
+				else ()
+					list(APPEND _rpath_install "\$ORIGIN/../qt/${SfQtLibrary_VERSION}/${_qt_compiler}/lib")
+				endif ()
+			endif ()
+		endif ()
+		list(PREPEND _rpath_build ${_rpath})
+		list(PREPEND _rpath_install ${_rpath})
+		set_target_properties("${_target}" PROPERTIES
+			# Set the output directory in case it was not set.
+			"${_var_name}_OUTPUT_DIRECTORY" "${_output_dir}"
+			BUILD_RPATH "${_rpath_build}"
+			INSTALL_RPATH "${_rpath_install}"
+			BUILD_WITH_INSTALL_RPATH FALSE
+			INSTALL_RPATH_USE_LINK_PATH FALSE
+			BUILD_RPATH_USE_ORIGIN TRUE
+		)
+		if (_arg_REPORT)
+			list(APPEND CMAKE_MESSAGE_INDENT "Runpath '${_target}' ")
+			get_target_property(_value "${_target}" BUILD_RPATH)
+			message(STATUS "Build: ${_value}")
+			get_target_property(_value "${_target}" INSTALL_RPATH)
+			message(STATUS "Install: ${_value}")
+			list(POP_BACK CMAKE_MESSAGE_INDENT)
+		endif ()
+	endforeach ()
+endfunction()
+
 ##!
 # Lazy way for a project to installs all non-test targets in a project.
 # @param _executables Optional: Variable to return the executables in.
@@ -924,9 +1021,9 @@ function(Sf_TargetsInstall)
 	Sf_GetOptionalArgument(_executables 0 "${ARGN}")
 	set(_execs)
 	# Retrieve all targets from this project.
-	Sf_GetAllTargets(_AllTargets "${PROJECT_SOURCE_DIR}" "TRUE")
+	Sf_GetAllTargets(_targets "${PROJECT_SOURCE_DIR}" "TRUE")
 	# Iterate through all targets.
-	foreach (_target ${_AllTargets})
+	foreach (_target ${_targets})
 		get_target_property(_type "${_target}" TYPE)
 		# Only install executables and shared libraries.
 		if (_type STREQUAL "EXECUTABLE")
@@ -940,7 +1037,7 @@ function(Sf_TargetsInstall)
 					list(APPEND _execs "${_target}")
 				endif ()
 			endif ()
-		elseif (_type STREQUAL "SHARED_LIBRARY")
+		elseif (_type STREQUAL "SHARED_LIBRARY" OR _type STREQUAL "MODULE_LIBRARY")
 			list(APPEND _targets "${_target}")
 			message(VERBOSE "Installing Dyn Library: ${_target}")
 		endif ()

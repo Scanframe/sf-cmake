@@ -1,7 +1,7 @@
 ##
 ## Create a package from the current selected Qt library for the application project.
 ##
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.25...4.4)
 
 # Error: invalid characters in variable name "sf-qt-rt_selected", use only characters [a-z][A-Z][0-9], '.' and '_'
 

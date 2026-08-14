@@ -447,10 +447,62 @@ by checking non-system dynamic library usage.
 
 ### Qt for Distribution
 
-To package the Qt library for distribution, set environment variable `SF_PACKAGE_QT` 
+To package the Qt library for distribution, set variable `SF_PACKAGE_QT` 
 which is also the Debian revision package number (use `0` for the first version).
 
 ```bash
 ./build.py --package gnu-debug -- -DSF_PACKAGE_QT=1
 ```
 > The same name is also used for non debian package generators.
+
+
+### Debian Package Versioning Specification
+
+This repository uses a structured versioning scheme based on `git describe` to generate unique Debian package versions
+for both automated CI/CD builds and local developer builds.
+
+#### Version Structure
+
+```text
+<upstream-version>[~<pre-release>]+<commit-count>.<local-revision>
+│                 │               │              └─ Optional local build iteration (e.g., .1, .2)
+│                 │               └─ Commits since last tag (from `git describe`)
+│                 └─ Release candidate / pre-release tag
+└─ Base semantic version (e.g., 0.1.0)
+```
+
+> **Note on `~` vs `-`:** The tilde (`~`) is intentionally used before pre-release identifiers (e.g., `~rc1`) so `dpkg`
+> correctly sorts pre-release packages as **older** than the final release (e.g., `0.1.0~rc1` < `0.1.0`).
+
+
+#### Examples & Workflow
+
+| Scenario                       | Git Tag / Context               | CPack / Package Version | `dpkg` Ordering                 |
+|:-------------------------------|:--------------------------------|:------------------------|:--------------------------------|
+| **MR / CI Build**              | `v0.1.0-rc.1-9-g86f4cd1`        | `0.1.0~rc1+9`           | Base version                    |
+| **Local Dev Build**            | *(Same commit + local changes)* | `0.1.0~rc1+9.1`         | **Newer** than `0.1.0~rc1+9`    |
+| **Subsequent Local Iteration** | *(Further local tweaks)*        | `0.1.0~rc1+9.2`         | **Newer** than `.1`             |
+| **Final Tag Release**          | `v0.1.0`                        | `0.1.0`                 | **Newer** than all `~rc` builds |
+
+
+#### CPack Configuration Guidelines
+
+1. **CI Pipeline (Automated):**  
+   Parse output from `git describe --dirty --match 'v*.*.*'`:
+    * Convert `-rc.` to `~rc`
+    * Map the commit distance (`-9-`) to `+9`
+    * Set package revision/suffix to empty (default)
+
+2. **Local Developer Build:**  
+   When building locally to test fixes in the test APT repository, supply the optional revision number (e.g., `1`) to
+   CPack:
+   ```bash
+   ./build.py -p gnu-debug -- -DSF_PACKAGE_REVISION=1
+   cmake --build build --target package
+   ```
+   This appends `.1` to the version, ensuring `dpkg` treats it as an upgrade over the CI build.
+
+To test version comparison, use:
+```bash
+dpkg --compare-versions "<version-1>" gt "<version-2>" && echo "True" || echo "False"
+```

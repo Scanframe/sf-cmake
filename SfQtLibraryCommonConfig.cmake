@@ -1,3 +1,6 @@
+# Required first entry checking the cmake version.
+cmake_minimum_required(VERSION 3.29...4.4)
+
 set(SF_QT_COMPONENT_PREFIX "sf_qt_" CACHE INTERNAL "The install component prefix used to identify them (NSIS does not handle '-' hyphens).")
 
 ##!
@@ -255,6 +258,20 @@ function(Sf_FindQtVersion _VarOut)
 endfunction()
 
 ##!
+# Gets the Qt library directory located a defined position for Linux and Windows.
+# @param _VarOut Out: Found Qt version of the library directory.
+#
+function(Sf_GetQtVersionLibraryDirectory _VarOut)
+	Sf_GetQtVersionDirectory(_dir)
+	Sf_GetQtCompilerSubdirectory(_compiler_dir)
+	if (WIN32)
+		set(${_VarOut} "${_dir}/${_compiler_dir}/bin" PARENT_SCOPE)
+	else ()
+		set(${_VarOut} "${_dir}/${_compiler_dir}/lib" PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
 # Gets the Qt directory located a defined position for Linux and Windows.
 # @param _VarOut Out: Found Qt version of the directory.
 #
@@ -378,4 +395,66 @@ function(Sf_QtLibraryInstall _IncDev)
 			endif ()
 		endforeach ()
 	endif ()
+endfunction()
+
+##!
+# Recursively determine whether `target` needs Qt's RUNPATH.
+# Walks LINK_LIBRARIES / INTERFACE_LINK_LIBRARIES, descending only
+# through STATIC/OBJECT/INTERFACE libraries (see note above).
+#
+function(Sf_IsQtLinked _target _out_var)
+	set(_visited "")
+	_sf_links_qt_impl("${_target}" _visited _result)
+	set(${_out_var} ${_result} PARENT_SCOPE)
+endfunction()
+
+##!
+# Helper function for function 'Sf_TargetLinksQt()'.
+#
+function(_sf_links_qt_impl _target _visited_var _out_var)
+	set(${_out_var} FALSE PARENT_SCOPE)
+	if(NOT TARGET ${_target})
+		return()
+	endif()
+	# Check if library is re-visited.
+	#if ("${_target}" IN_LIST "${_visited_var}")
+	list(FIND ${_visited_var} "${_target}" _idx)
+	if(NOT _idx EQUAL -1)
+		return()
+	endif()
+	list(APPEND ${_visited_var} "${_target}")
+	set(${_visited_var} "${${_visited_var}}" PARENT_SCOPE)
+	get_target_property(_type ${_target} TYPE)
+	# gather both direct and propagated (interface) link items
+	set(_libs "")
+	foreach(_prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+		get_target_property(_val ${_target} ${_prop})
+		if(_val)
+			list(APPEND _libs ${_val})
+		endif()
+	endforeach()
+	foreach(_item IN LISTS _libs)
+		# Strip a single layer of common generator-expression wrappers,
+		# e.g. $<LINK_ONLY:Qt6::Core>, $<BUILD_INTERFACE:...>
+		string(REGEX REPLACE "^\\$<[A-Za-z_]+:(.*)>$" "\\1" _item "${_item}")
+		if(_item MATCHES "^Qt::|^Qt[0-9]+::")
+			set(${_out_var} TRUE PARENT_SCOPE)
+			return()
+		endif()
+		if(TARGET ${_item})
+			get_target_property(_item_type ${_item} TYPE)
+			if(_item_type STREQUAL "SHARED_LIBRARY")
+				# Qt itself is SHARED and caught by the name match above;
+				# any other shared dependency stops here - it carries
+				# its own RUNPATH, doesn't propagate NEEDED further.
+				continue()
+			endif()
+			_sf_links_qt_impl("${_item}" ${_visited_var} _sub_result)
+			set(${_visited_var} "${${visited_var}}" PARENT_SCOPE)
+			if(_sub_result)
+				set(${_out_var} TRUE PARENT_SCOPE)
+				return()
+			endif()
+		endif()
+	endforeach()
 endfunction()

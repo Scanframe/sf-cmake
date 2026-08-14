@@ -67,6 +67,7 @@ def get_elf_info(file_path):
 				"CPU Type": cpu_type,
 				"Product Version": "N/A",
 				"File Version": "N/A",
+				"Runpath": [],
 				"Imports": []
 			}
 			# Get the .dynamic section, where dependency tags are stored
@@ -77,6 +78,8 @@ def get_elf_info(file_path):
 				for tag in dynamic_section.iter_tags():
 					if tag.entry.d_tag == 'DT_NEEDED':
 						info["Imports"].append(tag.needed)
+					elif tag.entry.d_tag == 'DT_RUNPATH':
+						info["Runpath"].append(tag.runpath)
 			return info
 
 	except Exception as e:
@@ -84,9 +87,14 @@ def get_elf_info(file_path):
 
 
 def main()->int:
+	"""
+	Main function.
+	:return: Returns non-zero on error.
+	"""
 	script = os.path.basename(__file__)
 	if len(sys.argv) < 2:
 		print(f"Usage: {script} <path-to-binary>")
+		return 0
 
 	file_path = sys.argv[1]
 

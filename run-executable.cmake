@@ -4,7 +4,7 @@ Execute this file from the 'build.py' script using the 'run' sub-command like:
 
 ]]
 
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.25...4.4)
 
 if (SF_VERBOSE)
 	message(STATUS "SF_COMPILER: ${SF_COMPILER}")

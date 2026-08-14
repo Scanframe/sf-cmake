@@ -816,7 +816,6 @@
 			"configurePreset": "gnu-debug",
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
-				"TGZ",
 				"DEB"
 			]
 		},
