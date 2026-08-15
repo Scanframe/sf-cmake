@@ -123,7 +123,7 @@ function(Sf_IsSymlink _Path _ResultVar)
 			ERROR_VARIABLE _error
 			RESULT_VARIABLE _res
 		)
-		if (res EQUAL 0)
+		if (_res EQUAL 0)
 			# Check for <JUNCTION> or <SYMLINK> in the output.
 			string(FIND "${_output}" "<JUNCTION>" is_junction)
 			string(FIND "${_output}" "<SYMLINK>" is_symlink)

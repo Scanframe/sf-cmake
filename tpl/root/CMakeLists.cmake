@@ -64,30 +64,6 @@ if (SF_BUILD_TESTING)
 	include(CTest)
 endif ()
 
-#[[
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-set(CMAKE_SKIP_INSTALL_RPATH TRUE)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
-set(CMAKE_SKIP_RPATH TRUE)
-]]
-
-if (FALSE)
-	# Configure the rpath to make the Linux compiled instances find
-	# libraries without using the LD_LIBRARY_PATH.
-	if (SF_BUILD_QT)
-		# Need to have the Qt directory in the RPATH.
-		Sf_GetQtVersionLibraryDirectory(_QtVerLibDir)
-		if (_QtVerDir STREQUAL "")
-			message(FATAL_ERROR "Qt version directory not found or set!")
-		else ()
-			Sf_SetRPath("\${ORIGIN}:\${ORIGIN}/lib:${_QtVerLibDir}")
-		endif ()
-	else ()
-		Sf_SetRPath("\${ORIGIN}:\${ORIGIN}/lib")
-	endif ()
-endif ()
-
 # Satisfy cmake to prevent warning.
 if (CMAKE_VERBOSE_MAKEFILE)
 	message(STATUS "Verbosity enabled.")
@@ -103,7 +79,7 @@ if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/doc")
 	add_subdirectory(doc)
 endif ()
 
-# Set the RUNPATH for all targets and report each target's values.
+# Set the 'RUNPATH' for all targets and report each target's values.
 sf_SetRunPath(REPORT)
 
 # Coverage report generator in the form af a test is added.
@@ -118,17 +94,3 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Coverage")
 		include("${SF_CPACK_PREPARE_FILE}")
 	endif ()
 endif ()
-
-#[[
-# Show all target's RUNPATH values.
-Sf_GetAllTargets(_AllTargets "${PROJECT_SOURCE_DIR}" "TRUE")
-foreach (_trg IN LISTS _AllTargets)
-	get_target_property(_type "${_trg}" TYPE)
-	# Only use executables and shared libraries.
-	if (_type STREQUAL "EXECUTABLE" OR _type STREQUAL "SHARED_LIBRARY" OR _type STREQUAL "MODULE_LIBRARY")
-		get_target_property(_prop "${_trg}" BUILD_RPATH)
-		message(NOTICE "# BUILD_RPATH(${_trg}): ${_prop}")
-		get_target_property(_prop "${_trg}" INSTALL_RPATH)
-		message(NOTICE "# INSTALL_RPATH(${_trg}): ${_prop}")
-	endif ()
-endforeach ()]]

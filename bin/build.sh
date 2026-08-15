@@ -193,7 +193,7 @@ function InstallPackages {
 }
 
 ##
-# Selects a build preset from the passed CMakePreset.json file.
+# Selects a build preset from the passed CMakePresets.json file.
 # @param: Select '' for info only value 'info'.
 # @param: Json file.
 #
@@ -249,7 +249,7 @@ function SelectBuildPreset {
 }
 
 ##
-# Selects a test preset from the passed CMakePreset.json file.
+# Selects a test preset from the passed CMakePresets.json file.
 # @param: Select '' for info only value 'info'.
 # @param: Json file.
 #
@@ -311,7 +311,7 @@ function SelectTestPreset {
 }
 
 ##
-# Selects a package preset from the passed CMakePreset.json file.
+# Selects a package preset from the passed CMakePresets.json file.
 # @param: Select '' for info only value 'info'.
 # @param: Json file.
 #
@@ -362,7 +362,7 @@ function SelectPackagePreset {
 }
 
 ##
-# Selects a workflow preset from the passed CMakePreset.json file.
+# Selects a workflow preset from the passed CMakePresets.json file.
 # @param: Select '' for info only value 'info'.
 # @param: Json file.
 #

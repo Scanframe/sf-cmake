@@ -44,7 +44,7 @@ Install the required Windows tools, initialize the project, and choose either Mi
 build.py install --required win
 build.py install --project
 build.py --build --test mingw-debug
-# Or...
+# Or using MSVC
 build.py --build --test msvc-debug
 ```
 

@@ -1,4 +1,4 @@
-# CMAke Presets
+# CMake Presets
 
 ## Introduction
 

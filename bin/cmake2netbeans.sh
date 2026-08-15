@@ -12,7 +12,7 @@ source "${script_dir}/inc/WriteLog.sh"
 #
 function show_help {
 	echo "Usage: ${0} [options]
-Creates a Netbeans v19+ project and files from a 'CMakePreset.json' file.
+Creates a Netbeans v19+ project and files from a 'CMakePresets.json' file.
   Options:
     -h | --help  : Shows this help.
     -c | --create: Create the when it does not exist.

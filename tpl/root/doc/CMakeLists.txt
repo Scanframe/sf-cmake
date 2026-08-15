@@ -22,7 +22,7 @@ if (SfDoxygen_FOUND)
 	Sf_GetAllTargets(_Targets "${CMAKE_SOURCE_DIR}" "TRUE")
 	# Remove all the test targets using its prefix.
 	list(FILTER _Targets EXCLUDE REGEX "^${SF_TEST_NAME_PREFIX}.*$")
-	# Iterate through all targets to remove.
+	# Iterate through all targets to remove non suited ones.
 	foreach (_Target ${_Targets})
 		# Exclude fetched targets.
 		get_target_property(_SourceDir "${_Target}" SOURCE_DIR)
@@ -36,7 +36,7 @@ if (SfDoxygen_FOUND)
 		if (_Type STREQUAL "EXECUTABLE" OR _Type STREQUAL "SHARED_LIBRARY" OR _Type STREQUAL "STATIC_LIBRARY")
 			message(VERBOSE "Document Target (${_Type}): ${_Target}")
 		else ()
-			list(REMOVE_ITEM APPEND _Targets "${_Target}")
+			list(REMOVE_ITEM _Targets "${_Target}")
 		endif ()
 	endforeach ()
 	# Get the source files from the the passed document targets.

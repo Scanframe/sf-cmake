@@ -60,6 +60,7 @@ set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}~${SF_PACKAGE_RELEASE}")
 if (SF_PACKAGE_REVISION)
 	set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}.${SF_PACKAGE_REVISION}")
 endif ()
+
 ##
 ## To check the format of a version is correct use dpkg:
 ##   dpkg --compare-versions "0.1.0.rc2" le "0.1.0.rc2+4" && echo ignore || echo upgrade
@@ -77,7 +78,7 @@ endif ()
 
 # Don't make the 'install' target depend on the 'all' target.
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
-# Set the default component name.
+# Set the default component name used by multiple scripts.
 set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "runtime")
 # Number of threads to use when performing parallelized operations, such as compressing the installer package.
 # When zero all available CPU's are used.
@@ -106,7 +107,7 @@ else ()
 endif ()
 
 # Package the Qt library instead of the Application when the flag is set.
-if (NOT DEFINED SF_PACKAGE_QT AND NOT SF_PACKAGE_QT STREQUAL "")
+if (NOT DEFINED SF_PACKAGE_QT OR SF_PACKAGE_QT STREQUAL "")
 	set(SF_PACKAGE_QT FALSE)
 else ()
 	# Version Configuration using optional tweak.

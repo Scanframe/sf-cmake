@@ -706,38 +706,22 @@ function(Sf_FetchContent_MakeAvailable _DepName _Timeout)
 	endwhile ()
 endfunction()
 
+
 ##!
-# Sets or appends the rpath property 'INSTALL_RPATH' for all compiled targets.
-# @param _Path A path string like "\${ORIGIN}:\${ORIGIN}/lib".
+# Increments the patch component of a semantic version.
 #
-function(Sf_SetRPath _Path)
-	# Is a Linux only thing.
-	if (WIN32)
-		# When building for Windows using GNU report warnings on MSVC incompatibilities.
-		#add_definitions(-D__MINGW_MSVC_COMPAT_WARNINGS)
-		# Suppressing the warning that out-of-line inline functions are redeclared.
-		#add_link_options(-Wno-inconsistent-dllimport)
-	else ()
-		# Using Cmake's way of RPATH.
-		set(CMAKE_SKIP_BUILD_RPATH FALSE PARENT_SCOPE)
-		set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE PARENT_SCOPE)
-		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE PARENT_SCOPE)
-		# Linker option -rpath is not working due to doubling of the '$' sign by CMAKE.
-		#    add_link_options(-Wl,-rpath-link "\${ORIGIN\}")
-		if (NOT DEFINED CMAKE_INSTALL_RPATH OR CMAKE_INSTALL_RPATH STREQUAL "")
-			set(CMAKE_INSTALL_RPATH "${_Path}")
-		else ()
-			# When appending the RPATH remove duplicates.
-			string(REPLACE ":" ";" _List "${CMAKE_INSTALL_RPATH}:${_Path}")
-			list(REMOVE_DUPLICATES _List)
-			list(JOIN _List ":" _List)
-			set(CMAKE_INSTALL_RPATH "${_List}")
-		endif ()
-		# Set the parent scope version.
-		set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}" PARENT_SCOPE)
-		# Report the resulting RPath.
-		message(STATUS "Resulting RPATH: ${CMAKE_INSTALL_RPATH}")
+# The input version must use the format MAJOR.MINOR.PATCH.
+# For example, 6.10.1 becomes 6.10.2.
+#
+# @param _Version  Name of the variable containing the input version.
+# @param _OutVar Name of the variable receiving the incremented version.
+#
+function(Sf_IncrementPatchVersion _Version _OutVar)
+	if (NOT "${_Version}" MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+		message(FATAL_ERROR "Invalid semantic version '${_Version}'.")
 	endif ()
+	math(EXPR _patch "${CMAKE_MATCH_3} + 1")
+	set(${_OutVar} "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${_patch}" PARENT_SCOPE)
 endfunction()
 
 ##!
@@ -916,9 +900,42 @@ function(Sf_AddExamples _Files _Prefix)
 	endforeach ()
 endfunction()
 
+##!
+# Sets or appends the rpath property 'INSTALL_RPATH' for all compiled targets.
+# @param _Path A path string like "\${ORIGIN}:\${ORIGIN}/lib".
+#
+function(Sf_SetRPath _Path)
+	# Is a Linux only thing.
+	if (WIN32)
+		# When building for Windows using GNU report warnings on MSVC incompatibilities.
+		#add_definitions(-D__MINGW_MSVC_COMPAT_WARNINGS)
+		# Suppressing the warning that out-of-line inline functions are redeclared.
+		#add_link_options(-Wno-inconsistent-dllimport)
+	else ()
+		# Using Cmake's way of RPATH.
+		set(CMAKE_SKIP_BUILD_RPATH FALSE PARENT_SCOPE)
+		set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE PARENT_SCOPE)
+		#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE PARENT_SCOPE)
+		# Linker option -rpath is not working due to doubling of the '$' sign by CMAKE.
+		#    add_link_options(-Wl,-rpath-link "\${ORIGIN\}")
+		if (NOT DEFINED CMAKE_INSTALL_RPATH OR CMAKE_INSTALL_RPATH STREQUAL "")
+			set(CMAKE_INSTALL_RPATH "${_Path}")
+		else ()
+			# When appending the RPATH remove duplicates.
+			string(REPLACE ":" ";" _List "${CMAKE_INSTALL_RPATH}:${_Path}")
+			list(REMOVE_DUPLICATES _List)
+			list(JOIN _List ":" _List)
+			set(CMAKE_INSTALL_RPATH "${_List}")
+		endif ()
+		# Set the parent scope version.
+		set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH}" PARENT_SCOPE)
+		# Report the resulting RPath.
+		message(STATUS "Resulting RPATH: ${CMAKE_INSTALL_RPATH}")
+	endif ()
+endfunction()
 
 ##!
-# Sets $ORIGIN-relative RUNPATH/RPATH properties on the given targets.
+# Sets $ORIGIN-relative RUNPATH/RPATH properties on the given targets only.
 #
 # sf_SetRunPath([TARGETS <target1> [<target2> ...]] [REPORT])
 #
@@ -1021,9 +1038,9 @@ function(Sf_TargetsInstall)
 	Sf_GetOptionalArgument(_executables 0 "${ARGN}")
 	set(_execs)
 	# Retrieve all targets from this project.
-	Sf_GetAllTargets(_targets "${PROJECT_SOURCE_DIR}" "TRUE")
+	Sf_GetAllTargets(_all_targets "${PROJECT_SOURCE_DIR}" "TRUE")
 	# Iterate through all targets.
-	foreach (_target ${_targets})
+	foreach (_target ${_all_targets})
 		get_target_property(_type "${_target}" TYPE)
 		# Only install executables and shared libraries.
 		if (_type STREQUAL "EXECUTABLE")
@@ -1046,14 +1063,14 @@ function(Sf_TargetsInstall)
 	if (WIN32)
 		# Do not include the import libraries.
 		install(TARGETS ${_targets}
-			RUNTIME DESTINATION . COMPONENT "runtime"
-			LIBRARY DESTINATION . COMPONENT "runtime"
+			RUNTIME DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
+			LIBRARY DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
 			#CONFIGURATIONS Debug
 		)
 	else ()
 		install(TARGETS ${_targets}
-			RUNTIME DESTINATION . COMPONENT "runtime"
-			LIBRARY DESTINATION lib COMPONENT "runtime"
+			RUNTIME DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
+			LIBRARY DESTINATION lib COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
 			ARCHIVE DESTINATION arc COMPONENT "devel"
 			#CONFIGURATIONS Debug
 		)
@@ -1154,7 +1171,7 @@ function(Sf_GetDependencies _OutVar _BinFile)
 	)
 	# Variable to hold the non-ignored dependencies.
 	set(_bin_deps)
-	# Filter dependencies safely by appending non-ignored items
+	# Filter dependencies safely by appending non-ignored items.
 	foreach (_dep IN LISTS _deps)
 		set(_is_ignored FALSE)
 		foreach (_ignore IN LISTS _ignored_paths)

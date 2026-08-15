@@ -2100,7 +2100,7 @@ This ignores the options: --qt-ver, --platform'
 			sshd_cmd = ["docker", "run"] + docker_opts + ["--name", CONTAINER_NAME, "--volume",
 				f"{cache_dir}:/home/user/.cache:rw", "--detach", img_name, "sudo", "--", "/usr/sbin/sshd", "-e", "-D", "-p",
 				str(SSHD_PORT)]
-			if run_command(sshd_cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
+			if run_command(sshd_cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode == 0:
 				logger.info(f"# SSHD service started on port {SSHD_PORT}. Connect with 'ssh -p {SSHD_PORT} user@localhost'.")
 			else:
 				return 1

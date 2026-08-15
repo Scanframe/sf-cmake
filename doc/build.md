@@ -4,8 +4,7 @@
 
 Script `build.py` is a comprehensive CMake build system helper that provides a unified interface for configuring,
 building, testing, and packaging C++ projects across multiple platforms and toolchains. It automates complex build
-workflows using
-`CMakePresets.json` configuration and supports nested execution environments (native, Docker, Wine).
+workflows using `CMakePresets.json` configuration and supports nested execution environments (native, Docker, Wine).
 
 ## Key Features
 
@@ -42,7 +41,7 @@ The primary build command that executes CMake operations directly in the current
 - `-B, --build-only`: Build without running tests.
 - `-t, --test`: Run CTest using test preset.
 - `-T, --test-select`: Interactive test selection dialog.
-- `-R, --test-regex <regex>`: Run tests matching regularexpression pattern.
+- `-R, --test-regex <regex>`: Run tests matching a regular expression pattern.
 - `-p, --package`: Create distribution packages.
 - `-w, --workflow`: Execute workflow presets.
 - `-n, --target <trg>`: Build specific target.
@@ -62,7 +61,7 @@ The primary build command that executes CMake operations directly in the current
 ./build.py --make --build gnu-debug
 
 # Run specific tests
-./build.py --test gnu-debug -r '^t_my-test'
+./build.py --test gnu-debug -R '^t_my-test'
 
 # Create packages
 ./build.py --package gnu-release
@@ -133,8 +132,8 @@ Install required development packages and dependencies depending on the OS it is
 
 ### Run Command
 
-Execute compiled applications with the proper environment configuration from the `CMakePreset.json` file preceeded by an
-environment configured from `build.ini` file.
+Execute compiled applications with the proper environment configuration from the `CMakePresets.json` file 
+preceded by an environment configured from `build.ini` file.
 
 **Usage**: `./build.py run -p <preset> -- <executable> [args]`
 
@@ -373,9 +372,9 @@ This executes the command inside Wine, which runs inside Docker, enabling MSVC b
 The install-command can set up entire development environments:
 
 ```bash
-./build.py install --required gcc
-./build.py install --required mingw
-./build.py install --required cross-gcc
+./build.py install --required lnx
+./build.py install --required win 
+./build.py install --required dce
 ```
 
 ### Test Execution Control
@@ -414,4 +413,3 @@ Fine-grained test control:
 - Docker (for docker command)
 - Wine (for wine command)
 - Toolchains: gcc, g++, mingw-w64, MSVC Build Tools
-

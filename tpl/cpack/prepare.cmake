@@ -8,7 +8,7 @@ install(CODE [[
 set(SF_ROOT_PREFIX ".")
 include("${CMAKE_CURRENT_LIST_DIR}/.sf/SfInstallInclude.cmake")
 ]]
-	COMPONENT "runtime")
+	COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}")
 
 # Set some variables required by this script and CPack as well.
 # The provider name for using as an install prefix (directory like: /opt/<provider-name>/my-app).
@@ -63,15 +63,15 @@ Sf_GetGitTagVersion(SF_GIT_TAG_VERSIONS "${CMAKE_CURRENT_SOURCE_DIR}")
 # Only for Linux targeted OSes.
 if (NOT WIN32)
 	# Create the ld.so configuration file content.
+	get_filename_component(_filename "${CMAKE_CURRENT_LIST_FILE}" NAME)
 	file(WRITE
 		"${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/${CMAKE_PROJECT_NAME}-libs.conf"
-		"${CPACK_PACKAGING_INSTALL_PREFIX}/lib\n"
+		"# Enable from project in file: ${_filename}\n#${CPACK_PACKAGING_INSTALL_PREFIX}/lib\n"
 	)
 	# Install the '.conf' file to the system directory.
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/${CMAKE_PROJECT_NAME}-libs.conf"
 		DESTINATION "/\${SF_ROOT_PREFIX}/etc/ld.so.conf.d"
-		# The double underscore is a generator separator.
-		COMPONENT "runtime" #--DEB
+		COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
 	)
 	# Create the 'postinst' script (runs ldconfig after installation).
 	file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/postinst" [[
@@ -109,6 +109,7 @@ set(SF_BINARY_DIR "${CMAKE_BINARY_DIR}")
 foreach (_ExecTarget IN LISTS _ExecTargets)
 	Sf_GetTargetOutputPath("${_ExecTarget}" _OutputPath)
 	list(APPEND SF_OUTPUT_PATHS "${_OutputPath}")
+	list(APPEND SF_OUTPUT_PATHS_${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME} "${_OutputPath}")
 	get_target_property(_OutputName "${_ExecTarget}" OUTPUT_NAME)
 	if (NOT _OutputName)
 		continue()
@@ -124,7 +125,7 @@ exec '${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}' \"$@\"
 		# Install it directly to '/usr/bin'.
 		install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/${_OutputName}"
 			DESTINATION "/\${SF_ROOT_PREFIX}/usr/bin"
-			COMPONENT "runtime"
+			COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
 		)
 	else ()
 		# TODO: The shortcut name should be retrieved from a target property like 'SHORTCUT_NAME'.
