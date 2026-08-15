@@ -16,6 +16,7 @@ set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library"
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
 set(SF_CPACK_PREPARE_FILE "${CMAKE_CURRENT_LIST_DIR}/tpl/cpack/prepare.cmake" CACHE STRING "Preparation script for running CPack project script.")
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "runtime")
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim

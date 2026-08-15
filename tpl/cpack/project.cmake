@@ -78,8 +78,6 @@ endif ()
 
 # Don't make the 'install' target depend on the 'all' target.
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
-# Set the default component name used by multiple scripts.
-set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "runtime")
 # Number of threads to use when performing parallelized operations, such as compressing the installer package.
 # When zero all available CPU's are used.
 set(CPACK_THREADS 0)
@@ -109,6 +107,7 @@ endif ()
 # Package the Qt library instead of the Application when the flag is set.
 if (NOT DEFINED SF_PACKAGE_QT OR SF_PACKAGE_QT STREQUAL "")
 	set(SF_PACKAGE_QT FALSE)
+	message(NOTICE "SF_PACKAGE_QT: Not passed, creating application package.")
 else ()
 	# Version Configuration using optional tweak.
 	math(EXPR QT_TWEAK_VERSION "${SF_PACKAGE_QT}" OUTPUT_FORMAT DECIMAL)
@@ -124,7 +123,7 @@ if (DEFINED SF_PACKAGE_REVISION)
 	math(EXPR SF_PACKAGE_REVISION "${SF_PACKAGE_REVISION}" OUTPUT_FORMAT DECIMAL)
 	message(NOTICE "SF_PACKAGE_REVISION: ${SF_PACKAGE_REVISION}")
 else ()
-	message(NOTICE "SF_PACKAGE_REVISION: Not required and set.")
+	message(NOTICE "SF_PACKAGE_REVISION: Not set, creating base package.")
 endif ()
 
 # This the also the default for variable CPACK_DEBIAN_PACKAGE_MAINTAINER.

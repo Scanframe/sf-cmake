@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.29...4.4)
 
 set(SF_QT_COMPONENT_PREFIX "sf_qt_" CACHE INTERNAL "The install component prefix used to identify them (NSIS does not handle '-' hyphens).")
+set(SF_QT_PACKAGE_FILENAME_PREFIX "sf-qt-" CACHE INTERNAL "The package filename prefix used for creating Qt packages.")
 
 ##!
 # Downloads a QT-library zip files and unzips it the directory specified by variable 'SF_COMMON_LIB_DIR'.
