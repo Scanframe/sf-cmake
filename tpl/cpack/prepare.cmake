@@ -164,14 +164,14 @@ if (EXISTS "${_ApplicationDir}")
 		# Install the desktop menu files.
 		install(DIRECTORY
 			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
-			DESTINATION "/usr/share/applications"
+			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/applications"
 			FILES_MATCHING
 			PATTERN "*.desktop"
 		)
 		# Install the icon files.
 		install(DIRECTORY
 			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
-			DESTINATION "/usr/share/icons/hicolor/scalable/apps"
+			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/icons/hicolor/scalable/apps"
 			FILES_MATCHING
 			PATTERN "*.svg"
 		)

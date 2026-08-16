@@ -51,7 +51,7 @@
 	#define IS_SL_TARGET 0
 #endif
 
-// CHeck if an application binary is targeted
+// Check if an application binary is targeted
 #if IS_DL_TARGET || IS_SL_TARGET
 	#define IS_AB_TARGET 0
 #else

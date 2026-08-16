@@ -387,7 +387,7 @@ def _widen_console_buffer() -> None:
 	Wine's console emulation defaults to a narrow buffer width (often 80 columns)
 	which causes the output to wrap before reaching the actual terminal edge.
 	"""
-	if sys.platform != "win32":
+	if sys.platform != "win32" or not is_wine():
 		return
 	try:
 		import ctypes

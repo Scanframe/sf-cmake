@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256"
+     height="256"
+     viewBox="0 0 256 256"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">Hello World Qt</title>
+  <desc id="desc">A white speech bubble with a teal Qt-inspired mark on a blue rounded square.</desc>
+
+  <defs>
+    <linearGradient id="background" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2f80ed"/>
+      <stop offset="1" stop-color="#1756b8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#0b3270" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#background)"/>
+
+  <path d="M53 70c0-12.15 9.85-22 22-22h106c12.15 0 22 9.85 22 22v76c0 12.15-9.85 22-22 22h-69l-29 28v-28H75c-12.15 0-22-9.85-22-22V70Z"
+        fill="#fff" filter="url(#shadow)"/>
+
+  <path d="M91 98h22l11 18 11-18h22l-22 34 22 34h-22l-11-18-11 18H91l22-34-22-34Z"
+        fill="#20b486"/>
+  <path d="M158 100h18v18h18v17h-18v18c0 5 3 7 8 7h10v16h-15c-15 0-21-8-21-22v-19h-10v-17h10v-18Z"
+        fill="#158b78"/>
+
+  <circle cx="82" cy="184" r="5" fill="#bfeee1"/>
+  <circle cx="96" cy="184" r="5" fill="#bfeee1"/>
+</svg>
