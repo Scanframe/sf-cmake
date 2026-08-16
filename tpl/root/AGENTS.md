@@ -9,8 +9,8 @@ License v3.0 (GPL-3.0).
 
 ## Commands
 
-All targets are built from the command line using the single command `../../../../build.py`. When run without arguments, it will
-show the help to build using a given toolchain and optional target.
+All targets are built from the command line using the single command `../../../../build.py`. When run without arguments,
+it will show the help to build using a given toolchain and optional target.
 
 ### Build the Project
 
@@ -85,13 +85,25 @@ Key points:
 
 ## Testing Strategy
 
-- **Rule**: Both testing frameworks **Catch2** and **GoogleTest** are the only allowed
-  frameworks and preferably in that order.
+- **Rule**: Both testing frameworks **Catch2** and **GoogleTest** are the only allowed frameworks and preferably in that
+  order.
 - **Rule**: Core, headless and backend libraries have a `tests/` directory.
 
 ## Commit Style
 
+### Message
+
 Conventional commits are preferred as described in
-file ['cmake/lib/doc/semantic-versioning.md'](../../doc/semantic-versioning.md). Files not part of the repository
-should be excluded from commit messages, which means ignore untracked files.  
-Use bullet points for commit messages to make them more readable and concise.
+file ['cmake/lib/doc/semantic-versioning.md'](../../doc/semantic-versioning.md). Files not part of the repository should
+be excluded from commit messages, which means ignore untracked files.  
+Use bullet points for commit messages to make them more readable and concise.  
+Use backticks when referencing a path in one of the bullet points.
+
+### AI Chat Response
+
+When assembling a commit message, include a separate "Locations" section in the AI response.  
+For every commit-message bullet, list the relevant source location(s) as clickable Markdown 
+links using project relative file paths when possible and optional line numbers.  
+These locations are supporting context and should not be
+included in the commit message itself.
+

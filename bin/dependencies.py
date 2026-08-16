@@ -176,24 +176,27 @@ def find_case_insensitive(directory: str, name: str) -> Optional[str]:
 	return None
 
 
-def format_table(rows: Sequence[str], columns: Sequence[str]) -> str:
+def format_table(rows: Sequence[str], columns: Sequence[str] | None) -> str:
 	"""Format the collected rows like 'column --table --separator ... --table-columns ...' does."""
-	cells: List[List[str]] = [list(columns)]
-	for row in rows:
-		fields = row.split(SEPARATOR)
-		# Pad up to the amount of columns since a row may hold less fields.
-		fields += [""] * (len(columns) - len(fields))
-		cells.append(fields[:len(columns)])
-	widths = [max(len(row[idx]) for row in cells) for idx in range(len(columns))]
-	lines = []
-	for row in cells:
-		# The last column is not padded by the 'column' command either.
-		lines.append("  ".join([field.ljust(widths[idx]) for idx, field in enumerate(row[:-1])] + [row[-1]]))
-	text = "\n".join(lines)
-	if col_fg["red"]:
-		# Colorize after formatting since escape sequences would break the alignment.
-		text = re.sub(rf"(^|\s){MISSING}($|\s)", rf"\1{col_fg['red']}{MISSING}{col_fg['reset']}\2", text)
-	return text
+	if columns is None:
+		return "\n".join(rows)
+	else:
+		cells: List[List[str]] = [list(columns)]
+		for row in rows:
+			fields = row.split(SEPARATOR)
+			# Pad up to the number of columns since a row may hold fewer fields.
+			fields += [""] * (len(columns) - len(fields))
+			cells.append(fields[:len(columns)])
+		widths = [max(len(row[idx]) for row in cells) for idx in range(len(columns))]
+		lines = []
+		for row in cells:
+			# The last column is not padded by the 'column' command either.
+			lines.append("  ".join([field.ljust(widths[idx]) for idx, field in enumerate(row[:-1])] + [row[-1]]))
+		text = "\n".join(lines)
+		if col_fg["red"]:
+			# Colorize after formatting since escape sequences would break the alignment.
+			text = re.sub(rf"(^|\s){MISSING}($|\s)", rf"\1{col_fg['red']}{MISSING}{col_fg['reset']}\2", text)
+		return text
 
 
 def table_columns(flag_check: bool) -> Tuple[str, ...]:
@@ -234,7 +237,8 @@ def handle_windows(
 	app_bin: Optional[str],
 	flag_cmake: bool,
 	flag_verbose: bool,
-	flag_exclude_system: bool
+	flag_exclude_system: bool,
+	flag_format: bool
 ) -> None:
 	"""Handle dependency reporting for PE/COFF targets on Windows/Cygwin or through Wine."""
 	app_dir: str = ""
@@ -350,7 +354,7 @@ def handle_windows(
 						rows.append(f"{dep}{SEPARATOR}{MISSING}{SEPARATOR}")
 
 		if rows and not flag_cmake:
-			print(format_table(rows, table_columns(flag_check)))
+			print(format_table(rows, table_columns(flag_check) if flag_format else None))
 		# When recursing is requested.
 		if flag_recurse:
 			for dep_path in recurse_queue:
@@ -373,6 +377,7 @@ def handle_linux(
 	flag_cmake: bool,
 	flag_verbose: bool,
 	flag_exclude_system: bool,
+	flag_format: bool
 ) -> None:
 	"""Handle dependency reporting for ELF targets on Linux."""
 	ld_path_dirs: List[str] = []
@@ -482,7 +487,7 @@ def handle_linux(
 			if found == 0:
 				rows.append(f"{dep}{SEPARATOR}{MISSING}{SEPARATOR}")
 		if rows and not flag_cmake:
-			print(format_table(rows, table_columns(flag_check)))
+			print(format_table(rows, table_columns(flag_check) if flag_format else None))
 		# When recursing is requested.
 		if flag_recurse:
 			for dep_path in recurse_queue:
@@ -506,6 +511,7 @@ def parse_args(argv: Sequence[str]) -> Optional[argparse.Namespace]:
 	parser.add_argument("-h", "--help", action="store_true", default=False, help="Shows the command's help.")
 	parser.add_argument("-c", "--check", action="store_true", help="Check if the DLLs can be found in the path.")
 	parser.add_argument("-r", "--recurse", action="store_true", help="Do a recursive check on all libraries.")
+	parser.add_argument("-n", "--no-format", action="store_true", help="Format the output using columns.")
 	parser.add_argument("-a", "--app", metavar="APP",
 		help="Application or library which provides Windows executable directory (Windows targets only).")
 	parser.add_argument("--cmake", action="store_true", help="Export the dependencies as a CMake lists variable.")
@@ -534,9 +540,9 @@ def main(argv: Sequence[str]) -> int:
 			return 1
 	# Determine if Windows or Linux is targeted.
 	if is_windows_host() or is_pe_file(targets[0]):
-		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system)
+		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system, not args.no_format)
 	else:
-		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system)
+		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format)
 	return 0
 
 

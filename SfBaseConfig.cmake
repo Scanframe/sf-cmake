@@ -1189,6 +1189,34 @@ function(Sf_GetDependencies _OutVar _BinFile)
 	set("${_OutVar}" "${_bin_deps}" PARENT_SCOPE)
 endfunction()
 
+#[[
+Retrieves dynamic library dependency filenames for a binary file.
+
+  Sf_GetDependencies(<out-var> <bin-file>
+
+  <out-var>
+  Variable to store the resulting list of dependencies.
+
+  <bin-file>
+  Target binary file to analyze.
+
+]]
+function(Sf_GetDependencyFilenames _OutVar _BinFile)
+	# Windows only knows the 'python' command.
+	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
+	# Get the dependencies using the special python script.
+	execute_process(
+		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --recurse --no-format "${_BinFile}"
+		OUTPUT_VARIABLE _deps
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ECHO_ERROR_VARIABLE
+		COMMAND_ERROR_IS_FATAL ANY
+	)
+	# Create a list of the output.
+	string(REPLACE "\n" ";" _deps "${_deps}")
+	# Variable to hold the non-ignored dependencies.
+	set("${_OutVar}" "${_deps}" PARENT_SCOPE)
+endfunction()
 
 if (WIN32)
 	# Set the Docker flag when the file exists.

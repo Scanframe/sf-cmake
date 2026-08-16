@@ -76,6 +76,12 @@ if (CPACK_GENERATOR STREQUAL "DEB")
 			list(FILTER _DebList EXCLUDE REGEX "^libqt")
 			# Add these items to the total list.
 			list(APPEND _Dependencies "${_DebList}")
+			# Secondary check on Qt library linkage.
+			Sf_GetDependencyFilenames(_Names "${_path}")
+			string(REGEX MATCH "(^|;)lib[qQ]t[^;]*(;|$)" _QtDependency "${_Names}")
+			if (_QtDependency)
+				set(_HasQtDependency TRUE)
+			endif ()
 		endforeach ()
 		# When the component uses the Qt runtime add the custom package dependency.
 		if (_HasQtDependency)
