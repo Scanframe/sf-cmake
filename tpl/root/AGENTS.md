@@ -93,4 +93,5 @@ Key points:
 
 Conventional commits are preferred as described in
 file ['cmake/lib/doc/semantic-versioning.md'](../../doc/semantic-versioning.md). Files not part of the repository
-should be excluded from commit messages, which means ignore untracked files.
+should be excluded from commit messages, which means ignore untracked files.  
+Use bullet points for commit messages to make them more readable and concise.

@@ -2448,12 +2448,10 @@ Choices are depended on the host platform:
 					if repo:
 						if repo[-4:] == ".git":
 							if ask_selection(options={True: "Git Submodule", False: "Standalone Repository"},
-								title="Helper Repository Type",
-								caption="Add repository as?"):
+								title="Helper Repository Type", caption="Add repository as?"):
 								cmd = ["git", "submodule", "add", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							else:
 								cmd = ["git", "clone", "--branch", branch, "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
-							# cmd = ["git", "submodule", "add", "--branch", "main", "--", repo, '/'.join(CMAKE_LIB_SUBDIR)]
 							if run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
 								logger.error(f"! Failed to add submodule in '{'/'.join(CMAKE_LIB_SUBDIR)}'!")
 								return False
@@ -2755,6 +2753,8 @@ class SubCommandVersion(SubCommand):
 	_cache_get_cmt_msg: dict[str, str] = {}
 	# Cache for the git-describe-exact tag retrieval.
 	_cache_git_describe_exact: dict[str, str] = {}
+	# Module directory to work on.
+	_module_dir: str = "."
 
 	def __init__(self):
 		super().__init__("version", ["v"])
@@ -2770,8 +2770,9 @@ class SubCommandVersion(SubCommand):
 examples:
 
   {self.script} version info
-  {self.script} version bump -v
-  {self.script} version bump -m --msg-file version-bump.msgs.json
+  {self.script} version bump -V
+  {self.script} version bump --msg-file version-bump.msgs.json
+  {self.script} version bump --module cmake/lib info -ad
 """
 		if self.parser is None:
 			raise ValueError("Parser cannot be None")
@@ -2780,7 +2781,8 @@ examples:
 	def options(self, parser: argparse.ArgumentParser):
 		"""Adds options to the version subcommand."""
 		super().options(parser)
-		parser.add_argument("-v", "--verbose", action="store_true", help="Print extra processing information.")
+		parser.add_argument("-V", "--verbose", action="store_true", help="Output extra processing information.")
+		parser.add_argument("-m", "--module", type=str, metavar="<module>", help="Submodule directory to work on.")
 		parser.add_argument("-c", "--commit", type=str, metavar="<hash/tag>",
 			help="Commit hash to tag as new version (defaults to last commit/HEAD when omitted).")
 		parser.add_argument("-a", "--all", action="store_true",
@@ -2823,6 +2825,8 @@ examples:
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""Handles the version reporting/bumping."""
 		super().handle(args, args_left, args_right)
+		if args.module:
+			self._module_dir = args.module
 		merges_only = not args.all
 		logger.info(f"# Commits processed: {"Merges only" if merges_only else "All"}")
 		if args.select:
@@ -2871,7 +2875,8 @@ examples:
 	# noinspection PyMethodMayBeStatic
 	def git(self, args: List[str], check: bool = False) -> str:
 		"""Runs git command and returns stdout as string."""
-		result = run_command(["git"] + args, capture_output=True, check=check, dbg_mode=DebugMode.SILENT)
+		result = run_command(["git", "-C", self._module_dir] + args, capture_output=True, check=check,
+			dbg_mode=DebugMode.SILENT)
 		return result.stdout.decode("utf-8").strip()
 
 	def git_lines(self, args: List[str], check: bool = False) -> List[str]:
@@ -2912,8 +2917,8 @@ examples:
 	# noinspection PyMethodMayBeStatic
 	def get_git_tag_version(self) -> Tuple[str, str, str, str]:
 		"""Returns tuple (version, rc, commits, hash) parsed from git describe information."""
-		result = run_command(["git", "describe", "--dirty", "--match", "v*.*.*"], capture_output=True, check=False,
-			dbg_mode=DebugMode.SILENT)
+		result = run_command(["git", "-C", self._module_dir, "describe", "--dirty", "--match", "v*.*.*"],
+			capture_output=True, check=False, dbg_mode=DebugMode.SILENT)
 		desc = result.stdout.decode("utf-8").strip()
 		match = re.match(
 			r"^v(?P<ver>[0-9]+\.[0-9]+\.[0-9]+)(-rc\.?(?P<rc>[0-9]+))?(-((?P<commits>[0-9]+)?(-(?P<hash>[a-z0-9]+))?)?)?(-dirty)?$",
@@ -2960,7 +2965,8 @@ examples:
 			return overrides[commit_hash]
 		if commit_hash in self._cache_get_cmt_msg:
 			return self._cache_get_cmt_msg[commit_hash]
-		result = run_command(["git", "show", "--no-patch", "--format=%B", commit_hash], capture_output=True,
+		result = run_command(["git", "-C", self._module_dir, "show", "--no-patch", "--format=%B", commit_hash],
+			capture_output=True,
 			check=False, dbg_mode=DebugMode.SILENT)
 		result = result.stdout.decode("utf-8", errors="ignore").strip()
 		self._cache_get_cmt_msg[commit_hash] = result
@@ -2969,12 +2975,12 @@ examples:
 	# noinspection PyMethodMayBeStatic
 	def collect_commits(self, cur_ver_tag: str, commit_hash: str, merges_only: bool, tag_found: bool) -> List[str]:
 		"""Collects commits between tag and commit hash (or from root when no tag)."""
-		args = ["git", "log"]
+		cmd = ["git", "-C", self._module_dir, "log"]
 		if merges_only:
-			args.append("--merges")
-		args += ["--pretty=format:%H"]
-		args.append(f"{cur_ver_tag}^..{commit_hash}" if tag_found else commit_hash)
-		result = run_command(args, capture_output=True, check=False, dbg_mode=DebugMode.SILENT)
+			cmd.append("--merges")
+		cmd += ["--pretty=format:%H"]
+		cmd.append(f"{cur_ver_tag}^..{commit_hash}" if tag_found else commit_hash)
+		result = run_command(cmd, capture_output=True, check=False, dbg_mode=DebugMode.SILENT)
 		if result.returncode != 0 and not result.stdout:
 			return []
 		return [ln for ln in result.stdout.decode("utf-8").splitlines() if ln.strip()]
@@ -3007,7 +3013,8 @@ examples:
 		cur_ver_tag, tag_found = self.get_latest_non_rc_tag()
 		commits = self.collect_commits(cur_ver_tag, "HEAD", merges_only, tag_found)
 		if not commits:
-			raise subprocess.CalledProcessError(returncode=1, cmd=["git", "log"], output=b"", stderr=b"No commits found")
+			raise subprocess.CalledProcessError(returncode=1, cmd=["git", "-C", self._module_dir, "log"], output=b"",
+				stderr=b"No commits found")
 		options = {}
 		for commit in commits:
 			msg = self.get_commit_message(commit, {})
