@@ -805,7 +805,7 @@ function(Sf_AddTargetForCoverage _target)
 			# No optimization when compiling for coverage.
 			target_compile_options("${_target}" BEFORE PRIVATE -g -O0 -coverage -fprofile-arcs -ftest-coverage)
 			# Only add linking options for target types that are linked.
-			if (_Type STREQUAL "EXECUTABLE" OR _type STREQUAL "SHARED_LIBRARY")
+			if (_type STREQUAL "EXECUTABLE" OR _type STREQUAL "SHARED_LIBRARY")
 				target_link_options("${_target}" BEFORE PRIVATE -coverage)
 				# Probably superfluous since it is probably linked already using the option.
 				target_link_libraries("${_target}" PRIVATE gcov)
