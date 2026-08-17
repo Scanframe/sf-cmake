@@ -39,28 +39,6 @@ macro(Sf_AddImportLibrary TargetName)
 endmacro()
 
 ##!
-# Sets the extension of the created shared library or executable.
-#
-function(Sf_SetTargetSuffix)
-	foreach (_Target IN LISTS ARGN)
-		get_target_property(_Type "${_Target}" TYPE)
-		if (_Type STREQUAL "EXECUTABLE")
-			if (WIN32)
-				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".exe")
-			else ()
-				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".bin")
-			endif ()
-		elseif (_Type STREQUAL "SHARED_LIBRARY")
-			if (WIN32)
-				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".dll")
-			else ()
-				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".so")
-			endif ()
-		endif ()
-	endforeach ()
-endfunction()
-
-##!
 # Works around the cmake bug with sources and binary directory on a shared drive.
 #
 function(Sf_WorkAroundSmbShare)

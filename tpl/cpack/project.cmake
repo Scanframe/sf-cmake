@@ -135,17 +135,11 @@ message(STATUS "Components Initially (${CPACK_GENERATOR}): ${CPACK_COMPONENTS_AL
 set(_Components)
 # Remove components not fit for the current generator or QT group related.
 foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
-	#[[
-		# Create a list of the component name to check the applicable generator.
-		string(REPLACE "--" ";" _Generators "${_Component}")
-		# Remove the first item which is not a generator code like 'DEB', 'RPM', 'ZIP', 'TGZ' or 'NSIS'.
-		list(REMOVE_AT _Generators 0)
-		# When a generator is specified and the current generator is not part of the list of generators skip it.
-		string(TOLOWER "${CPACK_GENERATOR}" _Generator)
-		if (_Generators AND NOT _Generator IN_LIST _Generators)
-			continue()
-		endif ()
-	]]
+	# Exclude default components as well since this excludes all fetched module installs as well.
+	if (_Component STREQUAL "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}")
+		message(NOTICE "Removing the default component '${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}'.")
+		continue()
+	endif ()
 	# When there are generator entries left in the list and the current generator is not part of it.
 	if ((SF_PACKAGE_QT AND NOT _Component MATCHES "^${SF_QT_COMPONENT_PREFIX}.*")
 		OR (NOT SF_PACKAGE_QT AND _Component MATCHES "^${SF_QT_COMPONENT_PREFIX}.*"))
@@ -211,7 +205,7 @@ function(ShowAllEnvVars)
 endfunction()
 
 set(_IncFile "${SF_BINARY_DIR}/.sf/SfInstallInclude.cmake")
-#set(_RootLocation "${CPACK_PACKAGE_DIRECTORY}/_CPack_Packages/${CMAKE_HOST_SYSTEM_NAME}/${CPACK_GENERATOR}/${CPACK_PACKAGE_FILE_NAME}/${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}")
+#set(_RootLocation "${CPACK_PACKAGE_DIRECTORY}/_CPack_Packages/${CMAKE_HOST_SYSTEM_NAME}/${CPACK_GENERATOR}/${CPACK_PACKAGE_FILE_NAME}/${SF_DEFAULT_COMPONENT_NAME}")
 set(_RootLocation "${CPACK_PACKAGE_DIRECTORY}/tmp")
 
 if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
@@ -241,7 +235,7 @@ endmacro()
 #ShowAllVars()
 #ShowAllEnvVars()
 
-message(NOTICE "SF_OUTPUT_PATHS: ${SF_OUTPUT_PATHS}")
+message(NOTICE "SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}: ${SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}}")
 message(NOTICE "SF_DEPENDENCY_PATHS_IGNORED: ${SF_DEPENDENCY_PATHS_IGNORED}")
 
 # Pre-resolve ignored paths once outside the loops
@@ -251,7 +245,7 @@ foreach (_ignore IN LISTS SF_DEPENDENCY_PATHS_IGNORED)
 	list(APPEND _ignored_paths_resolved "${_ignore_real}")
 endforeach ()
 
-foreach (_bin_file IN LISTS SF_OUTPUT_PATHS)
+foreach (_bin_file IN LISTS SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME})
 	# Get the binary file's dependencies passing the paths to be ignored (no-quotes on list!).
 	Sf_GetDependencies(_bin_dependencies "${_bin_file}" IGNORE_PATHS ${SF_DEPENDENCY_PATHS_IGNORED})
 	foreach (_bin_dep IN LISTS _bin_dependencies)
@@ -261,7 +255,3 @@ foreach (_bin_file IN LISTS SF_OUTPUT_PATHS)
 	# Get the destination for the dependencies.
 	get_filename_component(_deps_dest "${_bin_file}" DIRECTORY)
 endforeach ()
-
-
-
-

@@ -238,7 +238,8 @@ def handle_windows(
 	flag_cmake: bool,
 	flag_verbose: bool,
 	flag_exclude_system: bool,
-	flag_format: bool
+	flag_format: bool,
+	flag_quiet: bool
 ) -> None:
 	"""Handle dependency reporting for PE/COFF targets on Windows/Cygwin or through Wine."""
 	app_dir: str = ""
@@ -250,8 +251,9 @@ def handle_windows(
 	# When an application is passed get its executable directory.
 	if app_bin:
 		app_dir = str(Path(app_bin).resolve().parent)
-		write_log(f"# Executable path app: {app_bin}")
-		write_log(f"- {app_dir}")
+		if not flag_quiet:
+			write_log(f"# Executable path app: {app_bin}")
+			write_log(f"- {app_dir}")
 	if is_windows_host():
 		# Get the PATH as a list of directories.
 		path_dirs = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
@@ -261,9 +263,10 @@ def handle_windows(
 	resolve_dependencies = flag_check or flag_cmake
 	if resolve_dependencies:
 		if flag_verbose:
-			write_log("# Paths:")
-			for directory in path_dirs:
-				write_log(f"- {directory}")
+			if not flag_quiet:
+				write_log("# Paths:")
+				for directory in path_dirs:
+					write_log(f"- {directory}")
 	# Keys of the files reported on to prevent endless recursion on circular dependencies.
 	processed: set = set()
 	cmake_dependencies: List[str] = []
@@ -273,7 +276,7 @@ def handle_windows(
 		"""Add a resolved dependency path to the exported CMake list at once."""
 		# Convert backslashes to forward slashes for CMake compatibility.
 		resolved = os.path.abspath(path).replace("\\", "/")
-		if flag_verbose:
+		if flag_verbose and not flag_quiet:
 			write_log(f"# Adding: {resolved}")
 		if resolved not in cmake_seen:
 			cmake_seen.add(resolved)
@@ -289,7 +292,7 @@ def handle_windows(
 			if key in processed:
 				continue
 			processed.add(key)
-			if flag_verbose:
+			if flag_verbose and not flag_quiet:
 				write_log(f"# Checking: {target}")
 			for dep in list_needed(target, dll_mode=True):
 				if not resolve_dependencies:
@@ -321,7 +324,7 @@ def handle_windows(
 								if flag_recurse:
 									recurse_queue.append(candidate)
 							else:
-								if flag_verbose:
+								if flag_verbose and not flag_quiet:
 									write_log(f"# Excluding: {candidate}")
 							found = 2
 							break
@@ -361,7 +364,7 @@ def handle_windows(
 				# Skip the ones already reported on.
 				if processed_key(dep_path) in processed:
 					continue
-				if flag_verbose:
+				if flag_verbose and not flag_quiet:
 					write_log(f"# Recursing through: {dep_path}")
 				process([Path(dep_path)])
 
@@ -377,24 +380,26 @@ def handle_linux(
 	flag_cmake: bool,
 	flag_verbose: bool,
 	flag_exclude_system: bool,
-	flag_format: bool
+	flag_format: bool,
+	flag_quiet: bool
 ) -> None:
 	"""Handle dependency reporting for ELF targets on Linux."""
 	ld_path_dirs: List[str] = []
 	# Check if the environment variable 'LD_LIBRARY_PATH' was set.
 	if flag_check and os.environ.get("LD_LIBRARY_PATH"):
 		entries = [entry for entry in os.environ["LD_LIBRARY_PATH"].split(":") if entry]
-		if entries:
+		if entries and not flag_quiet:
 			write_log("# Loader Paths:")
 		for entry in entries:
 			# Check if the path directory is absolute.
-			if os.path.isabs(entry):
+			if os.path.isabs(entry) and not flag_quiet:
 				write_log(f"- {entry}")
 				ld_path_dirs.append(entry)
 			else:
 				# Prepend the working directory.
 				resolved = os.path.join(os.getcwd(), entry)
-				write_log(f"- {entry} => {resolved}")
+				if not flag_quiet:
+					write_log(f"- {entry} => {resolved}")
 				ld_path_dirs.append(resolved)
 	# Keys of the files reported on to prevent endless recursion on circular dependencies.
 	processed: set = set()
@@ -422,22 +427,25 @@ def handle_linux(
 		if key in processed:
 			return
 		processed.add(key)
-		write_log(f"# File RUNPATH: {bin_path}")
+		if not flag_quiet:
+			write_log(f"# File RUNPATH: {bin_path}")
 		origin = str(Path(bin_path).resolve().parent)
 		run_path_dirs: List[str] = []
 		for entry in read_runpath(bin_path):
 			resolved_path = resolve_origin(origin, entry)
-			if resolved_path == entry:
-				write_log(f"- {entry}")
-			else:
-				write_log(f"- {entry} => {resolved_path}")
+			if not flag_quiet:
+				if resolved_path == entry:
+					write_log(f"- {entry}")
+				else:
+					write_log(f"- {entry} => {resolved_path}")
 			run_path_dirs.append(resolved_path)
-		write_log("# Paths:")
-		for directory in [*ld_path_dirs, *run_path_dirs]:
-			write_log(f"- {directory}")
-		# Report which file is checked.
-		if flag_verbose:
-			write_log(f"# Checking: {bin_path}")
+		if not flag_quiet:
+			write_log("# Paths:")
+			for directory in [*ld_path_dirs, *run_path_dirs]:
+				write_log(f"- {directory}")
+			# Report which file is checked.
+			if flag_verbose:
+				write_log(f"# Checking: {bin_path}")
 		rows: List[str] = []
 		recurse_queue: List[str] = []
 		for dep in list_needed(bin_path, dll_mode=False):
@@ -465,7 +473,7 @@ def handle_linux(
 								add_cmake_dependency(candidate)
 							rows.append(f"{dep}{SEPARATOR}RUNPATH{SEPARATOR}{os.path.dirname(candidate)}")
 						else:
-							if flag_verbose:
+							if flag_verbose and not flag_quiet:
 								write_log(f"# Excluding: {candidate}")
 						found = 2
 						if flag_recurse:
@@ -480,7 +488,7 @@ def handle_linux(
 							add_cmake_dependency(str(candidate_path))
 						rows.append(f"{dep}{SEPARATOR}LD_CONF{SEPARATOR}{candidate_path.parent}")
 					else:
-						if flag_verbose:
+						if flag_verbose and not flag_quiet:
 							write_log(f"# Excluding: {candidate_path}")
 					found = 3
 			# Not recursing into system libraries on purpose.
@@ -494,7 +502,7 @@ def handle_linux(
 				# Skip the ones already reported on.
 				if processed_key(dep_path) in processed:
 					continue
-				if flag_verbose:
+				if flag_verbose and not flag_quiet:
 					write_log(f"# Recursing through: {dep_path}")
 				process_one(Path(dep_path))
 
@@ -512,6 +520,7 @@ def parse_args(argv: Sequence[str]) -> Optional[argparse.Namespace]:
 	parser.add_argument("-c", "--check", action="store_true", help="Check if the DLLs can be found in the path.")
 	parser.add_argument("-r", "--recurse", action="store_true", help="Do a recursive check on all libraries.")
 	parser.add_argument("-n", "--no-format", action="store_true", help="Format the output using columns.")
+	parser.add_argument("-q", "--quiet", action="store_true", help="Only show the result.")
 	parser.add_argument("-a", "--app", metavar="APP",
 		help="Application or library which provides Windows executable directory (Windows targets only).")
 	parser.add_argument("--cmake", action="store_true", help="Export the dependencies as a CMake lists variable.")
@@ -540,9 +549,9 @@ def main(argv: Sequence[str]) -> int:
 			return 1
 	# Determine if Windows or Linux is targeted.
 	if is_windows_host() or is_pe_file(targets[0]):
-		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system, not args.no_format)
+		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system, not args.no_format, args.quiet)
 	else:
-		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format)
+		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format, args.quiet)
 	return 0
 
 

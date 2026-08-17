@@ -25,8 +25,15 @@ TEST_CASE("sf::Json", "[json]")
 {
 	SECTION("Json")
 	{
-		auto path = std::filesystem::path(getExecutableFilepath()).parent_path().parent_path().parent_path();
-		path.append("src").append("tests").append("catch").append("test.customer.json");
+		std::filesystem::path const path =//
+			std::filesystem::path(getExecutableFilepath())
+				.parent_path()
+				.parent_path()
+				.parent_path()
+				.append("src")
+				.append("tests")
+				.append("catch")
+				.append("test.customer.json");
 		std::cerr << "Json File: " << path << std::endl;
 		REQUIRE(std::filesystem::exists(path));
 

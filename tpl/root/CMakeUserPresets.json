@@ -101,6 +101,51 @@
 		}
 	],
 	"packagePresets": [
+		{
+			"name": "gnu-debug-deb",
+			"hidden": false,
+			"displayName": "Debug GNU (DEB only)",
+			"description": "GNU Debian package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"DEB"
+			]
+		},
+		{
+			"name": "gnu-debug-tgz",
+			"hidden": false,
+			"displayName": "Debug GNU (TGZ only)",
+			"description": "GNU Debian package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"TGZ"
+			]
+		},
+		{
+			"name": "gnu-debug-rpm",
+			"hidden": false,
+			"displayName": "Debug GNU (RPM only)",
+			"description": "GNU Debian package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"RPM"
+			]
+		}
 	],
 	"workflowPresets": [
 		{

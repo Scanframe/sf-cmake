@@ -21,12 +21,12 @@ int main(int argc, char* argv[])
 	QObject::connect(btn, &QPushButton::clicked, [] {
 		QApplication::quit();
 	});
-// Fix for hanging Qt threads in Wine since 6.9.1
+	// Fix for hanging Qt threads in Wine since 6.9.1
 	auto rv = QCoreApplication::exec();
 	delete btn;
-	#if IS_MINGW_THREADLOCAL_BUGGY
+#if IS_MINGW_THREADLOCAL_BUGGY
 	QThreadPool::globalInstance()->waitForDone();
 	exit(rv);
-	#endif
+#endif
 	return rv;
 }

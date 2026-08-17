@@ -44,13 +44,19 @@ import ctypes
 import zipfile
 import tempfile
 import fnmatch
+import glob
 import io
+import base64
+import http.client
+import ssl
+import uuid
 from enum import Enum, auto
 from string import Template
 from typing import List, Any, Dict, Optional, Tuple
 from pathlib import Path
 from abc import ABC, abstractmethod
 from urllib.request import urlopen
+from urllib.parse import quote, urlsplit
 
 # Auto-install for Windows the not standard 'curses' required module.
 try:
@@ -95,6 +101,7 @@ revert=patch,Revert of Commit
 ; Section for optional include file which is merged.
 [__include__]
 user=user.ini
+nexus=nexus-credentials.ini
 
 ; Pulse audio server config. Need volume mapping from host.
 [pulse-audio]
@@ -798,6 +805,155 @@ def remove_files_from_tree(dir_name: Path, wild_cards: list[str]) -> None:
 					break
 
 
+def upload_file_http(url: str, upload_file: str, username: str, password: str, method: str = "PUT",
+	multipart_field: str | None = None, content_type: str = "application/octet-stream",
+	verbose: bool = False) -> tuple[int, str]:
+	"""Streams a file to an HTTP endpoint using basic authentication."""
+	parsed_url = urlsplit(url)
+	if parsed_url.scheme not in ["http", "https"] or not parsed_url.hostname:
+		raise ValueError(f"Unsupported or invalid upload URL: {url}")
+	request_target = parsed_url.path or "/"
+	if parsed_url.query:
+		request_target += f"?{parsed_url.query}"
+	file_size = os.path.getsize(upload_file)
+	headers = {
+		"Authorization": "Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii"),
+		"Accept": "application/json",
+	}
+	prefix = b""
+	suffix = b""
+	if multipart_field:
+		boundary = f"----PythonNexusBoundary{uuid.uuid4().hex}"
+		filename = Path(upload_file).name
+		fallback_filename = filename.encode("ascii", errors="replace").decode("ascii").replace('\\', '\\\\').replace('"',
+			'\\"')
+		encoded_filename = quote(filename, safe="")
+		prefix = (
+			f"--{boundary}\r\n"
+			f"Content-Disposition: form-data; name=\"{multipart_field}\"; filename=\"{fallback_filename}\"; "
+			f"filename*=UTF-8''{encoded_filename}\r\n"
+			f"Content-Type: {content_type}\r\n\r\n"
+		).encode("ascii")
+		suffix = f"\r\n--{boundary}--\r\n".encode("ascii")
+		headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+	else:
+		headers["Content-Type"] = content_type
+	headers["Content-Length"] = str(len(prefix) + file_size + len(suffix))
+	if DEBUG_FLAG:
+		logger.info(f"~ Not uploading: {method} {url} <- {upload_file}")
+		return 200, ""
+	if verbose:
+		logger.info(f"~ Uploading: {method} {url} <- {upload_file} ({file_size} bytes)")
+	connection_class = http.client.HTTPSConnection if parsed_url.scheme == "https" else http.client.HTTPConnection
+	connection_args: Dict[str, Any] = {}
+	if parsed_url.scheme == "https":
+		connection_args["context"] = ssl.create_default_context()
+	# noinspection bad-argument-type
+	connection = connection_class(parsed_url.hostname, parsed_url.port, **connection_args)
+	try:
+		connection.putrequest(method, request_target)
+		for header_name, header_value in headers.items():
+			connection.putheader(header_name, header_value)
+		connection.endheaders()
+		if prefix:
+			connection.send(prefix)
+		with open(upload_file, "rb") as file:
+			while chunk := file.read(1024 * 1024):
+				connection.send(chunk)
+		if suffix:
+			connection.send(suffix)
+		response = connection.getresponse()
+		response_body = response.read().decode("utf-8", errors="replace")
+		if verbose:
+			logger.info(f"~ Nexus response: HTTP {response.status} {response.reason}")
+		return response.status, response_body
+	finally:
+		connection.close()
+
+
+def download_file_http(url: str, dest_file: str, username: str, password: str,
+	verbose: bool = False) -> tuple[int, str]:
+	"""Downloads a file from an HTTP endpoint using basic authentication."""
+	parsed_url = urlsplit(url)
+	if parsed_url.scheme not in ["http", "https"] or not parsed_url.hostname:
+		raise ValueError(f"Unsupported or invalid download URL: {url}")
+	request_target = parsed_url.path or "/"
+	if parsed_url.query:
+		request_target += f"?{parsed_url.query}"
+	headers = {
+		"Authorization": "Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii"),
+	}
+	if DEBUG_FLAG:
+		logger.info(f"~ Not downloading: GET {url} -> {dest_file}")
+		return 200, ""
+	if verbose:
+		logger.info(f"~ Downloading: GET {url} -> {dest_file}")
+	connection_class = http.client.HTTPSConnection if parsed_url.scheme == "https" else http.client.HTTPConnection
+	connection_args: Dict[str, Any] = {}
+	if parsed_url.scheme == "https":
+		connection_args["context"] = ssl.create_default_context()
+	# noinspection bad-argument-type
+	connection = connection_class(parsed_url.hostname, parsed_url.port, **connection_args)
+	try:
+		connection.request("GET", request_target, headers=headers)
+		response = connection.getresponse()
+		if response.status < 200 or response.status >= 300:
+			response_body = response.read().decode("utf-8", errors="replace")
+			if verbose:
+				logger.info(f"~ Nexus response: HTTP {response.status} {response.reason}")
+			return response.status, response_body
+		os.makedirs(os.path.dirname(dest_file) or ".", exist_ok=True)
+		with open(dest_file, "wb") as file:
+			while chunk := response.read(1024 * 1024):
+				file.write(chunk)
+		if verbose:
+			logger.info(f"~ Nexus response: HTTP {response.status} {response.reason}")
+		return response.status, ""
+	finally:
+		connection.close()
+
+
+def query_nexus_search(url: str, username: str, password: str, verbose: bool = False) -> tuple[int, Any]:
+	"""Performs an HTTP GET request to Nexus search API and returns parsed JSON data."""
+	parsed_url = urlsplit(url)
+	if parsed_url.scheme not in ["http", "https"] or not parsed_url.hostname:
+		raise ValueError(f"Unsupported or invalid search URL: {url}")
+	request_target = parsed_url.path or "/"
+	if parsed_url.query:
+		request_target += f"?{parsed_url.query}"
+	headers = {
+		"Authorization": "Basic " + base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii"),
+		"Accept": "application/json",
+	}
+	if DEBUG_FLAG:
+		logger.info(f"~ Not querying: GET {url}")
+		return 200, {"items": []}
+	if verbose:
+		logger.info(f"~ Querying: GET {url}")
+	connection_class = http.client.HTTPSConnection if parsed_url.scheme == "https" else http.client.HTTPConnection
+	connection_args: Dict[str, Any] = {}
+	if parsed_url.scheme == "https":
+		connection_args["context"] = ssl.create_default_context()
+	# noinspection bad-argument-type
+	connection = connection_class(parsed_url.hostname, parsed_url.port, **connection_args)
+	try:
+		connection.request("GET", request_target, headers=headers)
+		response = connection.getresponse()
+		response_body = response.read().decode("utf-8", errors="replace")
+		if verbose:
+			logger.info(f"~ Nexus response: HTTP {response.status} {response.reason}")
+		if response.status < 200 or response.status >= 300:
+			return response.status, response_body
+		try:
+			data = json.loads(response_body)
+			return response.status, data
+		except json.JSONDecodeError as ex:
+			logger.error(f"! Failed to parse JSON response: {ex}")
+			return response.status, response_body
+	finally:
+		connection.close()
+
+
 def remove_tree(dir_name: Path) -> None:
 	"""
 	Remove the complete passed directory tree, even when some files are read-only.
@@ -1396,6 +1552,7 @@ def select_preset(preset_type: PresetTypes | str | None = None) -> str | None:
 					options[name] = info_line
 					continue
 				else:
+					# noinspection unresolved-references
 					logger.info(f"\t- {pt.value.title()}: {info_line}")
 				# When showing 'test' presets also show the tests if available.
 				if key == "configurePresets":
@@ -1609,13 +1766,13 @@ class SubCommandNative(SubCommand):
 examples:
 
   List files in the configure preset's binary directory:
-    Linux: 
+    Linux:
       ./{self.script} {self.command} -p gnu-debug
     Windows:
       {self.script} {self.command} -p mingw-debug
 
-  Run executable in with the working directory as the binary: 
-    Linux: 
+  Run executable in with the working directory as the binary:
+    Linux:
       ./{self.script} {self.command} -p gnu-debug
       SF_EXEC_DIR_SUFFIX=-gnu ./{self.script} {self.command} -p gnu-debug -- ./hello-world.bin
     Windows:
@@ -1667,7 +1824,7 @@ examples:
 examples:
 
   Get all project presets info:
-    {self.script} --info 
+    {self.script} --info
   Get single project presets by name:
     {self.script} --info gnu-debug
   Make/Build a preset:
@@ -2177,7 +2334,7 @@ Choices are depended on the host platform:
     lnx    - Packages for architecture x86_64 or aarch64.
     arm    - Packages x86_64 for aarch64 GCC x86_64 cross-compile.
     win    - Packages x86_64 for Windows MinGW x86_64 cross-compile.
-  Windows: 
+  Windows:
     win - Windows WinGet packages for build tools except a compiler(s).
 """)
 		parser.add_argument("-e", "--env-file", type=str, metavar="<preset>",
@@ -2409,11 +2566,14 @@ Choices are depended on the host platform:
 		# Assemble the cmake/lib submodule directory path.
 		dir_cmake_lib = str(os.path.join(*([RUN_DIR] + CMAKE_LIB_SUBDIR)))
 		dir_tpl = os.path.join(RUN_DIR, dir_cmake_lib, "tpl")
+		py_script = os.path.splitext(os.path.basename(__file__))
 		# Template files and their destinations.
 		tpl_files = [("default.clang-format", [".clang-format"]), ("default.gitignore", [".gitignore"]),
-			("git-pre-commit-hook.sh", [".git", "hooks", "pre-commit"]),  # ("user.cmake", ["user.cmake"]),
-			("CMakePresets.json", ["CMakePresets.json"]), ("CMakeLists.cmake", ["CMakeLists.txt"]),
-			("README.md", ["README.md"]), ("AGENTS.md", ["AGENTS.md"])]
+			("git-pre-commit-hook.sh", [".git", "hooks", "pre-commit"]), ("CMakePresets.json", ["CMakePresets.json"]),
+			("CMakeLists.cmake", ["CMakeLists.txt"]), ("README.md", ["README.md"]), ("AGENTS.md", ["AGENTS.md"]),
+			("", [str(py_script[0] + py_script[1])]), ("", [str(py_script[0] + ".ini")])]
+		# Template files not to be added to git.
+		tpl_files_ignored = [("user.cmake", ["user.cmake"]), ("CMakeUserPresets.json", ["CMakeUserPresets.json"])]
 		# Template directories to copy from and to using lists.
 		tpl_dirs = [(["cpack"], ["cmake", "cpack"])]
 		# Check if Git is part of the project.
@@ -2500,7 +2660,7 @@ Choices are depended on the host platform:
 						else:
 							logger.debug(f"~ Not copying dir tree from '{dir_src}'")
 				# Iterate through all the files with their final destinations.
-				for entry in tpl_files:
+				for entry in tpl_files + tpl_files_ignored:
 					# From the source filepath.
 					src_file = os.path.join(dir_tpl, "root", entry[0])
 					# Form the actual destination filepath.
@@ -2511,10 +2671,12 @@ Choices are depended on the host platform:
 					else:
 						logger.info(f"# Copying file '{entry[0]}' into '{os.path.join(*entry[1])}'.")
 						if not DEBUG_FLAG:
-							if os.path.isfile(src_file):
-								shutil.copy(src_file, dst_file)
-							else:
-								logger.warning(f": Source file copy '{src_file}' missing.")
+							# Ignore if the source file does not exist.
+							if len(src_file) > 0:
+								if os.path.isfile(src_file):
+									shutil.copy(src_file, dst_file)
+								else:
+									logger.warning(f": Source file copy '{src_file}' missing.")
 						else:
 							logger.debug(f"~ Not copying file '{src_file}'")
 				if ask_selection(options={True: "Yes", False: "No"},
@@ -2813,9 +2975,9 @@ type to change map:
 		parser.epilog += f"""
 examples:
   Report versioning information using the last commit to determine the new version:
-    ./{self.script} {self.command} info 
+    ./{self.script} {self.command} info
   Report versioning information using a by a dialog selected commit:
-    ./{self.script} {self.command} info -s 
+    ./{self.script} {self.command} info -s
   Create Markdown release-notes in 'doc/release' directory for specified hash or tag:
     ./{self.script} {self.command} bump -c b8d37e2
     ./{self.script} {self.command} bump -c v0.1.0-rc.5
@@ -3172,16 +3334,16 @@ class SubCommandRun(SubCommand):
 			help="Runs an executable with the environment from given configure preset.")
 		self.parser.epilog = f"""
 examples:
-      
-  Run executable in with the working directory as the binary: 
-    Linux: 
+
+  Run executable in with the working directory as the binary:
+    Linux:
       ./{self.script} {self.command} -p gnu-debug
       ./{self.script} {self.command} -p gnu-debug -- ./hello-world.bin
     Windows:
       ./{self.script} {self.command} -p msvc-debug -- hello-world.exe
       ./{self.script} {self.command} -p gw-debug -- cmd /c echo %PATH%
-      
-  Execute command without the cmake environment: 
+
+  Execute command without the cmake environment:
       {self.script} --exec -- cl
       {self.script} --exec -- gcc --version
       {self.script} --preset gnu-debug -- cmd /c echo ^%PATH^%
@@ -3290,6 +3452,293 @@ examples:
 		return ";".join(encoded)
 
 
+class SubCommandPublish(SubCommand):
+	"""Subcommand handler for the 'publish' command."""
+
+	def __init__(self):
+		super().__init__("publish", ["u"])
+
+	def create_parser(self, subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
+		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
+			formatter_class=argparse.RawTextHelpFormatter,
+			help="Uploads files to a Sonatype Nexus repository depending on their extension.")
+		self.parser.epilog = f"""
+examples:
+
+  Upload packages to Nexus:
+    {self.script} {self.command} bin/pkg/*.deb bin/pkg/*.zip
+    {self.script} u -a staging -s dist/staging bin/pkg/*.deb
+    {self.script} {self.command} -- -help-file.zip
+
+  Upload files to exchange directory:
+    {self.script} {self.command} -x "gitlab-ci/shared/devops/pipeline/123" bin/gcov/report.*
+
+  Download files from exchange directory:
+    {self.script} {self.command} -x "gitlab-ci/shared/devops/pipeline/123" -l bin/gcov report.xml report.txt
+
+  Dry-run upload:
+    {self.script} {self.command} -d bin/pkg/*.deb
+"""
+		if self.parser is None:
+			raise ValueError("Parser cannot be None")
+		return self.parser
+
+	def options(self, parser: argparse.ArgumentParser):
+		"""Adds options to the given parser for the publish command."""
+		super().options(parser)
+		parser.add_argument("-e", "--exch-repo", type=str, metavar="<repo>",
+			help="Sets or overrules variable 'NEXUS_EXCHANGE_REPO' as the exchange-repository.")
+		parser.add_argument("-a", "--apt-repo", type=str, metavar="<repo>",
+			help="Sets or overrules variable 'NEXUS_APT_REPO' as the apt-repository name.")
+		parser.add_argument("-r", "--raw-repo", type=str, metavar="<repo>",
+			help="Sets or overrules variable 'NEXUS_RAW_REPO' as the raw-repository name.")
+		parser.add_argument("-s", "--raw-sub", type=str, metavar="<subdir>",
+			help="Sets or overrules variable 'NEXUS_RAW_SUBDIR' as the subdirectory.")
+		parser.add_argument("-S", "--section", type=str, default="develop", metavar="<section>",
+			help="Sets the configuration section name (default: 'develop').")
+		parser.add_argument("--server-url", type=str, metavar="<url>",
+			help="Sets or overrules variable 'NEXUS_SERVER_URL'.")
+		parser.add_argument("--user", type=str, metavar="<user>",
+			help="Sets or overrules variable 'NEXUS_USER'.")
+		parser.add_argument("--password", type=str, metavar="<password>",
+			help="Sets or overrules variable 'NEXUS_PASSWORD'.")
+		parser.add_argument("-V", "--verbose", action="store_true",
+			help="Enables verbose output for upload requests.")
+		parser.add_argument("-x", "--exchange", type=str, metavar="<exchange-dir>",
+			help="Sets the exchange sub-directory in the repository up- and download (--local).")
+		parser.add_argument("-l", "--local", type=str, metavar="<local-dir>",
+			help="Sets the exchange local-directory in the exchange repository (only with --exchange).")
+		parser.add_argument("files", nargs="*", metavar="<file>",
+			help="Files to upload to Nexus repository (use '--' before filenames starting with '-').")
+		return parser
+
+	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
+		"""
+		Handles the 'publish' command execution.
+		:return: Exit code.
+		"""
+		super().handle(args, args_left, args_right)
+		# Check for impossible use of standalone argument '--local'.
+		if args.local and not args.exchange:
+			raise RuntimeError("Option '--local' requires '--exchange' to be specified!")
+		# Combine files parsed as positional arguments and arguments after '--'
+		raw_files: List[str] = (args.files or []) + (args_right or [])
+		# Check if files were passed when uploading (not downloading via --local).
+		if not args.local and not raw_files:
+			logger.error("! No files to upload!")
+			self.print_help()
+			return 1
+		# Get the config section name and check its existence.
+		section_name: str = "nexus-" + args.section
+		if not CONFIG.has_section(section_name):
+			logger.info(f"# No Nexus configuration: {section_name}")
+		#
+		merged = get_merged_config_section(section_name, fail=False)
+		# Resolve all variables with precedence: CLI arg -> Environment (RUN_ENV) -> INI Config
+		nexus_user: str = args.user or RUN_ENV.get("NEXUS_USER") or merged.get("NEXUS_USER") or ""
+		nexus_password: str = args.password or RUN_ENV.get("NEXUS_PASSWORD") or merged.get("NEXUS_PASSWORD") or ""
+		nexus_server_url: str = args.server_url or RUN_ENV.get("NEXUS_SERVER_URL") or merged.get("NEXUS_SERVER_URL") or ""
+		nexus_exchange_repo: str = args.exch_repo or RUN_ENV.get("NEXUS_EXCHANGE_REPO") or merged.get(
+			"NEXUS_EXCHANGE_REPO") or ""
+		nexus_apt_repo: str = args.apt_repo or RUN_ENV.get("NEXUS_APT_REPO") or merged.get("NEXUS_APT_REPO") or ""
+		nexus_raw_repo: str = args.raw_repo or RUN_ENV.get("NEXUS_RAW_REPO") or merged.get("NEXUS_RAW_REPO") or ""
+		nexus_raw_subdir: str = args.raw_sub or RUN_ENV.get("NEXUS_RAW_SUBDIR") or merged.get("NEXUS_RAW_SUBDIR") or ""
+		# Report when overruled by command line arguments.
+		if args.verbose:
+			if args.raw_repo:
+				logger.info(f"# RAW repository set to '{nexus_raw_repo}'.")
+			if args.raw_sub:
+				logger.info(f"# RAW subdirectory set to '{nexus_raw_subdir}'.")
+			if args.apt_repo:
+				logger.info(f"# APT repository set to '{nexus_apt_repo}'.")
+			if args.exch_repo:
+				logger.info(f"# EXCHANGE repository set to '{nexus_exchange_repo}'.")
+			if args.exchange:
+				logger.info(f"# Exchange directory set to '{args.exchange}'.")
+			if args.local:
+				logger.info(f"# Local directory set to '{args.local}'.")
+		# Check existence of required variables.
+		cred_vars = {
+			"NEXUS_USER": nexus_user,
+			"NEXUS_PASSWORD": nexus_password,
+			"NEXUS_SERVER_URL": nexus_server_url
+		}
+		if args.exchange:
+			# Only required if uploading or downloading from exchange repo.
+			cred_vars |= {
+				"NEXUS_EXCHANGE_REPO": nexus_exchange_repo
+			}
+		else:
+			# Only required if uploading to at or raw repo.
+			cred_vars |= {
+				"NEXUS_APT_REPO": nexus_apt_repo,
+				"NEXUS_RAW_REPO": nexus_raw_repo,
+				"NEXUS_RAW_SUBDIR": nexus_raw_subdir,
+			}
+		# Check on the presence of required variables.
+		flag_var = False
+		for var_name, var_val in cred_vars.items():
+			if not var_val:
+				logger.error(
+					f"! Required credentials/config variable '{var_name}' "
+					f"is not set by credentials file or by parent environment!")
+				flag_var = True
+		if flag_var:
+			self.print_help()
+			return 1
+		# Handle Exchange Download: --exchange and --local
+		if args.exchange and args.local:
+			exchange_sub = str(args.exchange).strip('/\\').replace('\\', '/')
+			if DEBUG_FLAG:
+				if raw_files:
+					for pattern in raw_files:
+						fn = Path(pattern).name
+						dest_file = os.path.join(args.local, fn)
+						logger.info(
+							f"~ Not downloading: GET {str(nexus_server_url).rstrip('/')}/repository/"
+							f"{quote(str(nexus_exchange_repo), safe='')}/{exchange_sub}/{fn} -> {dest_file}"
+						)
+				else:
+					logger.info(f"~ Not downloading all files from exchange '{exchange_sub}' to '{args.local}'")
+				return 0
+			#
+			search_base_url = (
+				f"{str(nexus_server_url).rstrip('/')}/service/rest/v1/search"
+				f"?repository={quote(str(nexus_exchange_repo), safe='')}"
+				f"&group={quote('/' + exchange_sub, safe='/')}"
+			)
+			token = None
+			assets: List[Dict[str, Any]] = []
+			while True:
+				token_url = search_base_url if not token else f"{search_base_url}&continuationToken={token or ""}"
+				status, data = query_nexus_search(token_url, nexus_user, nexus_password, verbose=args.verbose)
+				if status < 200 or status >= 300 or not isinstance(data, dict):
+					logger.error(f"! Search failed ({status}) on repository '{nexus_exchange_repo}' group '{exchange_sub}'")
+					if isinstance(data, str) and data:
+						logger.error(data)
+					return 1
+				for item in data.get("items", []):
+					for asset in item.get("assets", []):
+						assets.append(asset)
+				token = data.get("continuationToken")
+				if not token:
+					break
+
+			req_base_names = {Path(f).name for f in raw_files} if raw_files else set()
+			if req_base_names:
+				for asset in assets:
+					asset_path = asset.get("path", "")
+					fn = Path(asset_path).name
+					# if req_base_names and fn not in req_base_names:
+					# 	continue
+					if any(fnmatch.fnmatch(fn, pat) or fnmatch.fnmatch(asset_path, pat) for pat in req_base_names):
+						logger.info(f"- Matching file: {fn}")
+					else:
+						continue
+					download_url = asset.get("downloadUrl", "")
+					if not download_url:
+						continue
+					dest_file = os.path.join(args.local, fn)
+					logger.info(f"- Downloading file: {asset_path} -> {dest_file}")
+					status, err = download_file_http(download_url, dest_file, nexus_user, nexus_password, verbose=args.verbose)
+					if status < 200 or status >= 300:
+						logger.error(f"! Download failed ({status}) from '{download_url}' to '{dest_file}'")
+						if err:
+							logger.error(err)
+						return 1
+			return 0
+
+		# Handle Exchange Upload: --exchange without --local
+		if args.exchange:
+			expanded_files: List[str] = []
+			for pattern in raw_files:
+				matches = glob.glob(pattern)
+				if matches:
+					expanded_files.extend(matches)
+				else:
+					expanded_files.append(pattern)
+			for upload_file in expanded_files:
+				if not os.path.isfile(upload_file):
+					if args.verbose:
+						logger.info(f"~ File(s) not found for: {upload_file}")
+					continue
+				exchange_sub = str(args.exchange).strip('/\\').replace('\\', '/')
+				exchange_parts = [quote(part, safe="") for part in exchange_sub.split('/') if part]
+				exchange_parts.append(quote(Path(upload_file).name, safe=""))
+				exchange_target = "/".join(exchange_parts)
+				upload_url = (
+					f"{str(nexus_server_url).rstrip('/')}/repository/"
+					f"{quote(str(nexus_exchange_repo), safe='')}/{exchange_target}"
+				)
+				logger.info(f"- Uploading EXCHANGE repo file: {upload_file}")
+				try:
+					response_code, output = upload_file_http(upload_url, upload_file, nexus_user, nexus_password,
+						method="PUT", verbose=args.verbose)
+				except (OSError, ValueError, http.client.HTTPException) as ex:
+					logger.error(f"! Upload failed for file '{upload_file}': {ex}")
+					return 1
+				if response_code < 200 or response_code >= 300:
+					logger.error(f"! Upload EXCHANGE package failed ({response_code}) of file: {upload_file}")
+					if output:
+						logger.error(output)
+					return 1
+			return 0
+
+		# Handle Regular Publish (neither --exchange nor --local)
+		expanded_files: List[str] = []
+		for pattern in raw_files:
+			matches = glob.glob(pattern)
+			if matches:
+				expanded_files.extend(matches)
+			else:
+				expanded_files.append(pattern)
+
+		# Iterate over all files
+		for upload_file in expanded_files:
+			if not os.path.isfile(upload_file):
+				if args.verbose:
+					logger.info(f"~ File(s) not found with: {upload_file}")
+				continue
+
+			ext = upload_file.rsplit('.', 1)[-1].lower()
+			if ext not in ["deb", "zip", "exe", "gz", "tgz", "bz2", "xz", "7z"]:
+				logger.warning(f"! No upload method for extension '{ext}' file: {upload_file}")
+				continue
+			try:
+				if ext == "deb":
+					logger.info(f"- Uploading APT repo file: {upload_file}")
+					upload_url = (
+						f"{str(nexus_server_url).rstrip('/')}/service/rest/v1/components"
+						f"?repository={quote(str(nexus_apt_repo), safe='')}"
+					)
+					response_code, output = upload_file_http(upload_url, upload_file, nexus_user, nexus_password,
+						method="POST", multipart_field="apt.asset",
+						content_type="application/vnd.debian.binary-package", verbose=args.verbose)
+					upload_kind = "APT package"
+				else:
+					logger.info(f"- Uploading RAW repo file: {upload_file}")
+					raw_sub = str(nexus_raw_subdir).strip('/\\').replace('\\', '/')
+					raw_parts = [quote(part, safe="") for part in raw_sub.split('/') if part]
+					raw_parts.append(quote(Path(upload_file).name, safe=""))
+					raw_target = "/".join(raw_parts)
+					upload_url = (
+						f"{str(nexus_server_url).rstrip('/')}/repository/"
+						f"{quote(str(nexus_raw_repo), safe='')}/{raw_target}"
+					)
+					response_code, output = upload_file_http(upload_url, upload_file, nexus_user, nexus_password,
+						verbose=args.verbose)
+					upload_kind = "RAW package"
+			except (OSError, ValueError, http.client.HTTPException) as ex:
+				logger.error(f"! Upload failed for file '{upload_file}': {ex}")
+				return 1
+			if response_code < 200 or response_code >= 300:
+				logger.error(f"! Upload {upload_kind} failed ({response_code}) of file: {upload_file}")
+				if output:
+					logger.error(output)
+				return 1
+		return 0
+
+
 def split_arguments(arguments: List[str], split_arg: str = "--") -> tuple[List[str], List[str]]:
 	"""
 	Splits the arguments in a left and right
@@ -3297,9 +3746,9 @@ def split_arguments(arguments: List[str], split_arg: str = "--") -> tuple[List[s
 	:param split_arg:
 	"""
 	# Get the separator index of an argument.
-	arg_sep_idx = arguments.index(split_arg) if "--" in arguments else -1
-	args_left = arguments[:arg_sep_idx] if arg_sep_idx > 0 else arguments
-	args_right = arguments[arg_sep_idx + 1:] if len(arguments) > arg_sep_idx > 0 else []
+	arg_sep_idx = arguments.index(split_arg) if split_arg in arguments else -1
+	args_left = arguments[:arg_sep_idx] if arg_sep_idx >= 0 else arguments
+	args_right = arguments[arg_sep_idx + 1:] if len(arguments) > arg_sep_idx >= 0 else []
 	return args_left, args_right
 
 
@@ -3326,6 +3775,7 @@ def main() -> int:
 	SubCommandInstall().register()
 	SubCommandVersion().register()
 	SubCommandRun().register()
+	SubCommandPublish().register()
 	#
 	parser = argparse.ArgumentParser(description="""Helper for running CMake , CTest, CPack commands using 'CMakePresets.json' and 'CMakeUserPresets.json'.
 Running Native, Docker, Wine and nested as in Docker > Wine.
@@ -3341,7 +3791,7 @@ To Build and test the example project:
   On Linux:
 
     ./{script} i -r lnx                    # Required packages for Linux (Debian only).
-    ./{script} i --project                 # Install the skeleton project by Git cloning and sets up a git 
+    ./{script} i --project                 # Install the skeleton project by Git cloning and sets up a git
                                            # repository with this repository as submodule.
     ./{script} i -p                        # Clone the cmake-lib repository and copy the sample project.
     ./{script} -bt gnu-debug               # Build and test a preset local.
@@ -3352,10 +3802,11 @@ To Build and test the example project:
     ./{script} d -- -b gnu-debug -N        # Build a target select from a menu (e.g. 'document' for DoxyGen).
     ./{script} d -- -w gnu-debug           # Run a preset configured workflow including packaging mostly used in pipelines.
     ./{script} d start/stop                # Start or stop the Docker container as daemon to speed up.
+    ./{script} u bin/pkg/*.deb             # Upload packages to Nexus repository.
 
   On Windows:
     {script} i -r win                      # Required packages (WinGet/Pip) for Windows.
-    {script} i --project                   # Install the skeleton project by Git cloning and sets up a git 
+    {script} i --project                   # Install the skeleton project by Git cloning and sets up a git
                                            # repository with this repository as submodule.
     {script} i -p                          # Clone the cmake-lib repository and copy the sample project.
     {script} i -t msvc                     # Install the MSVC toolchain.

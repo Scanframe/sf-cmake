@@ -8,6 +8,7 @@ install(CODE [[
 set(SF_ROOT_PREFIX ".")
 include("${CMAKE_CURRENT_LIST_DIR}/.sf/SfInstallInclude.cmake")
 ]]
+	COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 )
 
 # Set some variables required by this script and CPack as well.
@@ -71,6 +72,7 @@ if (NOT WIN32)
 	# Install the '.conf' file to the system directory.
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/${CMAKE_PROJECT_NAME}-libs.conf"
 		DESTINATION "/\${SF_ROOT_PREFIX}/etc/ld.so.conf.d"
+		COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 	)
 	# Create the 'postinst' script (runs ldconfig after installation).
 	file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/postinst" [[
@@ -105,8 +107,6 @@ exit 0
 	)
 endif ()
 
-# Share all output path to look dependencies in the CPack script.
-set(SF_OUTPUT_PATHS)
 # Files from these path are ignored to be copied since Qt is packaged itself.
 set(SF_DEPENDENCY_PATHS_IGNORED "${QT_DIR}/../../..")
 # Pass also the cmake binary build directory using en variable with an 'SF_' prefix.
@@ -115,12 +115,13 @@ set(SF_BINARY_DIR "${CMAKE_BINARY_DIR}")
 # Create a launcher for each executable.
 foreach (_ExecTarget IN LISTS _ExecTargets)
 	Sf_GetTargetOutputPath("${_ExecTarget}" _OutputPath)
-	list(APPEND SF_OUTPUT_PATHS "${_OutputPath}")
-	list(APPEND SF_OUTPUT_PATHS_${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME} "${_OutputPath}")
 	get_target_property(_OutputName "${_ExecTarget}" OUTPUT_NAME)
+	# Skip this file
 	if (NOT _OutputName)
+		message(STATUS "Skipping target: ${_ExecTarget}")
 		continue()
 	endif ()
+	list(APPEND SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME} "${_OutputPath}")
 	get_target_property(_OutputSuffix "${_ExecTarget}" SUFFIX)
 	# Only for Linux targeted OSes.
 	if (NOT WIN32)
@@ -132,6 +133,7 @@ exec '${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}' \"$@\"
 		# Install it directly to '/usr/bin'.
 		install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/${_OutputName}"
 			DESTINATION "/\${SF_ROOT_PREFIX}/usr/bin"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 		)
 	else ()
 		# TODO: The shortcut name should be retrieved from a target property like 'SHORTCUT_NAME'.
@@ -165,6 +167,7 @@ if (EXISTS "${_ApplicationDir}")
 		install(DIRECTORY
 			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
 			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/applications"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 			FILES_MATCHING
 			PATTERN "*.desktop"
 		)
@@ -172,6 +175,7 @@ if (EXISTS "${_ApplicationDir}")
 		install(DIRECTORY
 			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
 			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/icons/hicolor/scalable/apps"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 			FILES_MATCHING
 			PATTERN "*.svg"
 		)

@@ -1,5 +1,9 @@
 # Required first entry checking the cmake version.
 cmake_minimum_required(VERSION 3.29...4.4)
+
+# The current role of the script used in guards.
+get_property(SF_CMAKE_ROLE GLOBAL PROPERTY CMAKE_ROLE)
+
 ##!
 # Declare some cmake flags for decisions on building targets.
 #
@@ -16,7 +20,25 @@ set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library"
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
 set(SF_CPACK_PREPARE_FILE "${CMAKE_CURRENT_LIST_DIR}/tpl/cpack/prepare.cmake" CACHE STRING "Preparation script for running CPack project script.")
-set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME "runtime")
+set(SF_DEFAULT_COMPONENT_NAME "runtime")
+
+# Guard around function 'define_property'.
+if (SF_CMAKE_ROLE STREQUAL "PROJECT")
+##!
+# Custom target property definition of 'SF_FLAG' for amending target information for a CPack generator and
+# Where the target is :
+# - gui: a GUI application.
+# - cli: a console application.
+# - test: a test application able to run with CTest.
+# - cov: a test application for performing coverage testing.
+# - plugin: a plugin library and no application has a direct dependency it.
+#
+define_property(
+	TARGET PROPERTY SF_FLAGS
+	BRIEF_DOCS "Package-selection flags."
+	FULL_DOCS "Semicolon-separated package-selection flags like 'gui', 'cli', 'test' and 'pack'."
+)
+endif ()
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -325,6 +347,12 @@ endfunction()
 function(Sf_SetTargetDefaultOptions _Target)
 	# Get the target's type.
 	get_target_property(_Type "${_Target}" TYPE)
+	# Tell the compiled code a static or dynamic library is being build.
+	if (_Type STREQUAL "SHARED_LIBRARY")
+		target_compile_definitions(${PROJECT_NAME} PRIVATE TARGET_DYNAMIC_LIB)
+	elseif (_Type STREQUAL "STATIC_LIBRARY")
+		target_compile_definitions(${PROJECT_NAME} PRIVATE TARGET_STATIC_LIB)
+	endif ()
 	# When the GNU compiler is involved.
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		# Workaround for Catch2 which does not allow us to set the compiler switch (-fvisibility=hidden) globally.
@@ -471,6 +499,28 @@ function(Sf_GetTargetOutputPath _target _result)
 endfunction()
 
 ##!
+# Sets the extension of the created shared library or executable.
+#
+function(Sf_SetTargetSuffix)
+	foreach (_Target IN LISTS ARGN)
+		get_target_property(_Type "${_Target}" TYPE)
+		if (_Type STREQUAL "EXECUTABLE")
+			if (WIN32)
+				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".exe")
+			else ()
+				set_target_properties(${_Target} PROPERTIES OUTPUT_NAME "${_Target}" SUFFIX ".bin")
+			endif ()
+		elseif (_Type STREQUAL "SHARED_LIBRARY")
+			if (WIN32)
+				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".dll")
+			else ()
+				set_target_properties(${_Target} PROPERTIES LIBRARY_OUTPUT_NAME "${_Target}" SUFFIX ".so")
+			endif ()
+		endif ()
+	endforeach ()
+endfunction()
+
+##!
 # Adds an executable application target and also sets the default compile options.
 #
 function(Sf_AddExecutable _Target)
@@ -564,6 +614,81 @@ function(Sf_AddVersionResource _Target)
 endfunction()
 
 ##!
+# Adds an executable target as default or a shred library one.
+# Also sets multiple items depending on the given flags.
+#
+# Sf_AddTarget(<target> [FLAGS <flag1> [<flag2> ...]] [EXECUTABLE] [SHARED] [VERSION] [SUFFIX] [EXIF])
+#
+# @param <target> Designated target name.
+# @param SHARED Optional flag to create a shared library target.
+# @param STATIC Optional flag to create a static library target.
+# @param FLAGS Optional list of flags to handled targets.
+# @param VERSION Optional flag which adds the VERSION property using the current resolved Git version tag.
+# @param SUFFIX Optional flag which sets the '.bin' to targets on Linux.
+# @param EXIF Optional flag for adding a target with the 'exif_' prefixed name reporting target info after the build.
+# @param COVERAGE Optional flag which adds this target as a object for coverage.
+#
+function(Sf_AddTarget _Target)
+	set(_options VERSION SUFFIX EXIF SHARED STATIC COVERAGE)
+	set(_one_value_args)
+	set(_multi_value_args FLAGS)
+	cmake_parse_arguments(PARSE_ARGV 1 _arg "${_options}" "${_one_value_args}" "${_multi_value_args}")
+	if (_arg_UNPARSED_ARGUMENTS)
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Unknown arguments: ${_arg_UNPARSED_ARGUMENTS}")
+	endif ()
+	# Check for mutual exclusive flags.
+	if (_arg_STATIC AND _arg_SHARED)
+		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Mutual exclusive flags used!")
+	endif ()
+	if (_arg_SHARED)
+		# Add the library to create.
+		add_library("${_Target}" SHARED)
+	elseif (_arg_STATIC)
+		# Add the library to create.
+		add_library("${_Target}" STATIC)
+	else ()
+		# Add the executable.
+		add_executable("${_Target}")
+	endif ()
+	# Set the default compiler options for our own code only.
+	Sf_SetTargetDefaultOptions("${_Target}")
+	if (_arg_FLAGS)
+		# Set the target SF flags.
+		set_target_properties("${_Target}" PROPERTIES SF_FLAGS "${_arg_FLAGS}")
+	endif ()
+	if (_arg_SUFFIX AND NOT _arg_STATIC)
+		# Sets the extension of the generated binary.
+		Sf_SetTargetSuffix("${_Target}")
+	endif ()
+	if (_arg_VERSION AND NOT _arg_STATIC)
+		# Set the version of this target from Git.
+		Sf_SetTargetVersion("${_Target}")
+		# Add version resource to the target.
+		Sf_AddVersionResource("${_Target}")
+	endif ()
+	if (_arg_EXIF AND NOT _arg_STATIC)
+		# Add custom target to report resource stored versions.
+		Sf_AddExifTarget("${_Target}")
+	endif ()
+	if (_arg_COVERAGE)
+		# Adds the compiler and linker options for coverage.
+		Sf_AddTargetForCoverage("${_Target}")
+	endif ()
+endfunction()
+
+##!
+# Sf_IsTargetFlag() checks if the given flag is set on the target.
+#
+function(Sf_HasTargetFlag _OutVar _Target _Flag)
+	get_target_property(_flags "${_Target}" SF_FLAGS)
+	if (_flags AND _Flag IN_LIST _flags)
+		set("${_OutVar}" TRUE PARENT_SCOPE)
+	else ()
+		set("${_OutVar}" FALSE PARENT_SCOPE)
+	endif ()
+endfunction()
+
+##!
 # Get all added targets in all subdirectories.
 #  @param _result The list containing all found targets
 #  @param _dir Root directory to start looking from
@@ -585,6 +710,27 @@ function(Sf_GetAllTargets _result _dir _inc_deps)
 	set(${_result} ${${_result}} ${_sub_targets} PARENT_SCOPE)
 endfunction()
 
+
+##!
+# Get all targets having the passed flag set.
+
+#  @param _OutVar The output variable.
+#  @param _Flag Flag to search for in the targets FL_FLAGS property.
+#  @param _inc_deps Include dependencies TRUE or FALSE.
+#
+function(Sf_GetTargetsByFlag _OutVar _Flag)
+	set(_list)
+	Sf_GetAllTargets(_targets "${CMAKE_SOURCE_DIR}" TRUE)
+	foreach (_target IN LISTS _targets)
+		Sf_HasTargetFlag(_result "${_target}" "${_Flag}")
+		if (_result)
+			list(APPEND _list "${_target}")
+		endif ()
+	endforeach ()
+	set("${_OutVar}" "${_list}" PARENT_SCOPE)
+endfunction()
+
+
 ##!
 # Gets the include directories from the given targets.
 # When not found it returns "${_VarOut}-NOTFOUND"
@@ -598,16 +744,16 @@ function(Sf_GetIncludeDirectories _var _targets)
 		# Get the source directory from the target.
 		#get_target_property(_srcdir "${_target}" SOURCE_DIR)
 		# Get all the include directories from the target.
-		get_target_property(_incdirs "${_target}" INCLUDE_DIRECTORIES)
+		get_target_property(_inc_dirs "${_target}" INCLUDE_DIRECTORIES)
 		# Check if there are include directories for this target.
-		if (NOT _incdirs)
+		if (NOT _inc_dirs)
 			#message("The '${_target}' has no includes...")
 			continue()
 		endif ()
 		# Get for each include directory...
-		foreach (_incdir IN LISTS _incdirs)
+		foreach (_inc_dir IN LISTS _inc_dirs)
 			# The real path by combining the source dir and in dir.
-			Sf_GetFilenameComponent(_dir "${_incdir}" REALPATH)
+			Sf_GetFilenameComponent(_dir "${_inc_dir}" REALPATH)
 			# Append the real directory to the resulting list.
 			list(APPEND _list "${_dir}/")
 		endforeach ()
@@ -731,6 +877,8 @@ endfunction()
 # @param _Labels Optional labels for test execution selection.
 #
 function(Sf_AddTest _Target)
+	# When the first optional argument is given use it to set labels.
+	Sf_GetOptionalArgument(_Labels 0 "${ARGN}")
 	# Invoke a script when cross-compiling which makes normal test debugging not possible which is the case anyway.
 	# Somehow CMAKE_CROSSCOMPILING is not having the correct value at this point so SF_CROSSCOMPILING is used.
 	if (SF_CROSSCOMPILING)
@@ -780,8 +928,6 @@ function(Sf_AddTest _Target)
 			set_tests_properties("${_Target}" PROPERTIES ENVIRONMENT_MODIFICATION "LD_LIBRARY_PATH=path_list_prepend:$<SHELL_PATH:${_LibDir}>")
 		endif ()
 	endif ()
-	# When the first optional argument is given use it to set labels.
-	Sf_GetOptionalArgument(_Labels 0 "${ARGN}")
 	# Test if the argument was passed.
 	if (DEFINED _Labels)
 		set_tests_properties("${_Target}" PROPERTIES LABELS "${_Labels}")
@@ -816,24 +962,6 @@ function(Sf_AddTargetForCoverage _target)
 endfunction()
 
 ##!
-# Adds a test to the list of tests producing coverage information in order to make
-# the added test using 'Sf_AddTestCoverageReport()' be executed last using it as a dependency.
-# Uses cache variable with force to store this information between project namespaces.
-# _Test: The test name when empty will clear the cache entry.
-#
-function(Sf_AddAsCoverageTest _Test)
-	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
-		if (_Test STREQUAL "")
-			set(SF_COVERAGE_TESTS "")
-		else ()
-			list(APPEND SF_COVERAGE_TESTS "${_Test}")
-		endif ()
-		# Overwrite the cache value using FORCE.
-		set(SF_COVERAGE_TESTS "${SF_COVERAGE_TESTS}" CACHE STRING "List of tests producing coverage information." FORCE)
-	endif ()
-endfunction()
-
-##!
 # Adds coverage target to the project when the build type is Coverage.
 # _TestName      : The target name for the report.
 #                  relative to the 'PROJECT_SOURCE_DIR'.
@@ -848,25 +976,31 @@ function(Sf_AddTestCoverageReport _TestName _OutDir _Options _SourceDirList)
 	if (NOT EXISTS "${_OutDir}" OR NOT IS_DIRECTORY "${_OutDir}")
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Output directory '${_OutDir}' does not exist and needs to be created!")
 	endif ()
-	# Make a list from
-	string(REPLACE " " ";" _Options "${_Options}")
-	if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
-		# Add a test to generate the report.
-		add_test(NAME "${_TestName}"
-			COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
-			# Set the coverage command of the tool chain.
-			--gcov "${COVERAGE_COMMAND}"
-			--source "${CMAKE_CURRENT_BINARY_DIR}"
-			--target "${_OutDir}"
-			${_Options}
-			# Show some information while executing te script.
-			#--verbose
-			${_SourceDirList}
-			WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-			COMMAND_EXPAND_LISTS
-		)
-		# Ensure this test is run after the ones adding coverage information.
-		set_property(TEST "${_TestName}" PROPERTY DEPENDS "${SF_COVERAGE_TESTS}")
+	# Retrieve all targets from this project.
+	Sf_GetTargetsByFlag(_cov_targets "cov")
+	if (_cov_targets)
+		# Make a list from the options string.
+		string(REPLACE " " ";" _Options "${_Options}")
+		if (BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
+			# Add a test to generate the report.
+			add_test(NAME "${_TestName}"
+				COMMAND "${SfBase_DIR}/bin/coverage-report.sh"
+				# Set the coverage command of the tool chain.
+				--gcov "${COVERAGE_COMMAND}"
+				--source "${CMAKE_CURRENT_BINARY_DIR}"
+				--target "${_OutDir}"
+				${_Options}
+				# Show some information while executing te script.
+				#--verbose
+				${_SourceDirList}
+				WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+				COMMAND_EXPAND_LISTS
+			)
+			# Ensure this test is run after the ones adding coverage information.
+			set_property(TEST "${_TestName}" PROPERTY DEPENDS "${_cov_targets}")
+		endif ()
+	else ()
+		message(WARNING "No targets assigned to do perform coverage testing!")
 	endif ()
 endfunction()
 
@@ -949,8 +1083,7 @@ function(sf_SetRunPath)
 	set(_options REPORT)
 	set(_one_value_args)
 	set(_multi_value_args TARGETS)
-	cmake_parse_arguments(PARSE_ARGV 0 _arg
-		"${_options}" "${_one_value_args}" "${_multi_value_args}")
+	cmake_parse_arguments(PARSE_ARGV 0 _arg "${_options}" "${_one_value_args}" "${_multi_value_args}")
 	if (_arg_UNPARSED_ARGUMENTS)
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Unknown arguments: ${_arg_UNPARSED_ARGUMENTS}")
 	endif ()
@@ -962,7 +1095,7 @@ function(sf_SetRunPath)
 	if (DEFINED _arg_TARGETS)
 		set(_targets "${_arg_TARGETS}")
 	else ()
-		Sf_GetAllTargets(_targets "${PROJECT_SOURCE_DIR}" "TRUE")
+		Sf_GetAllTargets(_targets "${PROJECT_SOURCE_DIR}" TRUE)
 	endif ()
 	foreach (_target IN LISTS _targets)
 		set(_rpath)
@@ -1039,7 +1172,7 @@ function(Sf_TargetsInstall)
 	Sf_GetOptionalArgument(_executables 0 "${ARGN}")
 	set(_execs)
 	# Retrieve all targets from this project.
-	Sf_GetAllTargets(_all_targets "${PROJECT_SOURCE_DIR}" "TRUE")
+	Sf_GetAllTargets(_all_targets "${PROJECT_SOURCE_DIR}" TRUE)
 	# Iterate through all targets.
 	foreach (_target ${_all_targets})
 		get_target_property(_type "${_target}" TYPE)
@@ -1064,14 +1197,14 @@ function(Sf_TargetsInstall)
 	if (WIN32)
 		# Do not include the import libraries.
 		install(TARGETS ${_targets}
-			RUNTIME DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
-			LIBRARY DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
+			RUNTIME DESTINATION . COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
+			LIBRARY DESTINATION . COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 			#CONFIGURATIONS Debug
 		)
 	else ()
 		install(TARGETS ${_targets}
-			RUNTIME DESTINATION . COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
-			LIBRARY DESTINATION lib COMPONENT "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}"
+			RUNTIME DESTINATION . COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
+			LIBRARY DESTINATION lib COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 			ARCHIVE DESTINATION arc COMPONENT "devel"
 			#CONFIGURATIONS Debug
 		)
@@ -1164,7 +1297,7 @@ function(Sf_GetDependencies _OutVar _BinFile)
 	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
 	# Get the dependencies using the special python script.
 	execute_process(
-		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --recurse --cmake --exclude-system "${_BinFile}"
+		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --quiet --recurse --cmake --exclude-system "${_BinFile}"
 		OUTPUT_VARIABLE _deps
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 		ECHO_ERROR_VARIABLE
@@ -1206,7 +1339,7 @@ function(Sf_GetDependencyFilenames _OutVar _BinFile)
 	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
 	# Get the dependencies using the special python script.
 	execute_process(
-		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --recurse --no-format "${_BinFile}"
+		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --quiet --recurse --no-format "${_BinFile}"
 		OUTPUT_VARIABLE _deps
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 		ECHO_ERROR_VARIABLE

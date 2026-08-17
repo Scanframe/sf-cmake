@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#
+# Script to format
+#
 
 # Bail out on first error.
 set -e
@@ -21,5 +24,16 @@ source "${include_dir}/inc/Miscellaneous.sh"
 ## Trap script exit with function.
 trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 
+# Prints the help.
 #
-shfmt -i 0 -ci -d "${file}"
+function show_help {
+	echo "Usage: ${0} <files>...
+  Formats shell scripts."
+}
+
+if [[ $# -eq 0 ]]; then
+	show_help
+	exit 0
+fi
+# Format the given files.
+shfmt -i 0 --case-indent --diff --write "${@}"

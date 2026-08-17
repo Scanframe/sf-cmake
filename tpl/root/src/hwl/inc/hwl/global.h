@@ -18,7 +18,7 @@ Add compiler definition flags:
 // Import of definitions for this target.
 #include "target.h"
 
-// When DL target and the misc PKG is not used the shlib is being built.
+// When DL target and the hwl PKG is not used the shlib is being built.
 #if IS_DL_TARGET && defined(_HWL_PKG)
 	#define _HWL_DATA TARGET_EXPORT
 	#define _HWL_FUNC TARGET_EXPORT

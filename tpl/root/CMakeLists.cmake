@@ -69,9 +69,6 @@ if (CMAKE_VERBOSE_MAKEFILE)
 	message(STATUS "Verbosity enabled.")
 endif ()
 
-# Clear the tests from previous by passing an empty string.
-Sf_AddAsCoverageTest("")
-
 # Add Sub Projects in the right order of dependencies.
 add_subdirectory(src)
 # Add Doxygen document project.

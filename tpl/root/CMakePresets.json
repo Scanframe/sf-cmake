@@ -944,9 +944,6 @@
 			"description": "MSVC ZIP + NSIS package debug.",
 			"configurePreset": "msvc-debug",
 			"packageDirectory": "$env{TMP}/msvc",
-			"variables": {
-				"KLM": "123456789"
-			},
 			"generators": [
 				"ZIP",
 				"NSIS64"
