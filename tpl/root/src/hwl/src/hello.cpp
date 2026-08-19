@@ -71,6 +71,13 @@ std::string getCpuArchitecture()
 #endif
 }
 
+std::string getApplicationVersion()
+{
+	#define _STRINGIFY_(x) #x
+	#define _TOSTRING_(x) _STRINGIFY_(x)
+	return _TOSTRING_(SF_VERSION);
+}
+
 std::string getCompilerVersion()
 {
 #if defined(_MSC_VER)
