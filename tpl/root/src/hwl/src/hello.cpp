@@ -71,10 +71,10 @@ std::string getCpuArchitecture()
 #endif
 }
 
+#define _STRINGIFY_(x) #x
+#define _TOSTRING_(x) _STRINGIFY_(x)
 std::string getApplicationVersion()
 {
-	#define _STRINGIFY_(x) #x
-	#define _TOSTRING_(x) _STRINGIFY_(x)
 	return _TOSTRING_(SF_VERSION);
 }
 
