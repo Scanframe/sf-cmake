@@ -535,7 +535,8 @@ def create_config_parser(ini_path: str, cfg: configparser.ConfigParser | None = 
 		logger.info(f"# Creating non-existing configuration file: {ini_path}")
 		with open(ini_path, "w", encoding="utf-8") as file:
 			file.write(INI_TEMPLATE)
-	cfg.read(ini_path)
+	if len(cfg.read(ini_path)) == 0:
+		logger.info(f"~ Unable to read file: {ini_path}")
 	if cfg.has_section(section := "__include__"):
 		items = cfg.items(section)
 		cfg.remove_section(section)
@@ -739,12 +740,14 @@ def get_merged_config_section(section: str, fail: bool = True) -> Dict[str, str]
 	"""
 	Gets an assembled dictionary of key-value pairs using inheritance.
 	"""
-	if not CONFIG.has_section(section):
-		logger.error(f"! Configuration section '{section}' does not exist.")
-		if fail:
-			raise RuntimeError(f"Missing configuration section '{section}' !")
 	# Final merged result (Child values override parents)
 	merged_data: Dict[str, str] = {}
+	if not CONFIG.has_section(section):
+		if fail:
+			logger.error(f"! Configuration section '{section}' does not exist.")
+			raise RuntimeError(f"Missing configuration section '{section}' !")
+		else:
+			return merged_data
 	# Track visited sections to detect redundancy and prevent infinite loops
 	visited = set()
 	# Process queue (Breadth-First traversal of inheritance)
@@ -3532,7 +3535,7 @@ examples:
 		section_name: str = "nexus-" + args.section
 		if not CONFIG.has_section(section_name):
 			logger.info(f"# No Nexus configuration: {section_name}")
-		#
+		# The section is allowed not to exist and do not fail.
 		merged = get_merged_config_section(section_name, fail=False)
 		# Resolve all variables with precedence: CLI arg -> Environment (RUN_ENV) -> INI Config
 		nexus_user: str = args.user or RUN_ENV.get("NEXUS_USER") or merged.get("NEXUS_USER") or ""
