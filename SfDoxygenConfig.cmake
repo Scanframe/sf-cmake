@@ -128,10 +128,10 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 		HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css
 		HTML_COLORSTYLE        = LIGHT # required with Doxygen >= 1.9.5
 		]]
+		Sf_GetGitHubVersionFileUrl(_url "jothepro" "doxygen-awesome-css" "2.4.1")
 		FetchContent_Declare(doxygen_awesome
-			GIT_REPOSITORY "https://github.com/jothepro/doxygen-awesome-css.git"
-			GIT_TAG "v2.4.1"
-			GIT_SHALLOW 1
+			URL "${_url}"
+			#GIT_REPOSITORY "https://github.com/jothepro/doxygen-awesome-css.git" GIT_TAG "v2.4.1" GIT_SHALLOW 1
 			TLS_VERIFY ${_TlsCheck}
 		)
 		# Download it.

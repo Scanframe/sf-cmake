@@ -101,7 +101,7 @@ revert=patch,Revert of Commit
 ; Section for optional include file which is merged.
 [__include__]
 user=user.ini
-nexus=nexus-credentials.ini
+nexus=.nexus-credentials.ini
 
 ; Pulse audio server config. Need volume mapping from host.
 [pulse-audio]
@@ -157,7 +157,7 @@ RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}
 
 ; Environment added before running with the compiler msvc in Wine in the Docker container.
 [env.msvc.wine.docker@]
-__inherit__=qt-ver,pulse-audio
+__inherit__=qt-ver
 # The Docker container is build with the MSVC toolchain. (fuse-zip mounted in the home directory).
 MSVC_ROOT=Z:\home\${USER}\toolchain\w64-x86_64-msvc-2022
 SF_EXEC_DIR_SUFFIX=-msvc
@@ -182,7 +182,7 @@ LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
 [env.gw@]
 __inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gw
-WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix
+WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;${RUN_DIR}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin
 ; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
 
@@ -255,7 +255,7 @@ def is_wine() -> bool:
 
 def is_docker() -> bool:
 	"""
-	return Get the flag when running in docker.
+	Checks if running in Docker.
 	:return: True when Docker is active, False otherwise.
 	"""
 
@@ -268,6 +268,23 @@ def is_docker() -> bool:
 	if not hasattr(is_docker, "flag"):
 		is_docker.flag = _is_docker()
 	return is_docker.__getattribute__("flag")
+
+
+def is_debugger_active() -> bool:
+	"""
+	Checks if a debugger is active.
+	:return: True when a debugger is active, False otherwise.
+	"""
+	# Check PEP 669 monitoring API (Python 3.14+)
+	mon = getattr(sys, "monitoring", None)
+	if mon is not None:
+		try:
+			# Actually trying to access 'sys.monitoring.DEBUGGER_ID'.
+			if mon.get_tool(mon.DEBUGGER_ID) is not None:
+				return True
+		except Exception:
+			pass
+	return False
 
 
 def get_7z_exe() -> str:
@@ -806,6 +823,47 @@ def remove_files_from_tree(dir_name: Path, wild_cards: list[str]) -> None:
 					except OSError as ex:
 						logger.warning(f": Failed to rename file '{file_path}': {ex}")
 					break
+
+
+def post_request_http(url: str, username: str | None = None, password: str | None = None,
+	verbose: bool = False) -> tuple[int, str]:
+	"""Makes a POST request to an HTTP endpoint with optional basic authentication."""
+	parsed_url = urlsplit(url)
+	if parsed_url.scheme not in ["http", "https"] or not parsed_url.hostname:
+		raise ValueError(f"Unsupported or invalid URL: {url}")
+	#
+	request_target = parsed_url.path or "/"
+	if parsed_url.query:
+		request_target += f"?{parsed_url.query}"
+	headers = {
+		"Accept": "application/json",
+	}
+	# Check if username and password are provided and use them for basic authentication.
+	if username and password:
+		headers["Authorization"] = "Basic " + base64.b64encode(
+			f"{username}:{password}".encode("utf-8")
+		).decode("ascii")
+	# When debugging, report only.
+	if DEBUG_FLAG:
+		logger.info(f"~ Not posting: POST {url}")
+		return 200, ""
+	if verbose:
+		logger.info(f"~ Posting: POST {url}")
+	connection_class = http.client.HTTPSConnection if parsed_url.scheme == "https" else http.client.HTTPConnection
+	connection_args: Dict[str, Any] = {}
+	if parsed_url.scheme == "https":
+		connection_args["context"] = ssl.create_default_context()
+	# noinspection bad-argument-type
+	connection = connection_class(parsed_url.hostname, parsed_url.port, **connection_args)
+	try:
+		connection.request("POST", request_target, headers=headers)
+		response = connection.getresponse()
+		response_body = response.read().decode("utf-8", errors="replace")
+		if verbose:
+			logger.info(f"~ Nexus response: HTTP {response.status} {response.reason}")
+		return response.status, response_body
+	finally:
+		connection.close()
 
 
 def upload_file_http(url: str, upload_file: str, username: str, password: str, method: str = "PUT",
@@ -1586,6 +1644,7 @@ def select_preset(preset_type: PresetTypes | str | None = None) -> str | None:
 	if type(preset_type) is not PresetTypes:
 		return None
 	# Return the selected preset string.
+	# noinspection unresolved-references
 	return ask_selection(options, title=f"{preset_type.value.title()} Selection", caption="Select a preset:")
 
 
@@ -1746,6 +1805,8 @@ class SubCommand(ABC):
 			# Report also debugging.
 			logger.setLevel(logging.DEBUG)
 			logger.debug("# Logger set to level DEBUG.")
+			if is_debugger_active():
+				logger.debug("# Debugger is active.")
 		return 0
 
 	def print_help(self):
@@ -1927,7 +1988,7 @@ examples:
 				if args.make or (make_by_build and not os.path.exists(os.path.join(str(bin_dir), "CMakeCache.txt"))):
 					# os.makedirs(bin_dir, exist_ok=True)
 					# Logic for configuration
-					cmd = ["cmake", "-Wno-dev", "--preset", config_preset_name]
+					cmd = ["cmake", "-Wno-author", "--preset", config_preset_name]
 					# cmd.append("--trace")
 					# Add the command option to delete the CMakeCache.txt file.
 					if args.fresh:
@@ -3471,16 +3532,43 @@ examples:
   Upload packages to Nexus:
     {self.script} {self.command} bin/pkg/*.deb bin/pkg/*.zip
     {self.script} u -a staging -s dist/staging bin/pkg/*.deb
+  File starting with '-':
     {self.script} {self.command} -- -help-file.zip
-
+  Using internal globbing:
+    {self.script} {self.command} "bin/pkg/*.deb"
   Upload files to exchange directory:
     {self.script} {self.command} -x "gitlab-ci/shared/devops/pipeline/123" bin/gcov/report.*
-
   Download files from exchange directory:
     {self.script} {self.command} -x "gitlab-ci/shared/devops/pipeline/123" -l bin/gcov report.xml report.txt
-
   Dry-run upload:
     {self.script} {self.command} -d bin/pkg/*.deb
+
+  Template ini-file for '.nexus-credentials':
+
+[nexus-credentials]
+NEXUS_USER=your-username
+NEXUS_PASSWORD=your-password
+NEXUS_SERVER_URL=https://nexus.example.com
+NEXUS_RAW_REPO=shared
+NEXUS_EXCHANGE_REPO=exchange
+
+[nexus-develop]
+__inherit__=nexus-credentials
+NEXUS_APT_REPO=develop
+NEXUS_RAW_SUBDIR=dist/develop
+NEXUS_WINGET_REFRESH=winget/develop/admin/refresh
+
+[nexus-staging]
+__inherit__=nexus-credentials
+NEXUS_APT_REPO=staging
+NEXUS_RAW_SUBDIR=dist/staging
+NEXUS_WINGET_REFRESH=winget/staging/admin/refresh
+
+[nexus-stable]
+__inherit__=nexus-credentials
+NEXUS_APT_REPO=stable
+NEXUS_RAW_SUBDIR=dist/stable
+NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 """
 		if self.parser is None:
 			raise ValueError("Parser cannot be None")
@@ -3546,6 +3634,8 @@ examples:
 		nexus_apt_repo: str = args.apt_repo or RUN_ENV.get("NEXUS_APT_REPO") or merged.get("NEXUS_APT_REPO") or ""
 		nexus_raw_repo: str = args.raw_repo or RUN_ENV.get("NEXUS_RAW_REPO") or merged.get("NEXUS_RAW_REPO") or ""
 		nexus_raw_subdir: str = args.raw_sub or RUN_ENV.get("NEXUS_RAW_SUBDIR") or merged.get("NEXUS_RAW_SUBDIR") or ""
+		nexus_winget_refresh: str = args.raw_sub or RUN_ENV.get("NEXUS_WINGET_REFRESH") or merged.get(
+			"NEXUS_WINGET_REFRESH") or ""
 		# Report when overruled by command line arguments.
 		if args.verbose:
 			if args.raw_repo:
@@ -3564,12 +3654,12 @@ examples:
 		cred_vars = {
 			"NEXUS_USER": nexus_user,
 			"NEXUS_PASSWORD": nexus_password,
-			"NEXUS_SERVER_URL": nexus_server_url
+			"NEXUS_SERVER_URL": nexus_server_url,
 		}
 		if args.exchange:
 			# Only required if uploading or downloading from exchange repo.
 			cred_vars |= {
-				"NEXUS_EXCHANGE_REPO": nexus_exchange_repo
+				"NEXUS_EXCHANGE_REPO": nexus_exchange_repo,
 			}
 		else:
 			# Only required if uploading to at or raw repo.
@@ -3577,9 +3667,12 @@ examples:
 				"NEXUS_APT_REPO": nexus_apt_repo,
 				"NEXUS_RAW_REPO": nexus_raw_repo,
 				"NEXUS_RAW_SUBDIR": nexus_raw_subdir,
+				"NEXUS_WINGET_REFRESH": nexus_winget_refresh,
 			}
 		# Check on the presence of required variables.
 		flag_var = False
+		# Flag indicating the Winget definitaion cache on the Nexus server needs to be refreshed.
+		flag_cache_refresh = False
 		for var_name, var_val in cred_vars.items():
 			if not var_val:
 				logger.error(
@@ -3704,7 +3797,7 @@ examples:
 				continue
 
 			ext = upload_file.rsplit('.', 1)[-1].lower()
-			if ext not in ["deb", "zip", "exe", "gz", "tgz", "bz2", "xz", "7z"]:
+			if ext not in ["deb", "zip", "zip-def", "exe", "gz", "tgz", "bz2", "xz", "7z", "yaml", "yml"]:
 				logger.warning(f"! No upload method for extension '{ext}' file: {upload_file}")
 				continue
 			try:
@@ -3719,7 +3812,10 @@ examples:
 						content_type="application/vnd.debian.binary-package", verbose=args.verbose)
 					upload_kind = "APT package"
 				else:
-					logger.info(f"- Uploading RAW repo file: {upload_file}")
+					# Trigger a cache refresh for a winget package.
+					if ext == "zip-def":
+						flag_cache_refresh = True
+					logger.info(f"~ Uploading RAW repo file: {upload_file}")
 					raw_sub = str(nexus_raw_subdir).strip('/\\').replace('\\', '/')
 					raw_parts = [quote(part, safe="") for part in raw_sub.split('/') if part]
 					raw_parts.append(quote(Path(upload_file).name, safe=""))
@@ -3736,6 +3832,17 @@ examples:
 				return 1
 			if response_code < 200 or response_code >= 300:
 				logger.error(f"! Upload {upload_kind} failed ({response_code}) of file: {upload_file}")
+				if output:
+					logger.error(output)
+				return 1
+		# Check if the Wingewt cache is needed to be refreshed.
+		if flag_cache_refresh:
+			logger.info(f"~ Refreshing Winget definition cache.")
+			refresh_url = f"{nexus_server_url}/{nexus_winget_refresh}"
+			response_code, output = post_request_http(url=refresh_url, username=nexus_user, password=nexus_password,
+				verbose=args.verbose)
+			if response_code < 200 or response_code >= 300:
+				logger.error(f"! Refreshing Winget definition cache failed ({response_code})")
 				if output:
 					logger.error(output)
 				return 1

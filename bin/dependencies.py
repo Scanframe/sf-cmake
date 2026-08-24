@@ -242,6 +242,11 @@ def handle_windows(
 	flag_quiet: bool
 ) -> None:
 	"""Handle dependency reporting for PE/COFF targets on Windows/Cygwin or through Wine."""
+	if flag_recurse:
+		write_log("- Recursing through dependencies")
+	else:
+		write_log("- Not recursing through dependencies")
+	#
 	app_dir: str = ""
 	# Get the system root for comparison.
 	system_root: str | None = None
@@ -259,7 +264,10 @@ def handle_windows(
 		path_dirs = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
 		sys_dirs: List[str] = []
 	else:
+		if not flag_quiet: write_log(f"# Retrieving wine paths ({int(time.time() - start_time)}s).")
 		path_dirs, sys_dirs = wine_paths()
+		if not flag_quiet: write_log(f"# Finished retrieving wine paths({int(time.time() - start_time)}s).")
+	#
 	resolve_dependencies = flag_check or flag_cmake
 	if resolve_dependencies:
 		if flag_verbose:
@@ -267,6 +275,10 @@ def handle_windows(
 				write_log("# Paths:")
 				for directory in path_dirs:
 					write_log(f"- {directory}")
+
+	if not flag_quiet:
+		write_log(f"# Configured....")
+
 	# Keys of the files reported on to prevent endless recursion on circular dependencies.
 	processed: set = set()
 	cmake_dependencies: List[str] = []
@@ -284,6 +296,8 @@ def handle_windows(
 
 	def process(files: Sequence[Path]) -> None:
 		"""Report the dependencies of the passed files in a single table and recurse when requested."""
+		if not flag_quiet:
+			write_log(f"# Processing files: {files}")
 		rows: List[str] = []
 		recurse_queue: List[str] = []
 		for target in files:
@@ -316,8 +330,8 @@ def handle_windows(
 						candidate = os.path.join(path_dir, dep)
 						if os.path.isfile(candidate):
 							# When excluding system files, check if the file is part of the system.
-							if not flag_exclude_system or (
-								system_root is None or (flag_exclude_system and not Path(candidate).is_relative_to(system_root))):
+							if not Path(candidate).match("api-ms-win-*.dll") and (not flag_exclude_system or (
+								system_root is None or (flag_exclude_system and not Path(candidate).is_relative_to(system_root)))):
 								rows.append(f"{dep}{SEPARATOR}PATH{SEPARATOR}{path_dir}")
 								if flag_cmake:
 									add_cmake_dependency(candidate)
@@ -549,9 +563,11 @@ def main(argv: Sequence[str]) -> int:
 			return 1
 	# Determine if Windows or Linux is targeted.
 	if is_windows_host() or is_pe_file(targets[0]):
-		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system, not args.no_format, args.quiet)
+		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system,
+			not args.no_format, args.quiet)
 	else:
-		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format, args.quiet)
+		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format,
+			args.quiet)
 	return 0
 
 

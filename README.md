@@ -79,7 +79,7 @@ The [`build.py`](bin/build.py) script supports several toolchains, each intended
 | `mingw`   |  ➖   | 🛠🚀 |     🛠🚀     |  🛠🚀   |
 | `msvc`    |  ➖   | 🛠🚀 |     🛠🚀     |  🛠🚀   |
 
-> 🛠 Build/Compile projects.  
+> 🛠 Build/Compile projects.
 > 🚀 Execution of tests and applications.
 
 The table below shows how to invoke `build.py` for a given toolchain `<tc>` in each supported environment:
@@ -94,14 +94,14 @@ The table below shows how to invoke `build.py` for a given toolchain `<tc>` in e
 
 ## Quick start
 
-Create an empty project directory like `cpp-project`.  
+Create an empty project directory like `cpp-project`.
 Download the [`build.py`](bin/build.py) script the project directory.
 
 Sources where to download from are:
 
-- https://www.scanframe.com/export/build.py
-- https://git.scanframe.com/library/cmake-lib/-/raw/main/bin/build.py
-- https://raw.githubusercontent.com/Scanframe/sf-cmake/refs/heads/main/bin/build.py
+- [Latest from Development server](https://www.scanframe.com/export/build.py)
+- [Scanframe's GitLab server 'main' branch](https://git.scanframe.com/library/cmake-lib/-/raw/main/bin/build.py)
+- [GitHub mirror from GitLab 'main' branch](https://raw.githubusercontent.com/Scanframe/sf-cmake/refs/heads/main/bin/build.py)
 
 For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, use `curl -O <url>`.
 
@@ -135,9 +135,9 @@ For cross-compiling, install more packages:
 
 ```shell
 # Installs required packages for Windows MingW x86_64 cross-compiler and Wine. (only when needed, must be preceded by 'lnx')
-./build.py install --required win 
+./build.py install --required win
 # Installs required packages for GNU aarch64/arm64 cross-compiler. (only when needed, must be preceded by 'lnx')
-./build.py install --required arm  
+./build.py install --required arm
 ````
 
 For MSVC compiling:
@@ -248,7 +248,7 @@ A project directory tree could look like this:
 
 | Path            | Description                                            |
 |-----------------|--------------------------------------------------------|
-| .gitlab         | GitLab CI/CD pipeline scripts.                         | 
+| .gitlab         | GitLab CI/CD pipeline scripts.                         |
 | bin             | Root for compiled results from builds.                 |
 | bin/gcov        | Coverage report files from unittests.                  |
 | bin/lnx64-*     | Binaries from Linux 64-bit builds.                     |
@@ -305,13 +305,13 @@ Look at [the Doxygen website](https://www.doxygen.nl/) for the syntax in C++ hea
 
 ### Tagging
 
-To create a version tag with this library, there are two options.  
+To create a version tag with this library, there are two options.
 Create a release tag like `v1.2.3` or a release candidate tag like `1.2.3-rc.4`.
 
 The CMake coding picks this up using function [Sf_GetGitTagVersion](SfBaseConfig.cmake "Link to file.") returns the
 version depending on the result of the next Git-command.
 
-```shell 
+```shell
 # Only annotated tags so no '--tags' option.
 git describe --dirty --match "v*.*.*"
 ```
@@ -404,7 +404,7 @@ The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfB
 To enable format check before a commit, modify or add the script
 [`.git/hooks/pre-commit`](tpl/root/git-pre-commit-hook.sh) with the following content. It calls the
 [`check-format.sh`](bin/check-format.sh) script, which indirectly calls the
-[`clang-format.sh`](bin/clang-format.sh) from the CMake support library.  
+[`clang-format.sh`](bin/clang-format.sh) from the CMake support library.
 It also checks if it is a commit to the main or master branch and prevents it.
 
 ```bash
@@ -430,7 +430,7 @@ fi
 ```
 
 This same script is used in the main pipeline configuration script
-[`main.gitlab-ci.yml`](tpl/root/gitlab-ci/main.gitlab-ci.yml) in the job named '**check-env**'.  
+[`main.gitlab-ci.yml`](tpl/root/gitlab-ci/main.gitlab-ci.yml) in the job named '**check-env**'.
 When the formatting of changed files is incorrect, the first job in the pipeline will fail.
 
 ## Packaging
@@ -486,13 +486,13 @@ for both automated CI/CD builds and local developer builds.
 
 #### CPack Configuration Guidelines
 
-1. **CI Pipeline (Automated):**  
+1. **CI Pipeline (Automated):**
    Parse output from `git describe --dirty --match 'v*.*.*'`:
     * Convert `-rc.` to `~rc`
     * Map the commit distance (`-9-`) to `+9`
     * Set package revision/suffix to empty (default)
 
-2. **Local Developer Build:**  
+2. **Local Developer Build:**
    When building locally to test fixes in the test APT repository, supply the optional revision number (e.g., `1`) to
    CPack:
    ```bash

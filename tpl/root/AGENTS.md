@@ -1,9 +1,9 @@
-# Agent Instructions: C++ Project
+# Agent Instructions: C/C++ Project
 
 ## Overview
 
 This is a modern cross-platform build environment test project with CMake for Docker, Wine, native Linux and native
-Windows.  
+Windows.
 It is used to test the build environment for C++ projects. Qt6 only uses up to C++17. License: GNU General Public
 License v3.0 (GPL-3.0).
 
@@ -19,7 +19,7 @@ To build the complete 'Debug' project.
 ```bash
 ./build.py --build gnu-debug
 # Or only a specific target.
-./build.py --build gnu-debug --target t_devops-shared-test-catch 
+./build.py --build gnu-debug --target t_devops-shared-test-catch
 ```
 
 ### Running Unit Tests
@@ -28,7 +28,7 @@ The command to run CTest on the project executing only tests using a regex patte
 
 ```bash
 ./build.py --test gnu-debug --test-regex "catch$"
-# Short version. 
+# Short version.
 ./build.py -t gnu-debug -R "catch$"
 ```
 
@@ -36,7 +36,7 @@ The command combining a build and test of a specific target using a regex patter
 
 ```bash
 ./build.py --build --test gnu-debug --target t_devops-shared-test-catch --test-regex "catch$"
-# Short version. 
+# Short version.
 ./build.py -bt gnu-debug -n t_devops-shared-test-catch -R "catch$"
 ```
 
@@ -75,7 +75,7 @@ Match the constraints configured and set in the file [`../../../../.clang-format
 
 ### Naming Conventions
 
-Follow the described code conventions from document [`doc/code-conventions.md`](doc/code-conventions.md).  
+Follow the described code conventions from document [`doc/code-conventions.md`](doc/code-conventions.md).
 Key points:
 
 - **Classes/Structs**: PascalCase.
@@ -95,15 +95,15 @@ Key points:
 
 Conventional commits are preferred as described in
 file ['cmake/lib/doc/semantic-versioning.md'](../../doc/semantic-versioning.md). Files not part of the repository should
-be excluded from commit messages, which means ignore untracked files.  
-Use bullet points for commit messages to make them more readable and concise.  
+be excluded from commit messages, which means ignore untracked files.
+Use bullet points for commit messages to make them more readable and concise.
 Use backticks when referencing a path in one of the bullet points.
 
 ### AI Chat Response
 
-When assembling a commit message, include a separate "Locations" section in the AI response.  
-For every commit-message bullet, list the relevant source location(s) as clickable Markdown 
-links using project relative file paths when possible and optional line numbers.  
+When assembling a commit message, include a separate "Locations" section in the AI response.
+For every commit-message bullet, list the relevant source location(s) as clickable Markdown
+links using project relative file paths when possible and optional line numbers.
 These locations are supporting context and should not be
 included in the commit message itself.
 

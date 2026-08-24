@@ -88,14 +88,19 @@ if (CPACK_GENERATOR STREQUAL "DEB")
 			set(_QtPackage "${SF_QT_PACKAGE_FILENAME_PREFIX}rt-${SF_TOOLCHAIN_STRING}")
 			Sf_IncrementPatchVersion("${SF_QT_VERSION}" _QtPatchVerNext)
 			list(APPEND _Dependencies "${_QtPackage} (>= ${SF_QT_VERSION})" "${_QtPackage} (<< ${_QtPatchVerNext})")
+			# Check if this is the main/default component.
+			if (_Component STREQUAL "${SF_DEFAULT_COMPONENT_NAME}")
+				# Add the dependency to desktop files utilities without a version constraint.
+				list(APPEND _Dependencies "desktop-file-utils")
+			endif ()
 		endif ()
 		# Remove any duplicates.
 		list(REMOVE_DUPLICATES _Dependencies)
 		# Convert back to a comma-separated string.
 		string(JOIN ", " _Dependencies ${_Dependencies})
 		# Output results.
-		message(STATUS "Total Dependencies: ${_Dependencies}")
-		# The application uses the separately packaged Qt runtime when Qt support is enabled.
+		message(STATUS "Resulting Dependencies: ${_Dependencies}")
+			# The application uses the separately packaged Qt runtime when Qt support is enabled.
 		set("CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_DEPENDS" "${_Dependencies}")
 	endforeach ()
 endif ()
@@ -106,18 +111,26 @@ if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
 	# Set the Debian variables for each component.
 	foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
 		string(TOUPPER "${_Component}" _ComponentUpper)
-		if (_ComponentCount EQUAL 1)
-			set("CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME" "${CPACK_ARCHIVE_FILE_NAME}")
-		else ()
-			set("CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME" "${SF_PACKAGE_NAME}-${_Component}_${SF_GIT_TAG_VERSION}-${SF_PACKAGE_RELEASE}")
+		set(_filename "${SF_PACKAGE_BASE_NAME}-${_Component}")
+		list(APPEND _filename "${SF_TOOLCHAIN_STRING}")
+		list(APPEND _filename "${SF_GIT_TAG_VERSION}")
+		if (SF_PACKAGE_RELEASE)
+			string(APPEND _filename "-${SF_PACKAGE_RELEASE}")
 		endif ()
-		# Add the package revision to the file version part.
 		if (DEFINED SF_PACKAGE_REVISION)
-			set("CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME" "${CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME}.${SF_PACKAGE_REVISION}")
+			string(APPEND _filename ".${SF_PACKAGE_REVISION}")
 		endif ()
-		message(STATUS "Debian (${_Component}) Package name: ${CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_NAME}")
+		list(APPEND _filename "${SF_ARCHITECTURE_SAFE}")
+		string(REPLACE ";" "_" _filename "${_filename}")
+		set("CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME" "${_filename}")
+		# Add the package revision to the file version part.
+		message(STATUS "Archive (${_Component}) filename: ${CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME}")
 	endforeach ()
+	if (CPACK_GENERATOR STREQUAL "ZIP" AND EXISTS "${SF_ZIP_MANIFEST_FILE}")
+		file(COPY_FILE "${SF_ZIP_MANIFEST_FILE}" "${CPACK_OUTPUT_FILE_PREFIX}/${CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME}.zip-def")
+	endif ()
 endif ()
+
 
 if (CPACK_GENERATOR STREQUAL "NSIS64")
 	foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)

@@ -51,7 +51,10 @@ endif ()
 
 # Set the C++ standard to 20 for all projects which is required for the SfCompiler package.
 set(CMAKE_CXX_STANDARD 17)
-find_package(SfCompiler CONFIG REQUIRED)
+set(CMAKE_C_STANDARD 17)
+
+# Show all information on the current toolchain and system and host.
+Sf_ToolChainInfo()
 
 if (SF_BUILD_TESTING)
 	# Sets the version for SfCatch2 package other then the default.
@@ -62,11 +65,6 @@ if (SF_BUILD_TESTING)
 	enable_testing()
 	# Include CDash dashboard testing module and it sets the BUILD_TESTING to 'ON'.
 	include(CTest)
-endif ()
-
-# Satisfy cmake to prevent warning.
-if (CMAKE_VERBOSE_MAKEFILE)
-	message(STATUS "Verbosity enabled.")
 endif ()
 
 # Add Sub Projects in the right order of dependencies.
@@ -81,8 +79,8 @@ sf_SetRunPath(REPORT)
 
 # Coverage report generator in the form af a test is added.
 # Only when testing is enabled and the build type is 'Coverage'.
-# This must be the last test added since it relies on previous the calls
-# to 'Sf_AddAsCoverageTest()'.
+# This must be the last test added since it relies on targets added with 'Sf_AddTarget(... COVERAGE)'
+# or 'Sf_AddTargetForCoverage()' in the sub-projects.
 Sf_AddTestCoverageReport("coverage-report" "${CMAKE_CURRENT_LIST_DIR}/bin/gcov" "--html flat --json --cleanup --verbose" "src")
 
 # Add package build config when not building coverage.

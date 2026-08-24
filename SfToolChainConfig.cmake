@@ -4,6 +4,7 @@
 # @param _Prefix Prefix consisting out subdirectory and part of the filename of the application.
 #
 function(Sf_FindLinuxToolChainApps _CmakeFile _Prefix)
+	set(_GccMaxVer 18)
 	foreach (_Version RANGE ${_GccMaxVer} 8 -1)
 		# Check if non distribution gcc is installed available.
 		set(_Dir "/opt/gcc-${_Version}/bin")
@@ -39,7 +40,7 @@ function(Sf_FindLinuxToolChainApps _CmakeFile _Prefix)
 			break()
 		endif ()
 	endforeach ()
-	foreach (_Version RANGE 14 8 -1)
+	foreach (_Version RANGE 16 8 -1)
 		unset(_App CACHE)
 		find_program(_App "${_Prefix}gcov-${_Version}")
 		if (_App)
@@ -58,7 +59,6 @@ endfunction()
 # A Function is used to have a scopen for temporary variables.
 #
 function(Sf_SetToolChain)
-	set(_GccMaxVer 16)
 	# Assemble path to tool chain file.
 	set(_CmakeFile "${CMAKE_CURRENT_BINARY_DIR}/.sf/SfToolChain.cmake")
 	file(WRITE "${_CmakeFile}" "##\n## Created by function '${CMAKE_CURRENT_FUNCTION}()'\n##\n")
@@ -147,12 +147,27 @@ set(CMAKE_SYSTEM_PROCESSOR \"aarch64\")
 			message(SEND_ERROR "Windows cross compiler not found. Missing package 'mingw-w64' ?")
 			return()
 		endif ()
-		file(APPEND "${_CmakeFile}" "set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
+		get_filename_component(_BinDir "${_App}" DIRECTORY)
+		# Important to set CMAKE_CROSSCOMPILING to TRUE together with CMAKE_SYSTEM_NAME and CMAKE_SYSTEM_PROCESSOR
+		# When not it is not CMAKE_SYSTEM_PROCESSOR is reset by CMake itself and only for MinGW on a Linux host.
+		file(APPEND "${_CmakeFile}" "
+set(CMAKE_CROSSCOMPILING TRUE)
+set(CMAKE_SYSTEM_NAME \"${_SystemName}\")
+set(CMAKE_SYSTEM_PROCESSOR \"${_HostArch}\")
+# Prevent CLion IDE from reconfiguring the project thinking it has changed and the cache file is deleted.
 # Use mingw 64-bit compilers.
-set(CMAKE_C_COMPILER \"x86_64-w64-mingw32-gcc-posix\")
-set(CMAKE_CXX_COMPILER \"x86_64-w64-mingw32-c++-posix\")
-set(CMAKE_RC_COMPILER \"x86_64-w64-mingw32-windres\")
-set(CMAKE_RANLIB \"x86_64-w64-mingw32-ranlib\")
+if (NOT CMAKE_C_COMPILER STREQUAL \"${_BinDir}/x86_64-w64-mingw32-gcc-posix\")
+  set(CMAKE_C_COMPILER \"${_BinDir}/x86_64-w64-mingw32-gcc-posix\")
+endif ()
+if (NOT CMAKE_CXX_COMPILER STREQUAL \"${_BinDir}/x86_64-w64-mingw32-g++-posix\")
+  set(CMAKE_CXX_COMPILER \"${_BinDir}/x86_64-w64-mingw32-g++-posix\")
+endif ()
+set(CMAKE_RC_COMPILER \"${_BinDir}/x86_64-w64-mingw32-windres\")
+set(CMAKE_RANLIB \"${_BinDir}/x86_64-w64-mingw32-ranlib\")
+set(CMAKE_AR \"${_BinDir}/x86_64-w64-mingw32-gcc-ar\")
+set(CMAKE_NM \"${_BinDir}/x86_64-w64-mingw32-gcc-nm\")
+set(CMAKE_LINKER \"${_BinDir}/x86_64-w64-mingw32-gcc-ld\")
+set(CMAKE_STRIP \"${_BinDir}/x86_64-w64-mingw32-gcc-strip\")
 set(CMAKE_FIND_ROOT_PATH \"/usr/x86_64-w64-mingw32\")
 # Adjust the default behavior of the find commands:
 # search headers and libraries in the target environment
@@ -161,13 +176,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 # Search programs in the host environment
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 ")
-		# When the ccache package and executable is installed use it in the tool-chain file.
-		# The configuration file is at '~/.config/ccache/ccache.conf' and command 'ccache -p' shows it.
-		find_program(_CcacheExe "ccache")
-		if (_CcacheExe)
-			file(APPEND "${_CmakeFile}" "set(CMAKE_C_COMPILER_LAUNCHER \"${_CcacheExe}\")\n")
-			file(APPEND "${_CmakeFile}" "set(CMAKE_CXX_COMPILER_LAUNCHER \"${_CcacheExe}\")\n")
-		endif ()
 		# TODO: Cygwin compilers?
 		if (False)
 			set(_SystemName "Windows")
@@ -214,8 +222,18 @@ add_compile_options(/Zc:__cplusplus)")
 	else ()
 		set(SF_CROSSCOMPILING TRUE PARENT_SCOPE)
 	endif ()
+	# Set the Docker flag when the file exists.
+	if (EXISTS "Z:/.dockerenv" OR EXISTS "/.dockerenv")
+		set(SF_DOCKER TRUE PARENT_SCOPE)
+	else ()
+		set(SF_DOCKER FALSE PARENT_SCOPE)
+	endif ()
 	# Assign the tool chain.
-	set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
+	if (CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_TOOLCHAIN_FILE STREQUAL "${_CmakeFile}")
+		message(NOTICE "Toolchain file was externally set: ${CMAKE_TOOLCHAIN_FILE}")
+	else ()
+		set(CMAKE_TOOLCHAIN_FILE "${_CmakeFile}" PARENT_SCOPE)
+	endif ()
 endfunction()
 
 # Make it happen.

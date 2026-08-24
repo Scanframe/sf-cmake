@@ -17,6 +17,7 @@ import sys
 from elftools.elf.elffile import ELFFile
 import pefile
 
+
 def get_pe_info(file_path):
 	"""Extracts metadata from Windows PE files (.exe, .dll)"""
 	try:
@@ -27,7 +28,10 @@ def get_pe_info(file_path):
 			"CPU Type": pefile.MACHINE_TYPE.get(pe.FILE_HEADER.Machine, "Unknown"),
 			"Product Version": "N/A",
 			"File Version": "N/A",
-			"Imports" : []
+			"Company Name": "N/A",
+			"File Description": "N/A",
+			"Comments": "N/A",
+			"Imports": []
 		}
 
 		# Extract Version Information
@@ -38,8 +42,16 @@ def get_pe_info(file_path):
 						for entry in st.entries.items():
 							key = entry[0].decode()
 							val = entry[1].decode()
-							if key == 'ProductVersion': info["Product Version"] = val
-							if key == 'FileVersion': info["File Version"] = val
+							if key == 'ProductVersion':
+								info["Product Version"] = val
+							elif key == 'FileDescription':
+								info["File Description"] = val
+							elif key == 'CompanyName':
+								info["Company Name"] = val
+							elif key == 'Comments':
+								info["Comments"] = val
+							elif key == 'FileVersion':
+								info["File Version"] = val
 
 		# Ensure the import directory is parsed
 		if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
@@ -86,7 +98,7 @@ def get_elf_info(file_path):
 		return {"Error": f"ELF Parsing failed: {e}"}
 
 
-def main()->int:
+def main() -> int:
 	"""
 	Main function.
 	:return: Returns non-zero on error.

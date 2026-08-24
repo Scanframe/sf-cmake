@@ -29,7 +29,7 @@
 				},
 				"CMAKE_MESSAGE_LOG_LEVEL": {
 					"type": "STRING",
-					"value": "VERBOSE"
+					"value": "STATUS"
 				},
 				"CMAKE_VERBOSE_MAKEFILE": {
 					"type": "BOOL",

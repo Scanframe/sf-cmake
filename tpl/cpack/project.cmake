@@ -107,7 +107,7 @@ endif ()
 # Package the Qt library instead of the Application when the flag is set.
 if (NOT DEFINED SF_PACKAGE_QT OR SF_PACKAGE_QT STREQUAL "")
 	set(SF_PACKAGE_QT FALSE)
-	message(NOTICE "SF_PACKAGE_QT: Not passed, creating application package.")
+	message(STATUS "SF_PACKAGE_QT: Not passed, creating application package.")
 else ()
 	# Version Configuration using optional tweak.
 	math(EXPR QT_TWEAK_VERSION "${SF_PACKAGE_QT}" OUTPUT_FORMAT DECIMAL)
@@ -121,9 +121,9 @@ endif ()
 if (DEFINED SF_PACKAGE_REVISION)
 	# Number is required.
 	math(EXPR SF_PACKAGE_REVISION "${SF_PACKAGE_REVISION}" OUTPUT_FORMAT DECIMAL)
-	message(NOTICE "SF_PACKAGE_REVISION: ${SF_PACKAGE_REVISION}")
+	message(STATUS "SF_PACKAGE_REVISION: ${SF_PACKAGE_REVISION}")
 else ()
-	message(NOTICE "SF_PACKAGE_REVISION: Not set, creating base package.")
+	message(STATUS "SF_PACKAGE_REVISION: Not set, creating base package.")
 endif ()
 
 # This the also the default for variable CPACK_DEBIAN_PACKAGE_MAINTAINER.
@@ -137,7 +137,7 @@ set(_Components)
 foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
 	# Exclude default components as well since this excludes all fetched module installs as well.
 	if (_Component STREQUAL "${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}")
-		message(NOTICE "Removing the default component '${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}'.")
+		message(STATUS "Removing the default component '${CMAKE_INSTALL_DEFAULT_COMPONENT_NAME}'.")
 		continue()
 	endif ()
 	# When there are generator entries left in the list and the current generator is not part of it.
@@ -150,6 +150,7 @@ foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
 endforeach ()
 # Set the new components list.
 set(CPACK_COMPONENTS_ALL "${_Components}")
+message(STATUS "Components After (${CPACK_GENERATOR}): ${CPACK_COMPONENTS_ALL}")
 
 # When packaging QT
 if (SF_PACKAGE_QT)
@@ -235,23 +236,23 @@ endmacro()
 #ShowAllVars()
 #ShowAllEnvVars()
 
-message(NOTICE "SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}: ${SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}}")
-message(NOTICE "SF_DEPENDENCY_PATHS_IGNORED: ${SF_DEPENDENCY_PATHS_IGNORED}")
-
-# Pre-resolve ignored paths once outside the loops
-set(_ignored_paths_resolved)
-foreach (_ignore IN LISTS SF_DEPENDENCY_PATHS_IGNORED)
-	get_filename_component(_ignore_real "${_ignore}" REALPATH)
-	list(APPEND _ignored_paths_resolved "${_ignore_real}")
-endforeach ()
-
-foreach (_bin_file IN LISTS SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME})
-	# Get the binary file's dependencies passing the paths to be ignored (no-quotes on list!).
-	Sf_GetDependencies(_bin_dependencies "${_bin_file}" IGNORE_PATHS ${SF_DEPENDENCY_PATHS_IGNORED})
-	foreach (_bin_dep IN LISTS _bin_dependencies)
+message(STATUS "SF_ZIP_MANIFEST_FILE: ${SF_ZIP_MANIFEST_FILE}")
+# Skip stuff not needed for packaging QT libraries.
+if (NOT SF_PACKAGE_QT)
+	message(STATUS "CPACK_OUTPUT_FILE_PREFIX: ${CPACK_OUTPUT_FILE_PREFIX}")
+	message(STATUS "SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}: ${SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME}}")
+	message(STATUS "SF_DEPENDENCY_PATHS_IGNORED: ${SF_DEPENDENCY_PATHS_IGNORED}")
+	# Get dependencies for all component paths listed.
+	foreach (_bin_file IN LISTS SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME})
+		# Get the binary file's dependencies passing the paths to be ignored (no-quotes on list!).
+		Sf_GetDependencies(_bin_dependencies "${_bin_file}" RECURSE IGNORE_PATHS ${SF_DEPENDENCY_PATHS_IGNORED})
+		list(APPEND _all_deps ${_bin_dependencies})
+	endforeach ()
+	# Remove duplicates since they are there with multiple files.
+	list(REMOVE_DUPLICATES _all_deps)
+	foreach (_bin_dep IN LISTS _all_deps)
+		message(STATUS "Adding not ignored dependency: ${_bin_dep}")
+		# Add an entry for each file which was not ignored.
 		file(APPEND "${_IncFile}" "\n  file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}\" TYPE EXECUTABLE FILES \"${_bin_dep}\")")
 	endforeach ()
-	break()
-	# Get the destination for the dependencies.
-	get_filename_component(_deps_dest "${_bin_file}" DIRECTORY)
-endforeach ()
+endif ()

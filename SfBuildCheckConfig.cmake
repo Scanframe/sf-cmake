@@ -1,14 +1,15 @@
 ##!
 # Ensures that the current build directory is not within the source.
+# @param _Message Message to report when build directory is in the source tree.
 #
-macro(Sf_EnsureOutOfSourceBuild MSG)
-	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" InSource)
-	Sf_GetFilenameComponent(ParentDir ${CMAKE_SOURCE_DIR} PATH)
-	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${ParentDir}" InSourceSubdir)
-	if(InSource OR InSourceSubdir)
-		message(SEND_ERROR "${MSG}")
+function(Sf_EnsureOutOfSourceBuild _Message)
+	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" _InSource)
+	Sf_GetFilenameComponent(_ParentDir ${CMAKE_SOURCE_DIR} PATH)
+	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${_ParentDir}" _InSourceSubdir)
+	if(_InSource OR _InSourceSubdir)
+		message(SEND_ERROR "${_Message}")
 	endif()
-endmacro()
+endfunction()
 
 # Ensures that we do an out of source build
-Sf_EnsureOutOfSourceBuild("${PROJECT_NAME} requires an out of source build.")
+Sf_EnsureOutOfSourceBuild("Project '${PROJECT_NAME}' requires an out of source build!")

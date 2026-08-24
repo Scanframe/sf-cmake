@@ -145,6 +145,36 @@
 			"generators": [
 				"RPM"
 			]
+		},
+		{
+			"name": "gw-debug-zip",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Debug GW",
+			"description": "GW ZIP package debug.",
+			"configurePreset": "gw-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
+			"generators": [
+				"ZIP"
+			]
+		},
+		{
+			"name": "gw-release-zip",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Debug GW",
+			"description": "GW ZIP package debug.",
+			"configurePreset": "gw-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
+			"generators": [
+				"ZIP"
+			]
 		}
 	],
 	"workflowPresets": [

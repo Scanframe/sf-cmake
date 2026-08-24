@@ -188,7 +188,7 @@ function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
 	# Get the first optional argument.
 	Sf_GetOptionalArgument(_arg3 0 "${ARGN}")
 	if (DEFINED _arg3 AND _arg3)
-		# Set default plantuml version to the latest.
+		# Set default version to the latest.
 		set(_Options "--latest")
 	else ()
 		set(_Options "--joined")
@@ -216,6 +216,16 @@ function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
 	else ()
 		set(${_VarOut} "${_Versions}" PARENT_SCOPE)
 	endif ()
+endfunction()
+
+##!
+# Gets the versioned URL from the given GitHub repository.
+# @param _Owner Name of owner of the repository.
+# @param _Repository Name of the owners repository.
+# @param _TagHash tag or hash of the version.
+#
+function(Sf_GetGitHubVersionFileUrl _VarOut _Owner _Repository _TagHash)
+	set(${_VarOut} "https://github.com/${_Owner}/${_Repository}/archive/refs/tags/v${_TagHash}.tar.gz" PARENT_SCOPE)
 endfunction()
 
 ##!

@@ -75,10 +75,10 @@ function(Sf_QtLibraryDownload _Version)
 	set(_QtVerDir "_QtVerDir-NOTFOUND")
 	# Do some conversion to be sure.
 	foreach (_Dir IN LISTS _QtDirs)
-		message(STATUS "Looking for Qt library at: ${_Dir}")
+		message(VERBOSE "Looking for Qt library at: ${_Dir}")
 		if (EXISTS "${_Dir}")
 			set(_QtVerDir "${_Dir}")
-			message(STATUS "Found Qt Library at: ${_QtVerDir}")
+			message(VERBOSE "Found Qt Library at: ${_QtVerDir}")
 			break()
 		endif ()
 	endforeach ()
@@ -217,7 +217,7 @@ function(Sf_FindQtVersionDirectory _VarOut)
 	foreach (_Location ${_Locations})
 		if (EXISTS "${_Location}")
 			set(_QtDir "${_Location}")
-			message(STATUS "Qt root library found in '${_QtDir}'!")
+			message(STATUS "Qt Root Library: ${_QtDir}")
 			break()
 		endif ()
 	endforeach ()
@@ -421,6 +421,8 @@ endfunction()
 # Recursively determine whether `target` needs Qt's RUNPATH.
 # Walks LINK_LIBRARIES / INTERFACE_LINK_LIBRARIES, descending only
 # through STATIC/OBJECT/INTERFACE libraries (see note above).
+# @param _target Designated target.
+# @param _out_var Output variable receiving TRUE or FALSE.
 #
 function(Sf_IsQtLinked _target _out_var)
 	set(_visited "")

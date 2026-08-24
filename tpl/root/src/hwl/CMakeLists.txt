@@ -11,7 +11,6 @@ if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
 	# Make sure builds do not wind up in the source directory.
 	find_package(SfBuildCheck CONFIG REQUIRED)
 	find_package(SfMacros CONFIG REQUIRED)
-	find_package(SfCompiler CONFIG REQUIRED)
 endif ()
 
 # //! [switch]

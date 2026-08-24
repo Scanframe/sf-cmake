@@ -75,7 +75,7 @@ Execute build commands within a Wine environment, enabling Windows toolchains (M
 
 **Key Options**:
 
-- `-g, --git-server`: Force a start git-server in background for repository access in Wine.
+- `-g, --git-server`: Force a start git-server into the background for repository access in Wine.
 
 **Examples**:
 
@@ -100,7 +100,7 @@ Execute build commands inside a Docker container, providing isolated build envir
 
 - `-q, --qt-ver <version>`: Specify Qt version (default: 6.10.1)
 - `-p, --platform <arch>`: Target platform (amd64 or arm64)
-- `--no-build-dir`: Don't mount build directory into container
+- `--no-build-dir`: Don't mount the build directory into container
 
 **Examples**:
 
@@ -132,8 +132,8 @@ Install required development packages and dependencies depending on the OS it is
 
 ### Run Command
 
-Execute compiled applications with the proper environment configuration from the `CMakePresets.json` file 
-preceded by an environment configured from `build.ini` file.
+Execute compiled applications with the proper environment configuration from the `CMakePresets.json` file preceded by an
+environment configured from `build.ini` file.
 
 **Usage**: `./build.py run -p <preset> -- <executable> [args]`
 
@@ -209,7 +209,7 @@ SF_EXEC_DIR_SUFFIX=-msvc ./build.py run -p msvc-debug -- hello-world.exe
 - **Path Example**: `P:\toolchain\mingw1320_64-posix\bin`
 
 > Due to a MinGW v13 bug, it cannot be run from a shared drive since it converts its
-> install-directory to a UNC path which breaks the compiler.  
+> install-directory to a UNC path which breaks the compiler.
 > _(A workaround is using a slower SSHFS share instead of Samba and
 > requires [Cygwin](https://github.com/Scanframe/sf-cygwin-bin "Easy install Cygwin repo.").)_
 
@@ -373,7 +373,7 @@ The install-command can set up entire development environments:
 
 ```bash
 ./build.py install --required lnx
-./build.py install --required win 
+./build.py install --required win
 ./build.py install --required dce
 ```
 
@@ -407,7 +407,7 @@ Fine-grained test control:
 
 **External Tools**:
 
-- CMake (3.25+)
+- CMake (3.29+)
 - Ninja (build system)
 - Git
 - Docker (for docker command)
