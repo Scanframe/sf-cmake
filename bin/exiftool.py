@@ -8,9 +8,9 @@ information such as file type, CPU architecture, version details, and imported l
 The module supports Windows Portable Executable (PE) and Linux ELF formats.
 
 Functions:
-    - get_pe_info: Extracts metadata from Windows PE (Portable Executable) files.
-    - get_elf_info: Extracts metadata from Linux ELF (Executable and Linkable Format) files.
-    - main: Entry point of the script that determines the file type and extracts metadata.
+  - get_pe_info: Extracts metadata from Windows PE (Portable Executable) files.
+  - get_elf_info: Extracts metadata from Linux ELF (Executable and Linkable Format) files.
+  - main: Entry point of the script that determines the file type and extracts metadata.
 """
 import os
 import sys
@@ -70,6 +70,15 @@ def get_elf_info(file_path):
 	try:
 		with open(file_path, 'rb') as f:
 			elf = ELFFile(f)
+
+			def get_section(section_name: str) -> str:
+				"""Decodes a section from a PE file."""
+				section = elf.get_section_by_name(f".meta.{section_name}")
+				if not section:
+					return 'N/A'
+				# Decode bytes to a string (stripping trailing null bytes if it's a C-string)
+				return section.data().decode('utf-8', errors='ignore').rstrip('\x00')
+
 			# Map Machine ID to human-readable strings.
 			cpu_type = elf.header['e_machine']
 			file_type = elf.header['e_type']
@@ -77,8 +86,11 @@ def get_elf_info(file_path):
 				"File Name": os.path.basename(file_path),
 				"File Type": f"Linux ELF ({file_type})",
 				"CPU Type": cpu_type,
-				"Product Version": "N/A",
-				"File Version": "N/A",
+				"Product Version": f"{get_section('ProductVersion')}",
+				"File Version": f"{get_section('FileVersion')}",
+				"Company Name": f"{get_section('CompanyName')}",
+				"File Description": f"{get_section('FileDescription')}",
+				"Comments": f"{get_section('Comments')}",
 				"Runpath": [],
 				"Imports": []
 			}

@@ -23,7 +23,6 @@ set(SF_COMPILER "gnu" CACHE STRING "Selected compiler for the build which defaul
 set(SF_BUILD_TESTING "OFF" CACHE BOOL "Enable test targets to be build.")
 set(SF_BUILD_QT "OFF" CACHE BOOL "Enable QT targets to be build.")
 set(SF_BUILD_GUI_TESTING "OFF" CACHE BOOL "Enable testing of tests using the GUI.")
-set(SF_TEST_NAME_PREFIX "t_" CACHE STRING "Prefix for test applications to allow skipping when packaging.")
 set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when developing locally to speed up.")
 # Internal used variables.
 set(SF_ARCHITECTURE "x86_64" CACHE INTERNAL "Determines the architecture of the build and is determined by the tool chain selection for the set compiler.")
@@ -628,14 +627,20 @@ function(Sf_AddVersionResource _Target)
 	set(_HomepageUrl "${HOMEPAGE_URL}")
 	set(RC_Comments "Build on '${CMAKE_HOST_SYSTEM_NAME} ${CMAKE_HOST_SYSTEM_PROCESSOR} ${CMAKE_HOST_SYSTEM_VERSION}' (${CMAKE_C_COMPILER_ID})")
 	# Set input and output files for the generation of the actual config file.
-	set(_FileIn "${SfBase_DIR}/tpl/res/version.rc")
+	if (WIN32)
+		set(_FileIn "${SfBase_DIR}/tpl/res/version.rc")
+		# Assemble the file out.
+		set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
+	else ()
+		set(_FileIn "${SfBase_DIR}/tpl/res/version.cpp")
+		# Assemble the file out.
+		set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.cpp")
+	endif ()
 	# Make sure the file exists.
 	Sf_CheckFileExists("${_FileIn}")
-	# Assemble the file out.
-	set(_FileOut "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
 	# Generate the configure the file for the resource.
 	configure_file("${_FileIn}" "${_FileOut}" @ONLY NEWLINE_STYLE LF)
-	#
+	# Append the resource file to the target.
 	target_sources("${_Target}" PRIVATE "${_FileOut}")
 endfunction()
 
