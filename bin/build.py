@@ -3543,7 +3543,7 @@ examples:
   Dry-run upload:
     {self.script} {self.command} -d bin/pkg/*.deb
 
-  Template ini-file for '.nexus-credentials':
+  Template ini-file for '.nexus-credentials.ini':
 
 [nexus-credentials]
 NEXUS_USER=your-username
@@ -3671,7 +3671,7 @@ NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 			}
 		# Check on the presence of required variables.
 		flag_var = False
-		# Flag indicating the Winget definitaion cache on the Nexus server needs to be refreshed.
+		# Flag indicating the Winget definition cache on the Nexus server needs to be refreshed.
 		flag_cache_refresh = False
 		for var_name, var_val in cred_vars.items():
 			if not var_val:

@@ -362,9 +362,9 @@ function(Sf_SetTargetDefaultOptions _Target)
 	get_target_property(_Type "${_Target}" TYPE)
 	# Tell the compiled code a static or dynamic library is being build.
 	if (_Type STREQUAL "SHARED_LIBRARY")
-		target_compile_definitions(${PROJECT_NAME} PRIVATE TARGET_DYNAMIC_LIB)
+		target_compile_definitions(${_Target} PRIVATE TARGET_DYNAMIC_LIB)
 	elseif (_Type STREQUAL "STATIC_LIBRARY")
-		target_compile_definitions(${PROJECT_NAME} PRIVATE TARGET_STATIC_LIB)
+		target_compile_definitions(${_Target} PRIVATE TARGET_STATIC_LIB)
 	endif ()
 	# When the GNU compiler is involved.
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

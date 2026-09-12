@@ -47,11 +47,6 @@ if (CMAKE_CXX_COMPILER_ID)
 		string(REGEX REPLACE "([0-9]+\\.[0-9]+).*" "\\1" SF_TOOLCHAIN_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
 		string(APPEND SF_TOOLCHAIN_STRING "-${SF_TOOLCHAIN_VERSION}")
 	endif ()
-	if (WIN32)
-		string(PREPEND SF_TOOLCHAIN_STRING "win+")
-	else ()
-		string(PREPEND SF_TOOLCHAIN_STRING "lnx+")
-	endif ()
 	Sf_GetSafeArchitectureName(SF_ARCHITECTURE_SAFE "${SF_ARCHITECTURE}")
 	# Set custom package filename including toolchain
 	set(SF_PACKAGE_NAME "${SF_PACKAGE_BASE_NAME}-${SF_TOOLCHAIN_STRING}-${SF_ARCHITECTURE_SAFE}")
@@ -278,29 +273,27 @@ foreach (_var IN LISTS _variable_names)
 	endif ()
 endforeach ()
 
-# When Qt is involved install the desktop-files.
-if (SF_BUILD_QT)
-	set(_ApplicationDir "${CMAKE_CURRENT_SOURCE_DIR}/data/application")
-	if (EXISTS "${_ApplicationDir}")
-		if (WIN32)
-		else ()
-			# Install the desktop menu files.
-			install(DIRECTORY
-				"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
-				DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/applications"
-				COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
-				FILES_MATCHING
-				PATTERN "*.desktop"
-			)
-			# Install the icon files.
-			install(DIRECTORY
-				"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
-				DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/icons/hicolor/scalable/apps"
-				COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
-				FILES_MATCHING
-				PATTERN "*.svg"
-			)
-		endif ()
+# Check for a data application directory.
+set(_ApplicationDir "${CMAKE_CURRENT_SOURCE_DIR}/data/application")
+if (EXISTS "${_ApplicationDir}")
+	if (WIN32)
+	else ()
+		# Install the desktop menu files.
+		install(DIRECTORY
+			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
+			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/applications"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
+			FILES_MATCHING
+			PATTERN "*.desktop"
+		)
+		# Install the icon files.
+		install(DIRECTORY
+			"${CMAKE_CURRENT_SOURCE_DIR}/data/application/"
+			DESTINATION "/\${SF_ROOT_PREFIX}/usr/share/icons/hicolor/scalable/apps"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
+			FILES_MATCHING
+			PATTERN "*.svg"
+		)
 	endif ()
 endif ()
 
