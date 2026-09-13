@@ -41,9 +41,6 @@ ExternalProject_Add(
 	#INSTALL_COMMAND ""
 )
 
-
-
-
 # Force Ninja to re-run the external configure step on every invocation
 ExternalProject_Add_Step("win-launch" reconfigure
 	COMMAND ${CMAKE_COMMAND} -E echo "Bypassing Ninja cache for external project..."

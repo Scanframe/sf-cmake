@@ -151,31 +151,37 @@ exec '${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}' \"$@\"
 			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
 		)
 	else ()
-		# TODO: The shortcut name should be retrieved from a target property like 'SHORTCUT_NAME'.
 		# For a windows package create a launcher link.
-		if (WIN32)
-			# Install the Windows launcher executable `cmd-pass.exe` as the current executable prefixed with 'launch-'.
-			install(PROGRAMS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/cmd-pass.exe"
-				DESTINATION .
-				RENAME "launch-${_OutputName}${_OutputSuffix}"
-				COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
-			)
-			# Assemble the Windows launcher configuration ini-file path.
-			set(_LauncherIniTpl "${CMAKE_CURRENT_SOURCE_DIR}/data/win-launch/launch-${_OutputName}${_OutputSuffix}.ini")
-			set(_LauncherIni "${CMAKE_CURRENT_BINARY_DIR}/.sf/winget/launch-${_OutputName}${_OutputSuffix}.ini")
-			set(SF_WINGET_SOURCE_IDENTIFIER "NexusWinGet-")
-			set(SF_WINGET_GROUP "develop")
-			configure_file("${_LauncherIniTpl}" "${_LauncherIni}")
-			# Check if it exists.
-			if (NOT EXISTS "${_LauncherIni}")
-				message(SEND_ERROR "Missing launcher ini-file: ${_LauncherIni}")
-			endif ()
-			install(FILES "${_LauncherIni}" DESTINATION . RENAME "launch-${_OutputName}${_OutputSuffix}.ini" COMPONENT "${SF_DEFAULT_COMPONENT_NAME}")
-			list(APPEND CPACK_PACKAGE_EXECUTABLES "${CPACK_PACKAGE_INSTALL_DIRECTORY}/${CMAKE_PROJECT_NAME}/launch-${_OutputName}${_OutputSuffix}" "${_OutputName}")
+		# Install the Windows launcher executable `cmd-pass.exe` as the current executable prefixed with 'launch-'.
+		install(PROGRAMS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/cmd-pass.exe"
+			DESTINATION .
+			RENAME "launch-${_OutputName}${_OutputSuffix}"
+			COMPONENT "${SF_DEFAULT_COMPONENT_NAME}"
+		)
+		# Assemble the Windows launcher configuration ini-file path.
+		set(SF_WINLAUNCH_EXECUTABLE "${_OutputName}${_OutputSuffix}")
+		# Get to see if the target is a GUI target.
+		Sf_HasTargetFlag(SF_WINLAUNCH_CONSOLE "${_ExecTarget}" gui)
+		if (SF_WINLAUNCH_CONSOLE)
+			set(SF_WINLAUNCH_CONSOLE 1)
 		else ()
-			# Each entry is is a combination of 2 items in the list executable first and then the shortcut name.
-			list(APPEND CPACK_PACKAGE_EXECUTABLES "${CPACK_PACKAGE_INSTALL_DIRECTORY}/${CMAKE_PROJECT_NAME}/${_OutputName}${_OutputSuffix}" "${_OutputName}")
+			set(SF_WINLAUNCH_CONSOLE 0)
 		endif ()
+		set(_LauncherIniTpl "${CMAKE_CURRENT_SOURCE_DIR}/data/win-launch/launch-${SF_WINLAUNCH_EXECUTABLE}.ini")
+		# Check if it exists.
+		if (NOT EXISTS "${_LauncherIniTpl}")
+			message(STATUS "Using default launcher ini-template: ${_LauncherIni}")
+			set(_LauncherIniTpl "${CMAKE_CURRENT_LIST_DIR}/res/winlaunch-tpl.ini")
+		endif ()
+		set(_LauncherIni "${CMAKE_CURRENT_BINARY_DIR}/.sf/winget/launch-${_OutputName}${_OutputSuffix}.ini")
+		set(SF_WINGET_SOURCE_IDENTIFIER "NexusWinGet-")
+		set(SF_WINGET_GROUP "develop")
+		configure_file("${_LauncherIniTpl}" "${_LauncherIni}")
+		install(FILES "${_LauncherIni}" DESTINATION . RENAME "launch-${SF_WINLAUNCH_EXECUTABLE}.ini" COMPONENT "${SF_DEFAULT_COMPONENT_NAME}")
+		list(APPEND CPACK_PACKAGE_EXECUTABLES "${CPACK_PACKAGE_INSTALL_DIRECTORY}/${CMAKE_PROJECT_NAME}/launch-${_OutputName}${_OutputSuffix}" "${_OutputName}")
+		# Prevent these variable from propagation to when 'project.cmake' runs by CPack.
+		unset(SF_WINLAUNCH_EXECUTABLE)
+		unset(SF_WINLAUNCH_CONSOLE)
 	endif ()
 endforeach ()
 
