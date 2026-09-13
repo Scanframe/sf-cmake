@@ -355,6 +355,24 @@ function(Sf_ReportGitTagVersion _Versions)
 endfunction()
 
 ##!
+# Converts the versions list to a readable string.
+#
+function (Sf_VersionToString _OutVar _Versions)
+	# Split the list into separate values.
+	list(GET _Versions 0 SF_GIT_TAG_VERSION)
+	list(GET _Versions 1 SF_GIT_TAG_RC)
+	list(GET _Versions 2 SF_GIT_TAG_COMMITS)
+	set(_rv "${SF_GIT_TAG_VERSION}")
+	if (NOT SF_GIT_TAG_RC STREQUAL "")
+		string(APPEND _rv "-rc.${SF_GIT_TAG_RC}")
+	endif()
+	if (NOT SF_GIT_TAG_COMMITS STREQUAL "")
+		string(APPEND _rv "~${SF_GIT_TAG_COMMITS}")
+	endif()
+	set(${_OutVar} "${_rv}" PARENT_SCOPE)
+endfunction()
+
+##!
 # Set the target linker and compile options depending on the compiler ID and 'CMAKE_BUILD_TYPE' variable.
 #
 function(Sf_SetTargetDefaultOptions _Target)

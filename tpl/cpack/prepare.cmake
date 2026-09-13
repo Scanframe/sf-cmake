@@ -127,6 +127,20 @@ endif ()
 Sf_GetQtCompilerSubdirectory(SF_COMPILER_SUBDIR)
 
 set(CPACK_PACKAGE_EXECUTABLES)
+
+# Set some Winget required variables for all targets to dependent package locations.
+if (WIN32)
+	# This variable is used to assemble a path to depending packages containing DLL's of libraries in a users directory.
+	# This applies to the Qt version directory which is in a different group/channel.
+	set(SF_WINGET_SOURCE_IDENTIFIER "sf-")
+	set(SF_WINGET_GROUP "develop")
+	# Check the APT repository name since it is also used for the Winget group channel.
+	if (NOT "$ENV{NEXUS_APT_REPO}" STREQUAL "")
+		set(SF_WINGET_GROUP "$ENV{NEXUS_APT_REPO}")
+	endif ()
+	message(STATUS "Winget channel 'SF_WINGET_GROUP' set to: ${SF_WINGET_GROUP}")
+endif ()
+
 # Create a launcher for each executable.
 foreach (_ExecTarget IN LISTS _ExecTargets)
 	Sf_GetTargetOutputPath("${_ExecTarget}" _OutputPath)
@@ -170,12 +184,10 @@ exec '${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}' \"$@\"
 		set(_LauncherIniTpl "${CMAKE_CURRENT_SOURCE_DIR}/data/win-launch/launch-${SF_WINLAUNCH_EXECUTABLE}.ini")
 		# Check if it exists.
 		if (NOT EXISTS "${_LauncherIniTpl}")
-			message(STATUS "Using default launcher ini-template: ${_LauncherIni}")
 			set(_LauncherIniTpl "${CMAKE_CURRENT_LIST_DIR}/res/winlaunch-tpl.ini")
+			message(STATUS "Using default launcher ini-template (${_ExecTarget}): ${_LauncherIniTpl}")
 		endif ()
 		set(_LauncherIni "${CMAKE_CURRENT_BINARY_DIR}/.sf/winget/launch-${_OutputName}${_OutputSuffix}.ini")
-		set(SF_WINGET_SOURCE_IDENTIFIER "NexusWinGet-")
-		set(SF_WINGET_GROUP "develop")
 		configure_file("${_LauncherIniTpl}" "${_LauncherIni}")
 		install(FILES "${_LauncherIni}" DESTINATION . RENAME "launch-${SF_WINLAUNCH_EXECUTABLE}.ini" COMPONENT "${SF_DEFAULT_COMPONENT_NAME}")
 		list(APPEND CPACK_PACKAGE_EXECUTABLES "${CPACK_PACKAGE_INSTALL_DIRECTORY}/${CMAKE_PROJECT_NAME}/launch-${_OutputName}${_OutputSuffix}" "${_OutputName}")

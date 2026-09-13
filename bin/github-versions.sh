@@ -15,7 +15,7 @@ trap 'ScriptExit "${BASH_SOURCE}" "${BASH_LINENO}" "${BASH_COMMAND}"' EXIT
 # Prints the help.
 #
 function show_help {
-	echo "Usage: ${0} [options]
+	echo "Usage: $(basename "${0}") [options]
   Lists all version tags formated like 'v1.2.3' from given GitHub repository.
   Options:
     -o, --owner <...> : Repository owner.
