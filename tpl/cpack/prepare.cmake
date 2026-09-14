@@ -177,9 +177,9 @@ exec '${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}' \"$@\"
 		# Get to see if the target is a GUI target.
 		Sf_HasTargetFlag(SF_WINLAUNCH_CONSOLE "${_ExecTarget}" gui)
 		if (SF_WINLAUNCH_CONSOLE)
-			set(SF_WINLAUNCH_CONSOLE 1)
-		else ()
 			set(SF_WINLAUNCH_CONSOLE 0)
+		else ()
+			set(SF_WINLAUNCH_CONSOLE 1)
 		endif ()
 		set(_LauncherIniTpl "${CMAKE_CURRENT_SOURCE_DIR}/data/win-launch/launch-${SF_WINLAUNCH_EXECUTABLE}.ini")
 		# Check if it exists.
