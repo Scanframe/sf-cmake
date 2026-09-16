@@ -1,32 +1,34 @@
 # CMake Library
 
 <!-- TOC -->
-
 * [CMake Library](#cmake-library)
 * [Introduction](#introduction)
-    * [General](#general)
-    * [Toolchains Supported](#toolchains-supported)
-    * [Quick start](#quick-start)
-        * [Using: Ubuntu/Debian flavor of Linux:](#using-ubuntudebian-flavor-of-linux)
-        * [Using: Windows](#using-windows)
-    * [Project Directory Structure & Setup](#project-directory-structure--setup)
-        * [Structure](#structure)
-        * [Project Setup Information](#project-setup-information)
-    * [Qt Library Download](#qt-library-download)
-    * [Doxygen Document](#doxygen-document)
-    * [Git Versioning](#git-versioning)
-        * [Tagging](#tagging)
-    * [Semantic Versioning](#semantic-versioning)
-    * [GitLab-CI Pipeline](#gitlab-ci-pipeline)
-        * [Debian Package Upload Scheme](#debian-package-upload-scheme)
-    * [Coverage Reporting](#coverage-reporting)
-        * [Tools](#tools)
-        * [CMake Functions](#cmake-functions)
-    * [Code Format Checking and Fixing with Clang](#code-format-checking-and-fixing-with-clang)
-    * [Packaging](#packaging)
-        * [Project](#project)
-        * [Qt for Distribution](#qt-for-distribution)
-
+  * [General](#general)
+  * [Toolchains Supported](#toolchains-supported)
+  * [Quick start](#quick-start)
+    * [Using: Ubuntu/Debian flavor of Linux:](#using-ubuntudebian-flavor-of-linux)
+    * [Using: Windows](#using-windows)
+  * [Project Directory Structure & Setup](#project-directory-structure--setup)
+    * [Structure](#structure)
+    * [Project Setup Information](#project-setup-information)
+  * [Qt Library Download](#qt-library-download)
+  * [Doxygen Document](#doxygen-document)
+  * [Git Versioning](#git-versioning)
+    * [Tagging](#tagging)
+  * [Semantic Versioning](#semantic-versioning)
+  * [GitLab-CI Pipeline](#gitlab-ci-pipeline)
+    * [Debian Package Upload Scheme](#debian-package-upload-scheme)
+  * [Coverage Reporting](#coverage-reporting)
+    * [Tools](#tools)
+    * [CMake Functions](#cmake-functions)
+  * [Code Format Checking and Fixing with Clang](#code-format-checking-and-fixing-with-clang)
+  * [Packaging](#packaging)
+    * [Project](#project)
+    * [Qt for Distribution](#qt-for-distribution)
+    * [Debian Package Versioning Specification](#debian-package-versioning-specification)
+      * [Version Structure](#version-structure)
+      * [Examples & Workflow](#examples--workflow)
+      * [CPack Configuration Guidelines](#cpack-configuration-guidelines)
 <!-- TOC -->
 
 # Introduction
@@ -37,29 +39,29 @@ This repository makes using CMake in C++ projects easier and features:
 
 * Allows building Qt and non-Qt projects from Linux and Windows from a fresh-installed OS from scratch.
 * The project can be setup on a Linux system and shared with Windows using Samba ((`follow symlinks = yes`))
-  or with VirtualBox shared folders.
+	or with VirtualBox shared folders.
 * Supports building using the compilers GNU, MinGW and MSVC on Linux and MinGW and MSVC on Windows.
 * Provides a Python [`build.py`](bin/build.py) script to:
-    * Set up the required packages for the used OS (Linux/Debian and Windows).
-    * CMake configure, build, test and package or combined in a workflow for in CI pipelines.
-    * Set up an environment for running a nested version of the script in Linux/Wine for the MSVC compiler.
-    * Run the nested script in a Docker container using
-      a [dedicated image](https://hub.docker.com/repository/docker/avolphen/amd64-gnu-cpp/general "Link to Docker Hub.")
-      also used for pipelines.
-    * Downloading build tools and compiler for Windows or Linux/Wine.
+	* Set up the required packages for the used OS (Linux/Debian and Windows).
+	* CMake configure, build, test and package or combined in a workflow for in CI pipelines.
+	* Set up an environment for running a nested version of the script in Linux/Wine for the MSVC compiler.
+	* Run the nested script in a Docker container using
+		a [dedicated image](https://hub.docker.com/repository/docker/avolphen/amd64-gnu-cpp/general "Link to Docker Hub.")
+		also used for pipelines.
+	* Downloading build tools and compiler for Windows or Linux/Wine.
 * Provides a skeleton CMake [project](tpl/root/src) and [CMake presets](tpl/root/CMakePresets.json) which:
-    * Find the newest installed GCC compiler or cross-compiler when more are installed on a system. (Linux only)
-    * For Windows adds version and description to Windows DLL's and EXE's using an auto-created resource file using the
-      CMake project information and current Git version tag.
-    * Create source documentation in a smart way using Doxygen with a PlantUML (a version can be set) plugin installed.
-    * Create installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
-    * A coverage build that reports the percentage of coverage as well as a detailed HTML-report. (GNU compiler only)
-    * Locates the required Qt library version and downloads it when it does not exist.
+	* Find the newest installed GCC compiler or cross-compiler when more are installed on a system. (Linux only)
+	* For Windows adds version and description to Windows DLL's and EXE's using an auto-created resource file using the
+		CMake project information and current Git version tag.
+	* Create source documentation in a smart way using Doxygen with a PlantUML (a version can be set) plugin installed.
+	* Create installable packages for Windows (NSIS, zip) and Linux (deb, rpm).
+	* A coverage build that reports the percentage of coverage as well as a detailed HTML-report. (GNU compiler only)
+	* Locates the required Qt library version and downloads it when it does not exist.
 * Provides a skeleton [`gitlab-ci`](tpl/root/gitlab-ci) configuration directory which:
-    * Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
-    * Uploads the coverage HTML report to a MinIO server and accessible from the GitLab merge request.
+	* Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
+	* Uploads the coverage HTML report to a MinIO server and accessible from the GitLab merge request.
 * A version bump bash script to determine the next version based on which (merge-)commit is released when using
-  conventional commit messages.
+	conventional commit messages.
 
 ## Toolchains Supported
 
@@ -261,7 +263,7 @@ A project directory tree could look like this:
 | cmake/lib       | Obligatory Location of this 'cmake-lib' git-submodule. |
 | cmake-build     | CMake binary root directory.                           |
 | doc             | Doxygen document project source.                       |
-| lib             | Downloaded or symlinks to libraries.                   |
+| lib             | Downloaded or symlinks to libraries and toolchains.    |
 | lib/qt          | Linux Qt library directory or symlink.                 |
 | lib/toolchain   | Base directory of toolchains.                          |
 | src             | Application source files.                              |
@@ -387,17 +389,19 @@ Debian packages are deployed/uploaded to the appropriate apt-repository dependin
 
 ### Tools
 
-The tools for this are `gcov` and `gcovr` of
+The tools for this are `gcov` and `gcovr` for performing coverage.
+
+> **Note:** Currently it is only exclusive to Linux for now.
 
 ### CMake Functions
 
 The functions needed to perform coverage are located in [SfBaseConfig.cmake](SfBaseConfig.cmake).
 
-| Function                 | Description                                                                                          |
-|--------------------------|------------------------------------------------------------------------------------------------------|
-| Sf_AddTargetForCoverage  | Sets compiler and linker options for the target depending on the target type.                        |
-| Sf_AddAsCoverageTest     | Adds a test to the list which is used as a dependency for the test generating the report.            |
-| Sf_AddTestCoverageReport | Adds the test generating the report calling the script [coverage-report.sh](bin/coverage-report.sh). |
+| Function                                                          | Description                                                                                          |
+|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `Sf_AddTarget(<trg> FLAG cov ...)`                                | Adds a (unit-)test application which generates the coverage information for the test report.         |
+| `Sf_AddTargetForCoverage(<trg>)` <br>`Sf_AddTarget(... COVERAGE)` | Sets compiler and linker options for the target depending on the target type.                        |
+| `Sf_AddTestCoverageReport()`                                      | Adds the test generating the report calling the script [coverage-report.sh](bin/coverage-report.sh). |
 
 ## Code Format Checking and Fixing with Clang
 
@@ -487,19 +491,20 @@ for both automated CI/CD builds and local developer builds.
 #### CPack Configuration Guidelines
 
 1. **CI Pipeline (Automated):**
-   Parse output from `git describe --dirty --match 'v*.*.*'`:
-    * Convert `-rc.` to `~rc`
-    * Map the commit distance (`-9-`) to `+9`
-    * Set package revision/suffix to empty (default)
+	 Parse output from `git describe --dirty --match 'v*.*.*'`:
+
+* Convert `-rc.` to `~rc`
+* Map the commit distance (`-9-`) to `+9`
+* Set package revision/suffix to empty (default)
 
 2. **Local Developer Build:**
-   When building locally to test fixes in the test APT repository, supply the optional revision number (e.g., `1`) to
-   CPack:
-   ```bash
-   ./build.py -p gnu-debug -- -DSF_PACKAGE_REVISION=1
-   cmake --build build --target package
-   ```
-   This appends `.1` to the version, ensuring `dpkg` treats it as an upgrade over the CI build.
+	 When building locally to test fixes in the test APT repository, supply the optional revision number (e.g., `1`) to
+	 CPack:
+	 ```bash
+	 ./build.py -p gnu-debug -- -DSF_PACKAGE_REVISION=1
+	 cmake --build build --target package
+	 ```
+	 This appends `.1` to the version, ensuring `dpkg` treats it as an upgrade over the CI build.
 
 To test version comparison, use:
 

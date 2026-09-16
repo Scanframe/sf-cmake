@@ -28,6 +28,7 @@ set(SF_COVERAGE_ONLY_TARGETS "" CACHE STRING "Only targets for coverage when dev
 set(SF_ARCHITECTURE "x86_64" CACHE INTERNAL "Determines the architecture of the build and is determined by the tool chain selection for the set compiler.")
 set(SF_COMMON_LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE INTERNAL "Location of common binary libraries to be unpacked into.")
 set(SF_NEXUS_SHARED_LIBS "https://nexus.scanframe.com/repository/shared/library" CACHE INTERNAL "Nexus repository server for downloads of libraries.")
+set(SF_GIT_USR_BIN "" CACHE INTERNAL "Windows 'Git/usr/bin' directory to be able to find executables like 'patch' and 'dos2unix' as a 'HINTS' in 'find_...()'.")
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
 set(SF_CPACK_PREPARE_FILE "${CMAKE_CURRENT_LIST_DIR}/tpl/cpack/prepare.cmake" CACHE STRING "Preparation script for running CPack project script.")
@@ -51,6 +52,18 @@ if (SF_CMAKE_ROLE STREQUAL "PROJECT")
 		FULL_DOCS "Semicolon-separated package-selection flags like 'gui', 'cli', 'test', 'plugin' and 'doc'."
 	)
 endif ()
+
+##!
+# Set the SF_GIT_USR_BIN cache variable so it can be used cross projects.
+#
+if(CMAKE_HOST_WIN32)
+	find_package(Git QUIET)
+	if(Git_FOUND)
+		get_filename_component(GIT_DIR "${GIT_EXECUTABLE}" DIRECTORY)
+		get_filename_component(GIT_ROOT "${GIT_DIR}" DIRECTORY)
+		set(SF_GIT_USR_BIN "${GIT_ROOT}/usr/bin")
+	endif()
+endif()
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -398,7 +411,7 @@ function(Sf_SetTargetDefaultOptions _Target)
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 			# Nothing specific yet.
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
+			# Targets get compile options assigned when added using 'COVERAGE' in Sf_AddTarget() function.
 		else ()
 			message(FATAL_ERROR "The current build type '${CMAKE_BUILD_TYPE}' is not covered yet for compiler '${CMAKE_CXX_COMPILER_ID}'!")
 		endif ()
@@ -434,7 +447,7 @@ function(Sf_SetTargetDefaultOptions _Target)
 			]]
 			#target_compile_options("${_Target}" PRIVATE "-Zc:__cplusplus")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Coverage")
-			# Targets get compile options assigned when added using Sf_AddTargetForCoverage() function.
+			# Targets get compile options assigned when added using 'COVERAGE' in Sf_AddTarget() function.
 		else ()
 			message(AUTHOR_WARNING "The current build type '${CMAKE_BUILD_TYPE}' is not covered yet for compiler '${CMAKE_CXX_COMPILER_ID}'!")
 		endif ()

@@ -1,3 +1,5 @@
 set(CPACK_ARCHIVE_THREADS 0)
 set(CPACK_ARCHIVE_FILE_NAME "${SF_PACKAGE_NAME}_${SF_GIT_TAG_VERSION}-${SF_PACKAGE_RELEASE}")
 set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+# The archive packaging requires the destination directory to be present.
+file(MAKE_DIRECTORY "${CPACK_OUTPUT_FILE_PREFIX}")

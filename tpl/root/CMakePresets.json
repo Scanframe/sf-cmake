@@ -828,7 +828,7 @@
 				".lnx-only"
 			],
 			"displayName": "Debug GA",
-			"description": "GA ZIP + NSIS package debug.",
+			"description": "GA TGZ + DEB package debug.",
 			"configurePreset": "ga-debug",
 			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
 			"generators": [
@@ -849,7 +849,6 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
 			"generators": [
 				"ZIP",
-				"TGZ",
 				"NSIS64"
 			]
 		},
