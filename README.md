@@ -6,6 +6,7 @@
   * [General](#general)
   * [Toolchains Supported](#toolchains-supported)
   * [Quick start](#quick-start)
+  * [Windows 11: Sudo & Developer Mode](#windows-11-sudo--developer-mode)
     * [Using: Ubuntu/Debian flavor of Linux:](#using-ubuntudebian-flavor-of-linux)
     * [Using: Windows](#using-windows)
   * [Project Directory Structure & Setup](#project-directory-structure--setup)
@@ -106,6 +107,24 @@ Sources where to download from are:
 - [GitHub mirror from GitLab 'main' branch](https://raw.githubusercontent.com/Scanframe/sf-cmake/refs/heads/main/bin/build.py)
 
 For Linux/Debian use `wget <url>` and for Windows, which has Curl installed by default, use `curl -O <url>`.
+
+## Windows 11: Sudo & Developer Mode
+
+Only version of Windows 11 Version **24H2** or a build number higher than **26045** has the `sudo` command available.
+The `sudo` command allows a command to be executed elevated not requiring an elevated console.
+
+```shell
+reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo" /v "Enabled" /t REG_DWORD /d 3 /f
+```
+
+Execute this command to enable **Developer Mode** which allows symbolic links to be created.
+This enables **Winget** to use symbolic links instead of extending the user `PATH` which prevents causing a DLL hell.
+
+```shell
+sudo reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+```
+
+> When `sudo` was not enabled, the command must be called from an elevated console.
 
 ### Using: Ubuntu/Debian flavor of Linux:
 
@@ -500,11 +519,11 @@ for both automated CI/CD builds and local developer builds.
 2. **Local Developer Build:**
 	 When building locally to test fixes in the test APT repository, supply the optional revision number (e.g., `1`) to
 	 CPack:
-	 ```bash
-	 ./build.py -p gnu-debug -- -DSF_PACKAGE_REVISION=1
-	 cmake --build build --target package
-	 ```
-	 This appends `.1` to the version, ensuring `dpkg` treats it as an upgrade over the CI build.
+	 	```bash
+		 ./build.py -p gnu-debug -- -DSF_PACKAGE_REVISION=1
+		 cmake --build build --target package
+		 ```
+		This appends `.1` to the version, ensuring `dpkg` treats it as an upgrade over the CI build.
 
 To test version comparison, use:
 
