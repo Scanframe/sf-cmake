@@ -86,7 +86,9 @@ if (CPACK_GENERATOR STREQUAL "DEB")
 		# When the component uses the Qt runtime add the custom package dependency.
 		if (_HasQtDependency)
 			set(_QtPackage "${SF_QT_PACKAGE_FILENAME_PREFIX}rt-${SF_TOOLCHAIN_STRING}")
+			# To create a range the next patch version is calculated.
 			Sf_IncrementPatchVersion("${SF_QT_VERSION}" _QtPatchVerNext)
+			# This prevent updating a dependent Qt package like v6.10.1 to v6.10.3.
 			list(APPEND _Dependencies "${_QtPackage} (>= ${SF_QT_VERSION})" "${_QtPackage} (<< ${_QtPatchVerNext})")
 			# Check if this is the main/default component.
 			if (_Component STREQUAL "${SF_DEFAULT_COMPONENT_NAME}")

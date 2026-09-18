@@ -42,20 +42,23 @@ set(CPACK_MONOLITHIC_INSTALL OFF)
 #set(CPACK_SET_DESTDIR ON)
 
 # Initialize the package release variable for Debian it is limited to regex "^[A-Za-z0-9.+~]+$"
-set(SF_PACKAGE_RELEASE "0")
+set(SF_PACKAGE_RELEASE "")
 # Check for a release candidate of the Git tag and if so append the RC reference.
 if (NOT SF_GIT_TAG_RC STREQUAL "")
-	set(SF_PACKAGE_RELEASE "rc${SF_GIT_TAG_RC}")
+	string(APPEND SF_PACKAGE_RELEASE "rc${SF_GIT_TAG_RC}")
 endif ()
 # Check for an offset in commits from the tag then append the number the release name.
 if (NOT SF_GIT_TAG_COMMITS STREQUAL "")
-	set(SF_PACKAGE_RELEASE "${SF_PACKAGE_RELEASE}+${SF_GIT_TAG_COMMITS}")
+	string(APPEND SF_PACKAGE_RELEASE "+${SF_GIT_TAG_COMMITS}")
 endif ()
-
 # Set the package name for all generator types when not overridden.
-set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-${SF_TOOLCHAIN_STRING}")
+string(APPEND CPACK_PACKAGE_NAME "-${SF_TOOLCHAIN_STRING}")
 # Set the package version for all generator types when not overridden.
-set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}~${SF_PACKAGE_RELEASE}")
+set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}")
+# Append the release part when not empty.
+if (NOT SF_PACKAGE_RELEASE STREQUAL "")
+	string(APPEND CPACK_PACKAGE_VERSION "~${SF_PACKAGE_RELEASE}")
+endif ()
 # Add the package revision to the package version.
 if (SF_PACKAGE_REVISION)
 	set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}.${SF_PACKAGE_REVISION}")
