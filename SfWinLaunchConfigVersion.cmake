@@ -10,7 +10,7 @@ find_package(SfWinLaunch 0.0.4 CONFIG REQUIRED)
 ]]
 
 # Default version of the package and as of writing this is the latest.
-set(PACKAGE_VERSION 0.0.5)
+set(PACKAGE_VERSION 0.0.6)
 
 # Check if a certain version is requested.
 if (NOT "${PACKAGE_FIND_VERSION}" STREQUAL "")

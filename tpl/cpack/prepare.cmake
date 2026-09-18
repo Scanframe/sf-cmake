@@ -28,7 +28,7 @@ endif ()
 
 if (WIN32)
 	# Requires a Windows launcher application for WinGet portable manifest.
-	find_package(SfWinLaunch 0.0.5 CONFIG REQUIRED)
+	find_package(SfWinLaunch CONFIG REQUIRED)
 	# FIXME: Somehow the you cannot specify a sub-folder since it mixes slashes.
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${SF_PROVIDER_NAME}")
 	set(CPACK_PACKAGING_INSTALL_PREFIX "/${SF_PROVIDER_NAME}/${CMAKE_PROJECT_NAME}")
