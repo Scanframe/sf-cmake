@@ -504,8 +504,8 @@
 				".lnx-only"
 			],
 			"targets": [
-				"t_devops-shared-test-catch",
-				"t_devops-shared-test-google"
+				"devops-shared-test-catch",
+				"devops-shared-test-google"
 			]
 		},
 		{

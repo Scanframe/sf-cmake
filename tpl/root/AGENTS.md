@@ -19,7 +19,7 @@ To build the complete 'Debug' project.
 ```bash
 ./build.py --build gnu-debug
 # Or only a specific target.
-./build.py --build gnu-debug --target t_devops-shared-test-catch
+./build.py --build gnu-debug --target devops-shared-test-catch
 ```
 
 ### Running Unit Tests
@@ -35,9 +35,9 @@ The command to run CTest on the project executing only tests using a regex patte
 The command combining a build and test of a specific target using a regex pattern.
 
 ```bash
-./build.py --build --test gnu-debug --target t_devops-shared-test-catch --test-regex "catch$"
+./build.py --build --test gnu-debug --target devops-shared-test-catch --test-regex "catch$"
 # Short version.
-./build.py -bt gnu-debug -n t_devops-shared-test-catch -R "catch$"
+./build.py -bt gnu-debug -n devops-shared-test-catch -R "catch$"
 ```
 
 The command to get a project overview including the names of the tests available.
