@@ -50,6 +50,8 @@ import base64
 import http.client
 import ssl
 import uuid
+from datetime import datetime
+from dataclasses import dataclass
 from enum import Enum, auto
 from string import Template
 from typing import List, Any, Dict, Optional, Tuple
@@ -1048,8 +1050,16 @@ def menu_selection(options: dict[Any, str], title: str | None = "Make a Selectio
 	option_keys = list(options.keys())
 	option_values = list(options.values())
 	# Key conversion for when using in Wine.
-	wine_conversion = {450: curses.KEY_UP, 456: curses.KEY_DOWN, 452: curses.KEY_LEFT,
-		454: curses.KEY_RIGHT, } if is_wine() else {}
+	wine_conversion = {
+		450: curses.KEY_UP,
+		456: curses.KEY_DOWN,
+		452: curses.KEY_LEFT,
+		454: curses.KEY_RIGHT,
+		449: curses.KEY_PPAGE,
+		455: curses.KEY_NPAGE,
+		447: curses.KEY_HOME,
+		448: curses.KEY_END,
+	} if is_wine() else {}
 
 	def _get_key(win):
 		"""
@@ -1175,6 +1185,14 @@ def menu_selection(options: dict[Any, str], title: str | None = "Make a Selectio
 				current_row -= 1
 			elif key == curses.KEY_DOWN and current_row < len(option_values) - 1:
 				current_row += 1
+			elif key == curses.KEY_PPAGE:
+				current_row = max(0, current_row - max(1, visible_count))
+			elif key == curses.KEY_NPAGE:
+				current_row = min(max(0, len(option_values) - 1), current_row + max(1, visible_count))
+			elif key == curses.KEY_HOME:
+				current_row = 0
+			elif key == curses.KEY_END:
+				current_row = max(0, len(option_values) - 1)
 			elif key in [curses.KEY_ENTER, 10, 13]:
 				# Return the key associated with the selected value
 				return option_keys[current_row]
@@ -2971,12 +2989,32 @@ Signed-By:
 class SubCommandVersion(SubCommand):
 	"""Subcommand handler for the 'version' command for repository version reporting and bumping."""
 
+	@dataclass()
+	class CommitCacheEntry:
+		"""Holds the commit message information."""
+
+		name: str
+		date: datetime
+		msg: str
+
+		def __init__(self, commit_msg: str):
+			"""Constructor taking the formatted message string."""
+			lines = commit_msg.split("\n")
+			self.name = lines[0]
+			self.date = datetime.strptime(lines[1], "%a %b %d %H:%M:%S %Y %z")
+			self.msg = "\n".join(lines[2:])
+
+		@staticmethod
+		def get_format_string() -> str:
+			"""Get the commit message format string."""
+			return "%cn\n%cd\n%B"
+
 	_header_regex = re.compile(r"^([a-z_\-]+)(\(([a-z_\-]+)\))?(!)?:\s(.*)$")
 	_increment_order = {"none": 0, "patch": 1, "minor": 2, "major": 3}
 	# Holds the type map from ini config file.
 	_type_map: dict[str, tuple[str, str]] = {}
 	# Cache for commit message retrieval.
-	_cache_get_cmt_msg: dict[str, str] = {}
+	_cache_get_cmt_msg: dict[str, CommitCacheEntry] = {}
 	# Cache for the git-describe-exact tag retrieval.
 	_cache_git_describe_exact: dict[str, str] = {}
 	# Module directory to work on.
@@ -3185,18 +3223,25 @@ examples:
 		return {}
 
 	# noinspection PyMethodMayBeStatic
-	def get_commit_message(self, commit_hash: str, overrides: Dict[str, str]) -> str:
+	def get_commit_message(self, commit_hash: str, overrides: Dict[str, str]) -> CommitCacheEntry:
 		"""Returns commit message with overrides applied."""
-		if commit_hash in overrides:
-			return overrides[commit_hash]
+		# Check the cache for the entry.
 		if commit_hash in self._cache_get_cmt_msg:
 			return self._cache_get_cmt_msg[commit_hash]
-		result = run_command(["git", "-C", self._module_dir, "show", "--no-patch", "--format=%B", commit_hash],
+		#  Get the formated message string.
+		result = run_command(
+			["git", "-C", self._module_dir, "show", "--no-patch", f"--format={self.CommitCacheEntry.get_format_string()}",
+				commit_hash],
 			capture_output=True,
 			check=False, dbg_mode=DebugMode.SILENT)
 		result = result.stdout.decode("utf-8", errors="ignore").strip()
-		self._cache_get_cmt_msg[commit_hash] = result
-		return result
+		entry = self.CommitCacheEntry(result)
+		# When this commit msg is overridden, assign the message text.
+		if commit_hash in overrides:
+			entry.msg = overrides[commit_hash]
+		# Cache the entry.
+		self._cache_get_cmt_msg[commit_hash] = entry
+		return entry
 
 	# noinspection PyMethodMayBeStatic
 	def collect_commits(self, cur_ver_tag: str, commit_hash: str, merges_only: bool, tag_found: bool) -> List[str]:
@@ -3212,12 +3257,12 @@ examples:
 		return [ln for ln in result.stdout.decode("utf-8").splitlines() if ln.strip()]
 
 	def calculate_next_for_commit(self, cur_ver_tag: str, commit_hash: str, merges_only: bool, tag_found: bool,
-		overrides: Dict[str, str]
-	) -> str:
+		overrides: dict[str, str]
+	) -> tuple[str, str]:
 		"""Returns the prospective next version tag if bumped at commit_hash."""
 		effect_max = "minor" if not tag_found else "none"
 		for commit in self.collect_commits(cur_ver_tag, commit_hash, merges_only, tag_found):
-			msg_string = self.get_commit_message(commit, overrides)
+			msg_string = self.get_commit_message(commit, overrides).msg
 			if not msg_string:
 				continue
 			msg_header = msg_string.split("\n", 1)[0]
@@ -3230,9 +3275,10 @@ examples:
 			effect = "major" if msg_breaking else type_effect
 			effect_max = self.compare_increments(effect, effect_max)
 		if effect_max == "none":
-			return cur_ver_tag
+			return cur_ver_tag, effect_max
 		base_ver = cur_ver_tag[1:] if cur_ver_tag.startswith("v") else cur_ver_tag
-		return f"v{self.increment_version(base_ver, effect_max)}"
+		result = f"v{self.increment_version(base_ver, effect_max)}"
+		return result, effect_max
 
 	def select_commit(self, merges_only: bool) -> str:
 		"""Prompts the user to select a commit since the last tag."""
@@ -3243,9 +3289,9 @@ examples:
 				stderr=b"No commits found")
 		options = {}
 		for commit in commits:
-			msg = self.get_commit_message(commit, {})
-			heading = msg.split("\n", 1)[0].strip()
-			display = f"{commit[:7]} | {heading}"
+			cmt_msg = self.get_commit_message(commit, {})
+			heading = cmt_msg.msg.split("\n", 1)[0].strip()
+			display = f"{commit[:7]} | {cmt_msg.date} | {heading}"
 			options[commit] = display
 		choice = ask_selection(options=options, title="Select Commit", caption="Choose commit for version calculation")
 		if choice is None:
@@ -3288,7 +3334,8 @@ examples:
 		if verbose:
 			logger.info(f"\n# Conventional commits from version: {cur_ver_tag} to ({commit_hash})")
 		for commit in commits:
-			msg_string = self.get_commit_message(commit, overrides)
+			cmt_msg = self.get_commit_message(commit, overrides)
+			msg_string = cmt_msg.msg
 			if not msg_string:
 				continue
 			msg_header = msg_string.split("\n", 1)[0]
@@ -3361,29 +3408,35 @@ examples:
 			logger.info(f": No current git version tag was found using '{cur_ver_tag}'.")
 
 		logger.info("\n# Annotated version-tags")
-		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Annotation")
+		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Time       | Annotation")
 		for line in reversed(self.git_lines(["tag", "--list", "--format", "%(tag)\t%(object)\t%(subject)"], check=False)):
 			tag, obj, subject = (line.split("\t", 2) + ["", "", ""])[:3]
 			if not re.match(r"^v\d+\.\d+\.\d+(-rc\.\d+)?$", tag):
 				continue
-			logger.info(f"{tag:<15} | {fmt_hash(obj):<{hash_w}} | \"{subject}\"")
+			cmt_msg = self.get_commit_message(fmt_hash(obj), {})
+			logger.info(f"{tag:<15} | {fmt_hash(obj):<{hash_w}} | {cmt_msg.date.date()} | \"{subject}\"")
 
-		logger.info("\n# All merge commits")
-		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Version{'':<3} | Commit heading")
-		for commit in self.git_lines(["log", "--merges", "--pretty=format:%H"], check=False):
-			tag = self.git_describe_exact(commit)
-			heading = (self.get_commit_message(commit, overrides).split("\n", 1)[0]).strip()
-			next_ver = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=True, tag_found=tag_found,
-				overrides=overrides)
-			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {next_ver:<10} | {heading}")
+		if False:
+			logger.info("\n# All merge commits")
+			logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Time       | Bump Version  | Commit heading")
+			for commit in self.git_lines(["log", "--merges", "--pretty=format:%H"], check=False):
+				tag = self.git_describe_exact(commit)
+				cmt_msg = self.get_commit_message(commit, overrides)
+				heading = (cmt_msg.msg.split("\n", 1)[0]).strip()
+				next_ver, effect = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=True, tag_found=tag_found,
+					overrides=overrides)
+				logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10}{effect[:3]} | {heading}")
 
 		logger.info(f"\n# Commits since version: {cur_ver_tag} upto '{commit_hash}'")
-		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Commit heading")
+		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Time       | Bump Version   | Commit heading")
 		commits = self.collect_commits(cur_ver_tag, commit_hash, merges_only, tag_found)
 		for commit in commits:
 			tag = self.git_describe_exact(commit)
-			heading = (self.get_commit_message(commit, overrides).split("\n", 1)[0]).strip()
-			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {heading}")
+			cmt_msg = self.get_commit_message(commit, overrides)
+			heading = (cmt_msg.msg.split("\n", 1)[0]).strip()
+			next_ver, effect = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=False, tag_found=tag_found,
+				overrides=overrides)
+			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10} {effect[:3]} | {heading}")
 
 
 class SubCommandRun(SubCommand):
