@@ -2677,11 +2677,11 @@ Choices are depended on the host platform:
 				clone_options = {
 					"main@https://github.com/Scanframe/sf-cmake.git": "GitHub Scanframe 'sf-cmake.git'",
 					"main@https://git.scanframe.com/library/cmake-lib.git": "GitLab Scanframe 'cmake-lib.git'",
+					"dev-hotfix@https://github.com/Scanframe/sf-cmake.git": "GitHub Scanframe 'sf-cmake.git' (hotfix)",
+					"dev-hotfix@https://git.scanframe.com/library/cmake-lib.git": "GitLab Scanframe 'cmake-lib.git' (hotfix)"
 				}
 				# Only add these options when '__DEV' is set.
 				if RUN_ENV.get("__DEV"):
-					clone_options[
-						"dev-hotfix@https://git.scanframe.com/library/cmake-lib.git"] = "GitLab Scanframe 'cmake-lib.git' (hotfix)"
 					clone_options["zipfile@https://www.scanframe.com/export/cmake-lib.zip"] = "Zipped (dev only)"
 				if selected := ask_selection(
 					options=clone_options,
@@ -2792,10 +2792,7 @@ Choices are depended on the host platform:
 		logger.info(f"# Target: {target}")
 		# noinspection PyBroadException
 		try:
-			if target == "linux/wine":
-				with zipfile.ZipFile('r') as zip_object:
-					zip_object.extractall(path="dest-dir")
-			elif target == "linux/dio":
+			if target == "linux/dio":
 				# noinspection PyDeprecation
 				if shutil.which("docker"):
 					logger.warning(f"# Command 'docker' command is already available.")
@@ -2893,7 +2890,7 @@ Signed-By:
 				# noinspection SpellCheckingInspection
 				main_pkgs = ["make", "cmake", "ninja-build", "gcc", "g++", "doxygen", "graphviz", "libopengl0",
 					"libgl1-mesa-dev", "libglu1-mesa-dev", "libxkbcommon-dev", "libxkbfile-dev", "libvulkan-dev", "libssl-dev",
-					"default-jre-headless", "chrpath", "clang-format"]
+					"dpkg-dev", "debhelper", "dh-make", "build-essential", "default-jre-headless", "chrpath", "clang-format"]
 				run_command(["sudo", "apt-get", "--yes", "install"] + main_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/qemu":

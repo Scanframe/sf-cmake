@@ -19,7 +19,7 @@ int main(int argc, char* argv[])
 	const auto btn = std::make_unique<QPushButton>(text, nullptr);
 	btn->resize(300, 200);
 	btn->show();
-	QObject::connect(btn.get(), &QPushButton::clicked, []()->void {
+	QObject::connect(btn.get(), &QPushButton::clicked, []() -> void {
 		QApplication::quit();
 	});
 	// Fix for hanging Qt threads in Wine since 6.9.1

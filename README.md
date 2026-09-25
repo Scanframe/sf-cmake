@@ -233,7 +233,7 @@ A project directory tree could look like this:
 
 ```
 <project-root>
-    ├── .gitlab (CI/CD )
+    ├── gitlab-ci (GitLab CI/CD pipeline scripts)
     ├── bin (build output of the project)
     │   ├── lnx64-gnu
     │   │   └── lib
@@ -249,7 +249,7 @@ A project directory tree could look like this:
     │   └── win64 (a suffixed could be applied)
     │       └── lib
     ├── cmake
-    │   ├── cpack
+    │   ├── cpack (CPack packing scripts)
     │   └── lib (This repository location)
     ├── cmake-build
     │   ├── docker-amd64-6.10.1 (mapped docker build root)
@@ -269,7 +269,7 @@ A project directory tree could look like this:
 
 | Path            | Description                                            |
 |-----------------|--------------------------------------------------------|
-| .gitlab         | GitLab CI/CD pipeline scripts.                         |
+| gitlab-ci       | GitLab CI/CD pipeline scripts.                         |
 | bin             | Root for compiled results from builds.                 |
 | bin/gcov        | Coverage report files from unittests.                  |
 | bin/lnx64-*     | Binaries from Linux 64-bit builds.                     |
@@ -288,10 +288,6 @@ A project directory tree could look like this:
 | src             | Application source files.                              |
 | src/tests       | Test application source files.                         |
 
-The directory `bin` and holds a placeholder file named `__output__` to find the designated `bin` build output directory
-for subprojects. The reason for building only subprojects instead of all is to speed up debugging by compiling only the
-dynamic loaded library separately. When directories are empty but needed, then add a file called `__placeholder__` so is
-not ignoring them.
 
 > The `build.ini` and the `CMakePresets.json` provides a way to extend the `bin/lnx64` or `bin/win64` directory
 > by an environment variable (`SF_EXEC_DIR_SUFFIX`).
