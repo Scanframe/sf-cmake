@@ -2784,6 +2784,48 @@ Choices are depended on the host platform:
 		return True
 
 	@staticmethod
+	def setup_cross_repo() -> None:
+		"""
+		On an x86_64 host, add the arm64 ports sources file (if missing) and register arm64 as a foreign dpkg architecture.
+		"""
+		arch_host: str = "amd64"
+		arch_foreign: str = "arm64"
+		sources_host_path: str = f"/etc/apt/sources.list.d/ubuntu.sources"
+		sources_foreign_path: str = f"/etc/apt/sources.list.d/ubuntu-{arch_foreign}.sources"
+		#
+		logger.info(f"~ Adding 'Architectures' to Ubuntu sources file: {sources_host_path}")
+		run_command(["sudo", "sed", "--in-place",
+			"/^Types: deb$/{$!N; /^Types: deb\\nArchitectures:/!s/^Types: deb\\n/Types: deb\\nArchitectures: " + arch_host + "\\n/}",
+			sources_host_path], dbg_mode=DebugMode.REPORT_ONLY)
+		#
+		if os.path.exists(sources_foreign_path):
+			logger.info(f"~ APT Sources file already exists: {sources_foreign_path}")
+			return
+		sources_content: str = f"""\
+Types: deb
+URIs: http://ports.ubuntu.com/ubuntu-ports
+Suites: noble noble-updates noble-backports
+Components: main universe restricted multiverse
+Architectures: {arch_foreign}
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+
+Types: deb
+URIs: http://ports.ubuntu.com/ubuntu-ports
+Suites: noble-security
+Components: main universe restricted multiverse
+Architectures: {arch_foreign}
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+"""
+		# Write the file as root via 'sudo tee'; capture_output avoids tee echoing the content back to stdout.
+		logger.info(f"~ Adding sources file: {sources_foreign_path}")
+		run_command(["sudo", "tee", sources_foreign_path], input_data=sources_content.encode(), capture_output=True,
+			dbg_mode=DebugMode.REPORT_ONLY)
+		# Add the architecture.
+		logger.info(f"~ Adding Architecture: {arch_foreign}")
+		run_command(["sudo", "dpkg", "--add-architecture", arch_foreign], dbg_mode=DebugMode.REPORT_ONLY)
+
+	@staticmethod
 	def install_packages(target: str) -> None:
 		"""Installs the necessary packages depending on the environment Linux or Windows."""
 		logger.info(f"About to install required packages for ({target})...")
@@ -2894,29 +2936,36 @@ Signed-By:
 				run_command(["sudo", "apt-get", "--yes", "install"] + main_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/qemu":
-				run_command(["sudo", "apt-get", "install", "-y", "qemu-user-static", "binfmt-support", "qemu-user-binfmt"],
+				run_command(["sudo", "apt-get", "install", "-y", "qemu-user-static", "binfmt-support"],
 					dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/win":
-				run_command(["sudo", "apt-get", "install", "-y", "mingw-w64"], dbg_mode=DebugMode.REPORT_ONLY)
+				run_command(["sudo", "apt-get", "install", "-y", "mingw-w64", "nsis"], dbg_mode=DebugMode.REPORT_ONLY)
 				# Check if wine is installed using shutil.which (cleaner than command -v)
 				# noinspection PyDeprecation
 				if not shutil.which("wine"):
 					run_command(["sudo", "apt-get", "--yes", "install", "wine"], dbg_mode=DebugMode.REPORT_ONLY)
 
 			elif target == "linux/arm":
+				# Sanity check.
+				if platform.machine() != "x86_64":
+					raise RuntimeError(f"Cannot install arm packages cross compiler on a non x86_64 machine!")
+				SubCommandInstall.setup_cross_repo()
 				run_command(["sudo", "apt-get", "--yes", "install", "gcc-aarch64-linux-gnu", "g++-aarch64-linux-gnu",
-					"binutils-aarch64-linux-gnu"])
-				arch_check = run_command(["dpkg", "--print-foreign-architectures"], capture_output=True,
-					dbg_mode=DebugMode.SILENT).stdout
+					"binutils-aarch64-linux-gnu"], dbg_mode=DebugMode.REPORT_ONLY)
+				arch_check: str = run_command(["dpkg", "--print-foreign-architectures"], capture_output=True,
+					dbg_mode=DebugMode.SILENT).stdout.decode("utf-8")
 				if "arm64" in arch_check.splitlines():
 					# noinspection SpellCheckingInspection
-					arm_pkgs = ["gcc-aarch64-linux-gnu:amd64", "g++-aarch64-linux-gnu:amd64", "binutils-aarch64-linux-gnu:amd64",
+					arm_pkgs = [
+						"gcc-aarch64-linux-gnu:amd64", "g++-aarch64-linux-gnu:amd64", "binutils-aarch64-linux-gnu:amd64",
 						"libgles-dev:arm64", "libegl-dev:arm64", "libgl-dev:arm64", "libpcre2-16-0:arm64", "libglvnd-dev:arm64",
 						"libpng16-16t64:arm64", "xcb:arm64", "libxkbcommon-x11-0:arm64", "libxcb-xinput0:arm64",
-						"libxcb-cursor0:arm64", "libxcb-shape0:arm64", "libxcb-icccm4:arm64", "libxcb-image0:arm64",
-						"libxcb-keysyms1:arm64", "libxcb-render-util0:arm64", "libdbus-1-3:arm64", "libcairo-gobject2:arm64",
-						"libxkbcommon-dev:arm64", "libxkbfile-dev:arm64"]
+						"libxcb-cursor0:arm64", "libxcb-shape0:arm64", "libpulse0:arm64", "libxcb-icccm4:arm64",
+						"libxcb-image0:arm64", "libxcb-keysyms1:arm64", "libxcb-render-util0:arm64", "libdbus-1-3:arm64",
+						"libcairo-gobject2:arm64", "qemu-user-static:amd64", "libxkbcommon-dev:arm64", "libxkbfile-dev:arm64",
+						"libglu1-mesa-dev:arm64", "libavformat60:arm64", "libxrandr2:arm64"
+					]
 					run_command(["sudo", "apt-get", "--yes", "install"] + arm_pkgs, dbg_mode=DebugMode.REPORT_ONLY)
 				else:
 					logger.info("Architecture 'arm64' is not enabled and packages are therefore not installed!")
@@ -3422,7 +3471,8 @@ examples:
 				heading = (cmt_msg.msg.split("\n", 1)[0]).strip()
 				next_ver, effect = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=True, tag_found=tag_found,
 					overrides=overrides)
-				logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10}{effect[:3]} | {heading}")
+				logger.info(
+					f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10}{effect[:3]} | {heading}")
 
 		logger.info(f"\n# Commits since version: {cur_ver_tag} upto '{commit_hash}'")
 		logger.info(f"~Tag{'':<11} | Hash{'':<{hash_w - 4}} | Time       | Bump Version   | Commit heading")
@@ -3433,7 +3483,8 @@ examples:
 			heading = (cmt_msg.msg.split("\n", 1)[0]).strip()
 			next_ver, effect = self.calculate_next_for_commit(cur_ver_tag, commit, merges_only=False, tag_found=tag_found,
 				overrides=overrides)
-			logger.info(f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10} {effect[:3]} | {heading}")
+			logger.info(
+				f"{tag:<15} | {fmt_hash(commit):<{hash_w}} | {cmt_msg.date.date()} | {next_ver:<10} {effect[:3]} | {heading}")
 
 
 class SubCommandRun(SubCommand):
