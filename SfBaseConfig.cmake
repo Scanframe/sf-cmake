@@ -32,6 +32,12 @@ set(SF_GIT_USR_BIN "" CACHE INTERNAL "Windows 'Git/usr/bin' directory to be able
 set(SF_EXAMPLE_DIR "${CMAKE_BINARY_DIR}/.examples" CACHE INTERNAL "Directory to copy or symlink files in for examples in documentation.")
 set(SF_DOCKER "FALSE" CACHE INTERNAL "Flag set when in running in Docker or Wine in Docker.")
 set(SF_CPACK_PREPARE_FILE "${CMAKE_CURRENT_LIST_DIR}/tpl/cpack/prepare.cmake" CACHE STRING "Preparation script for running CPack project script.")
+# Check if the cpack config is available from the parent repository.
+if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/cmake/cpack/prepare.cmake")
+	include("${CMAKE_CURRENT_LIST_DIR}/cmake/cpack/prepare.cmake")
+endif ()
+
+
 set(SF_DEFAULT_COMPONENT_NAME "runtime")
 
 # Guard around function 'define_property'.
@@ -56,14 +62,14 @@ endif ()
 ##!
 # Set the SF_GIT_USR_BIN cache variable so it can be used cross projects.
 #
-if(CMAKE_HOST_WIN32)
+if (CMAKE_HOST_WIN32)
 	find_package(Git QUIET)
-	if(Git_FOUND)
+	if (Git_FOUND)
 		get_filename_component(GIT_DIR "${GIT_EXECUTABLE}" DIRECTORY)
 		get_filename_component(GIT_ROOT "${GIT_DIR}" DIRECTORY)
 		set(SF_GIT_USR_BIN "${GIT_ROOT}/usr/bin")
-	endif()
-endif()
+	endif ()
+endif ()
 
 ##!
 # FetchContent_MakeAvailable was not added until CMake 3.14; use our shim
@@ -370,7 +376,7 @@ endfunction()
 ##!
 # Converts the versions list to a readable string.
 #
-function (Sf_VersionToString _OutVar _Versions)
+function(Sf_VersionToString _OutVar _Versions)
 	# Split the list into separate values.
 	list(GET _Versions 0 SF_GIT_TAG_VERSION)
 	list(GET _Versions 1 SF_GIT_TAG_RC)
@@ -378,10 +384,10 @@ function (Sf_VersionToString _OutVar _Versions)
 	set(_rv "${SF_GIT_TAG_VERSION}")
 	if (NOT SF_GIT_TAG_RC STREQUAL "")
 		string(APPEND _rv "-rc.${SF_GIT_TAG_RC}")
-	endif()
+	endif ()
 	if (NOT SF_GIT_TAG_COMMITS STREQUAL "")
 		string(APPEND _rv "~${SF_GIT_TAG_COMMITS}")
-	endif()
+	endif ()
 	set(${_OutVar} "${_rv}" PARENT_SCOPE)
 endfunction()
 
@@ -1455,7 +1461,15 @@ function(Sf_GetDependencies _OutVar _BinFile)
 	cmake_parse_arguments(PARSE_ARGV 2 _arg "RECURSE" "" "IGNORE_PATHS")
 	# Windows only knows the 'python' command.
 	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
-	set(_cmd "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" "--quiet" "--cmake" "--exclude-system")
+	# Needs to be defined.
+	if (NOT DEFINED CMAKE_LIBRARY_ARCHITECTURE)
+		message(FATAL_ERROR "Variable 'CMAKE_LIBRARY_ARCHITECTURE' is not defined!")
+	endif ()
+	set(_cmd "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" "--quiet" "--cmake"
+		"--exclude-system" "--lib-arch" "${CMAKE_LIBRARY_ARCHITECTURE}")
+	if (CMAKE_LIBRARY_ARCHITECTURE)
+		list(APPEND _cmd "--lib-arch" "${CMAKE_LIBRARY_ARCHITECTURE}")
+	endif ()
 	if (_arg_UNPARSED_ARGUMENTS)
 		message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: Unknown arguments: ${_arg_UNPARSED_ARGUMENTS}")
 	endif ()
@@ -1511,9 +1525,13 @@ Retrieves dynamic library dependency filenames for a binary file.
 function(Sf_GetDependencyFilenames _OutVar _BinFile)
 	# Windows only knows the 'python' command.
 	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
+	set(_cmd "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" "--quiet" "--recurse" "--no-format")
+	if (CMAKE_LIBRARY_ARCHITECTURE)
+		list(APPEND _cmd "--lib-arch" "${CMAKE_LIBRARY_ARCHITECTURE}")
+	endif ()
 	# Get the dependencies using the special python script.
 	execute_process(
-		COMMAND "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" --quiet --recurse --no-format "${_BinFile}"
+		COMMAND ${_cmd} "${_BinFile}"
 		OUTPUT_VARIABLE _deps
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 		ECHO_ERROR_VARIABLE

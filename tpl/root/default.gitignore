@@ -1,6 +1,7 @@
 # Files from possible IDE's.
 /.metadata
 /.idea
+/.junie
 /.run
 /.vscode
 /.vs
@@ -9,6 +10,8 @@
 /.venv
 # Optional user CMake include file which is included when it exists.
 /user.cmake
+# Optional user INI include file which is included when it exists.
+/user.ini
 # Any cmake-build directory in the project tree.
 **/cmake-build*/*
 # Developers addition on the 'CMakePresets.json' file.
@@ -22,16 +25,16 @@
 /bin/man/*
 # Location of downloaded and uncompressed libraries in the project root.
 /lib/*
-# Credential files for testing CI-pipeline called scripts.
-/.nexus-upload-credentials
-/.comment-credentials
-/.gitlab-credentials.ini
+# Hidden credential files of any kind.
+/.*credentials*
 # Debug messages for testing conventinal commit.
-/.version-bump
+/.version-bump*
 # Test bash scripts.
 /test-*.sh
 # Downloaded tools directory locations for machines (Windows only).
 /.tools-dir-*
 # CMake include file overrulling the cache instead of changing the CMakePresets.json file.
-# Keeps all empty directories.
+# Keeps an empty directory.
 !**/.gitkeep
+# Toochain environment files.
+/.tc-*

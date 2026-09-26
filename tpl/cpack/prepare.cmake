@@ -282,7 +282,7 @@ get_cmake_property(_variable_names VARIABLES)
 list(REMOVE_DUPLICATES _variable_names)
 # Loop through and write any CMAKE_PROJECT_ and SF_ prefixed variables directly to the file.
 foreach (_var IN LISTS _variable_names)
-	if (_var MATCHES "^(SF_|CMAKE_PROJECT_)")
+	if (_var MATCHES "^(SF_|CMAKE_PROJECT_|CMAKE_LIBRARY_)")
 		# Properly escape backslashes and quotes to handle paths and strings safely
 		string(REPLACE "\\" "\\\\" _escaped_val "${${_var}}")
 		string(REPLACE "\"" "\\\"" _escaped_val "${_escaped_val}")

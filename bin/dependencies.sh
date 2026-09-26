@@ -11,9 +11,10 @@ function show_help {
 	echo "Usage: $(basename "${0}") <options> [--] <file(s)>
   Lists the dependent dynamic libraries of the passed file(1).
   Options:
-     -c, --check   : Check if the DLLs can be found in the path.
-     -r, --recurse : Do a recursive check on libraries.
-     -a, --app     : Application or library which provides Windows executable directory (Windows targets only).
+     -c, --check    : Check if the DLLs can be found in the path.
+     -r, --recurse  : Do a recursive check on libraries.
+     -a, --app      : Application or library which provides Windows executable directory (Windows targets only).
+     -L, --lib-arch : Target library architecture triplet (e.g. x86_64-linux-gnu, aarch64-linux-gnu).
 "
 }
 
@@ -40,9 +41,11 @@ flag_check=false
 flag_recurse=false
 # Application or library for acquiring the RUNPATH.
 app_bin=""
+# Target library architecture triplet.
+lib_arch=""
 
 # Parse options.
-temp=$(getopt -o 'hca:r' --long 'help,check,app:,recurse' -n "$(basename "${0}")" -- "$@")
+temp=$(getopt -o 'hca:rL:' --long 'help,check,app:,recurse,lib-arch:' -n "$(basename "${0}")" -- "$@")
 # shellcheck disable=SC2181
 if [[ $? -ne 0 || $# -eq 0 ]]; then
 	show_help
@@ -70,6 +73,11 @@ while true; do
 
 		-a | --app)
 			app_bin="${2}"
+			shift 2
+			;;
+
+		-L | --lib-arch)
+			lib_arch="${2}"
 			shift 2
 			;;
 
@@ -225,6 +233,12 @@ else
 		## Create array variables.
 		ld_path_dirs=()
 		run_path_dirs=()
+		sys_dirs=()
+		if [[ -n "${lib_arch}" ]]; then
+			for dir in "/lib/${lib_arch}" "/usr/lib/${lib_arch}" "/usr/${lib_arch}/lib" "/usr/${lib_arch}/usr/lib"; do
+				[[ -d "${dir}" ]] && sys_dirs+=("${dir}")
+			done
+		fi
 		# Check if the environment variable `LD_LIBRARY_PATH' was set.
 		if [[ -n "${LD_LIBRARY_PATH}" ]]; then
 			IFS=':' read -r -a dirs <<<"${LD_LIBRARY_PATH}"
@@ -312,6 +326,17 @@ else
 							# Not recursing into system libraries on purpose.
 							#$flag_recurse && echo "${candidate}" >> "${dl_name_file}"
 						fi
+					fi
+					# When not found continue with fallback system directories...
+					if [[ "${found}" -eq 0 ]]; then
+						for dir in "${sys_dirs[@]}"; do
+							candidate="${dir}/${dep}"
+							if [[ -f "${candidate}" ]]; then
+								echo "${dep}→SYS_PATH→${dir}"
+								found=4
+								break
+							fi
+						done
 					fi
 					if [[ "${found}" -eq 0 ]]; then
 						echo "${dep}→Missing→"

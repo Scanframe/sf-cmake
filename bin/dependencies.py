@@ -2,12 +2,13 @@
 """Report dynamic library dependencies.
 
 Supported options:
-  -h, --help    Show help
-  -c, --check   Resolve each dependency to a directory (LD_LIBRARY_PATH/RUNPATH/ldconfig or PATH)
+  -h, --help Show help
+  -c, --check Resolve each dependency to a directory (LD_LIBRARY_PATH/RUNPATH/ldconfig or PATH)
   -r, --recurse When a dependency is found on disk, inspect its dependencies too
-  -a, --app     Windows-only: executable providing the base directory for the lookup
-      --cmake   Export the dependencies as a semicolon-separated CMake list value
-      --exclude-system  Exclude Windows system and missing DLLs from the output
+  -a, --app Windows-only: executable providing the base directory for the lookup
+  -L, --lib-arch Target architecture triplet for library search (e.g., x86_64-linux-gnu, aarch64-linux-gnu)
+      --cmake Export the dependencies as a semicolon-separated CMake list value
+      --exclude-system Exclude Windows system and missing DLLs from the output
 
 The binaries themselves are parsed directly (pyelftools/pefile) so no 'objdump' is
 needed. Resolving does rely on the same external information as the shell script:
@@ -80,6 +81,103 @@ def is_pe_file(path: Path) -> bool:
 		return stream.read(2) == b"MZ"
 
 
+def get_elf_arch(path: Path) -> Optional[Tuple[str, int]]:
+	"""Return a tuple of (e_machine, elfclass) for an ELF binary or None."""
+	try:
+		with open(path, "rb") as stream:
+			elf = ELFFile(stream)
+			return (elf.header["e_machine"], elf.elfclass)
+	except Exception:
+		return None
+
+
+def is_compatible_elf(candidate_path: Path | str, target_arch: Optional[Tuple[str, int]]) -> bool:
+	"""Check if a candidate library file matches the target architecture."""
+	if target_arch is None:
+		return True
+	cand_arch = get_elf_arch(Path(candidate_path))
+	if cand_arch is None:
+		return True
+	return cand_arch == target_arch
+
+
+def is_arch_compatible(e_machine: str, elfclass: int, flags: str) -> bool:
+	"""Check if an ldconfig flags string is compatible with the target ELF architecture and bitness."""
+	flags_lower = flags.lower()
+	is_64_flag = any(k in flags_lower for k in ("64bit", "x86-64", "aarch64", "arm64", "ppc64", "s390x", "mips64"))
+
+	if e_machine in ("EM_X86_64", "EM_AMD64", "EM_L10M"):
+		if elfclass != 64:
+			return False
+		if "x86-64" in flags_lower or "amd64" in flags_lower:
+			return True
+		if "64bit" in flags_lower and not any(
+			k in flags_lower for k in ("aarch64", "arm", "mips", "ppc", "powerpc", "s390", "sparc", "riscv")
+		):
+			return True
+		return False
+
+	if e_machine == "EM_AARCH64":
+		if elfclass != 64:
+			return False
+		if any(k in flags_lower for k in ("aarch64", "arm64")):
+			return True
+		if "64bit" in flags_lower and "arm" in flags_lower:
+			return True
+		return False
+
+	if e_machine in ("EM_386", "EM_486"):
+		if elfclass != 32:
+			return False
+		if is_64_flag or "x86-64" in flags_lower:
+			return False
+		if any(k in flags_lower for k in ("aarch64", "arm", "mips", "ppc", "powerpc", "s390", "sparc", "riscv")):
+			return False
+		return True
+
+	if e_machine == "EM_ARM":
+		if elfclass != 32:
+			return False
+		if is_64_flag or "aarch64" in flags_lower or "x86-64" in flags_lower:
+			return False
+		if any(k in flags_lower for k in ("arm", "armhf", "hard-float", "soft-float")):
+			return True
+		return False
+
+	if e_machine == "EM_RISCV":
+		if any(k in flags_lower for k in ("riscv", "risc-v")):
+			if elfclass == 64:
+				return "64bit" in flags_lower or "x86-64" not in flags_lower
+			return "64bit" not in flags_lower
+		return False
+
+	if e_machine in ("EM_PPC64", "EM_PPC"):
+		if e_machine == "EM_PPC64" and elfclass == 64:
+			return "ppc64" in flags_lower or ("powerpc" in flags_lower and "64bit" in flags_lower)
+		if e_machine == "EM_PPC" and elfclass == 32:
+			return ("powerpc" in flags_lower or "ppc" in flags_lower) and not is_64_flag
+		return False
+
+	if e_machine in ("EM_MIPS", "EM_MIPS_RS3_LE", "EM_MIPS_X"):
+		if "mips" in flags_lower:
+			if elfclass == 64:
+				return "64bit" in flags_lower or "n64" in flags_lower
+			return not ("64bit" in flags_lower or "n64" in flags_lower)
+		return False
+
+	if e_machine == "EM_S390":
+		if elfclass == 64:
+			return "s390x" in flags_lower or ("s390" in flags_lower and "64bit" in flags_lower)
+		return "s390" in flags_lower and not is_64_flag
+
+	# Generic / fallback matching by bitness if not specifically mapped
+	if elfclass == 64 and is_64_flag:
+		return True
+	if elfclass == 32 and not is_64_flag:
+		return True
+	return False
+
+
 def read_runpath(path: Path) -> List[str]:
 	"""Return the RUNPATH or when absent, the deprecated RPATH entries of an ELF binary."""
 	runpath: Optional[str] = None
@@ -131,11 +229,11 @@ def list_needed(path: Path, dll_mode: bool) -> List[str]:
 	return deps
 
 
-# Cached mapping of the loader configuration of library name to full path.
-_ld_cache: Optional[Dict[str, str]] = None
+# Cached mapping of the loader configuration: library name to list of (flags, path) tuples.
+_ld_cache: Optional[Dict[str, List[Tuple[str, str]]]] = None
 
 
-def ld_config_lookup(name: str) -> Optional[Path]:
+def ld_config_lookup(name: str, arch: Optional[Tuple[str, int]] = None) -> Optional[Path]:
 	"""Resolve a library name using the loader configuration cache like 'ldconfig -p' reports it."""
 	global _ld_cache
 	if _ld_cache is None:
@@ -147,11 +245,26 @@ def ld_config_lookup(name: str) -> Optional[Path]:
 			output = ""
 		for line in output.splitlines():
 			# A line looks like: '\tlibc.so.6 (libc6,x86-64) => /lib/x86_64-linux-gnu/libc.so.6'.
-			match = re.match(r"^\s*(\S+)\s.*=>\s*(\S.*?)\s*$", line)
-			if match and match.group(1) not in _ld_cache:
-				_ld_cache[match.group(1)] = match.group(2)
-	found = _ld_cache.get(name)
-	return Path(found) if found else None
+			match = re.match(r"^\s*(\S+)\s*\((.*?)\)\s*=>\s*(\S.*?)\s*$", line)
+			if match:
+				lib_name, flags, path = match.group(1), match.group(2), match.group(3)
+				_ld_cache.setdefault(lib_name, []).append((flags, path))
+			else:
+				match_simple = re.match(r"^\s*(\S+)\s.*=>\s*(\S.*?)\s*$", line)
+				if match_simple:
+					lib_name, path = match_simple.group(1), match_simple.group(2)
+					_ld_cache.setdefault(lib_name, []).append(("", path))
+	entries = _ld_cache.get(name, [])
+	if not entries:
+		return None
+	if arch is not None:
+		e_machine, elfclass = arch
+		for flags, path_str in entries:
+			if is_arch_compatible(e_machine, elfclass, flags):
+				return Path(path_str)
+		return None
+	# When arch is not specified, return the first entry.
+	return Path(entries[0][1])
 
 
 def processed_key(path: Path | str) -> str:
@@ -395,7 +508,8 @@ def handle_linux(
 	flag_verbose: bool,
 	flag_exclude_system: bool,
 	flag_format: bool,
-	flag_quiet: bool
+	flag_quiet: bool,
+	lib_arch: Optional[str] = None
 ) -> None:
 	"""Handle dependency reporting for ELF targets on Linux."""
 	ld_path_dirs: List[str] = []
@@ -415,16 +529,32 @@ def handle_linux(
 				if not flag_quiet:
 					write_log(f"- {entry} => {resolved}")
 				ld_path_dirs.append(resolved)
+	# Configure fallback system search directories.
+	sys_dirs: List[str] = []
+	if lib_arch:
+		for sys_candidate in (
+			f"/lib/{lib_arch}",
+			f"/usr/lib/{lib_arch}",
+			f"/usr/{lib_arch}/lib",
+			f"/usr/{lib_arch}/usr/lib",
+		):
+			if os.path.isdir(sys_candidate) and sys_candidate not in sys_dirs:
+				sys_dirs.append(sys_candidate)
 	# Keys of the files reported on to prevent endless recursion on circular dependencies.
 	processed: set = set()
 	cmake_dependencies: List[str] = []
 	cmake_seen: set = set()
 	resolve_dependencies = flag_check or flag_cmake
 
-	def is_system_file(path: Path) -> bool:
+	def is_system_file(path: Path | str) -> bool:
 		"""Check if the file is a system file."""
-		regex = r"^.+/x86_64-linux-gnu/(libc|libstdc\+\+|libgcc_s|libm|libpthread|libdl)\.so\..*$"
-		return bool(re.match(regex, str(path)))
+		path_str = str(path)
+		if lib_arch:
+			for prefix in (f"/lib/{lib_arch}", f"/usr/lib/{lib_arch}", f"/usr/{lib_arch}"):
+				if path_str == prefix or path_str.startswith(prefix + "/"):
+					return True
+		regex = r"^.+/(?:(?:x86_64|aarch64|arm|i386|i686|riscv64|powerpc64le|s390x|mips64el)[^/]*|lib64?)/(libc|libstdc\+\+|libgcc_s|libm|libpthread|libdl)\.so\..*$"
+		return bool(re.match(regex, path_str))
 
 	def add_cmake_dependency(path: str) -> None:
 		"""Add a resolved dependency path to the exported CMake list at once."""
@@ -441,6 +571,7 @@ def handle_linux(
 		if key in processed:
 			return
 		processed.add(key)
+		bin_arch = get_elf_arch(bin_path)
 		if not flag_quiet:
 			write_log(f"# File RUNPATH: {bin_path}")
 		origin = str(Path(bin_path).resolve().parent)
@@ -469,7 +600,7 @@ def handle_linux(
 			found = 0
 			for directory in ld_path_dirs:
 				candidate = os.path.join(directory, dep)
-				if os.path.isfile(candidate):
+				if os.path.isfile(candidate) and is_compatible_elf(candidate, bin_arch):
 					if flag_cmake:
 						add_cmake_dependency(candidate)
 					rows.append(f"{dep}{SEPARATOR}LD_PATH{SEPARATOR}{os.path.dirname(candidate)}")
@@ -481,7 +612,7 @@ def handle_linux(
 			if found == 0:
 				for directory in run_path_dirs:
 					candidate = os.path.join(directory, dep)
-					if os.path.isfile(candidate):
+					if os.path.isfile(candidate) and is_compatible_elf(candidate, bin_arch):
 						if not flag_exclude_system or (flag_exclude_system and not Path(candidate).is_relative_to(bin_dir)):
 							if flag_cmake:
 								add_cmake_dependency(candidate)
@@ -495,7 +626,7 @@ def handle_linux(
 						break
 			# When not found, continue...
 			if found == 0:
-				candidate_path = ld_config_lookup(dep)
+				candidate_path = ld_config_lookup(dep, bin_arch)
 				if candidate_path:
 					if not flag_exclude_system or (flag_exclude_system and not is_system_file(candidate_path)):
 						if flag_cmake:
@@ -505,6 +636,22 @@ def handle_linux(
 						if flag_verbose and not flag_quiet:
 							write_log(f"# Excluding: {candidate_path}")
 					found = 3
+			# When not found, check architecture-specific fallback system directories...
+			if found == 0:
+				for directory in sys_dirs:
+					candidate = os.path.join(directory, dep)
+					if os.path.isfile(candidate) and is_compatible_elf(candidate, bin_arch):
+						if not flag_exclude_system or (flag_exclude_system and not is_system_file(candidate)):
+							if flag_cmake:
+								add_cmake_dependency(candidate)
+							rows.append(f"{dep}{SEPARATOR}SYS_PATH{SEPARATOR}{directory}")
+						else:
+							if flag_verbose and not flag_quiet:
+								write_log(f"# Excluding: {candidate}")
+						found = 4
+						if flag_recurse:
+							recurse_queue.append(candidate)
+						break
 			# Not recursing into system libraries on purpose.
 			if found == 0:
 				rows.append(f"{dep}{SEPARATOR}{MISSING}{SEPARATOR}")
@@ -537,6 +684,8 @@ def parse_args(argv: Sequence[str]) -> Optional[argparse.Namespace]:
 	parser.add_argument("-q", "--quiet", action="store_true", help="Only show the result.")
 	parser.add_argument("-a", "--app", metavar="APP",
 		help="Application or library which provides Windows executable directory (Windows targets only).")
+	parser.add_argument("-L", "--lib-arch", metavar="TRIPLET",
+		help="Target architecture triplet for library search (e.g. x86_64-linux-gnu, aarch64-linux-gnu).")
 	parser.add_argument("--cmake", action="store_true", help="Export the dependencies as a CMake lists variable.")
 	parser.add_argument("-V", "--verbose", action="store_true", help="Verbosity is up.")
 	parser.add_argument("-x", "--exclude-system", action="store_true",
@@ -567,7 +716,7 @@ def main(argv: Sequence[str]) -> int:
 			not args.no_format, args.quiet)
 	else:
 		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format,
-			args.quiet)
+			args.quiet, args.lib_arch)
 	return 0
 
 
