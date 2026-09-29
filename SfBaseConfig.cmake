@@ -1462,12 +1462,12 @@ function(Sf_GetDependencies _OutVar _BinFile)
 	# Windows only knows the 'python' command.
 	find_program(_PythonExe NAMES "python3" "python" REQUIRED)
 	# Needs to be defined.
-	if (NOT DEFINED CMAKE_LIBRARY_ARCHITECTURE)
+	if (NOT WIN32 AND NOT DEFINED CMAKE_LIBRARY_ARCHITECTURE)
 		message(FATAL_ERROR "Variable 'CMAKE_LIBRARY_ARCHITECTURE' is not defined!")
 	endif ()
 	set(_cmd "${_PythonExe}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bin/dependencies.py" "--quiet" "--cmake"
-		"--exclude-system" "--lib-arch" "${CMAKE_LIBRARY_ARCHITECTURE}")
-	if (CMAKE_LIBRARY_ARCHITECTURE)
+		"--exclude-system")
+	if (DEFINED CMAKE_LIBRARY_ARCHITECTURE)
 		list(APPEND _cmd "--lib-arch" "${CMAKE_LIBRARY_ARCHITECTURE}")
 	endif ()
 	if (_arg_UNPARSED_ARGUMENTS)

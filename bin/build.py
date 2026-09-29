@@ -2788,14 +2788,13 @@ Choices are depended on the host platform:
 		"""
 		On an x86_64 host, add the arm64 ports sources file (if missing) and register arm64 as a foreign dpkg architecture.
 		"""
-		arch_host: str = "amd64"
 		arch_foreign: str = "arm64"
 		sources_host_path: str = f"/etc/apt/sources.list.d/ubuntu.sources"
 		sources_foreign_path: str = f"/etc/apt/sources.list.d/ubuntu-{arch_foreign}.sources"
 		#
 		logger.info(f"~ Adding 'Architectures' to Ubuntu sources file: {sources_host_path}")
 		run_command(["sudo", "sed", "--in-place",
-			"/^Types: deb$/{$!N; /^Types: deb\\nArchitectures:/!s/^Types: deb\\n/Types: deb\\nArchitectures: " + arch_host + "\\n/}",
+			"/^Types: deb$/{$!N; /^Types: deb\\nArchitectures:/!s/^Types: deb\\n/Types: deb\\nArchitectures: amd64 i386\\n/}",
 			sources_host_path], dbg_mode=DebugMode.REPORT_ONLY)
 		#
 		if os.path.exists(sources_foreign_path):
