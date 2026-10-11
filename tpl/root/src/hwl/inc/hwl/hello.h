@@ -44,3 +44,8 @@ _HWL_FUNC std::string getCompilerVersion();
  * @brief Gets the C++ standard used when compiling.
  */
 _HWL_FUNC std::string getCppStandardVersion();
+
+/**
+ * @brief Lists the loaded dynamic libraries loaded at this time.
+ */
+_HWL_FUNC void listLoadedLibraries(std::ostream& os);

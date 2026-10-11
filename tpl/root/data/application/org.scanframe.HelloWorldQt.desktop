@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=Hello World Qt
-Comment=Example Qt application
+Comment=Example Qt C++ boilerplate application
 Exec=hello-world-qt %U
-Icon=hello-world-qt
+Icon=org.scanframe.HelloWorldQt
 Terminal=false
 Categories=Utility;
 StartupNotify=true

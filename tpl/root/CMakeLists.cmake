@@ -45,8 +45,10 @@ endif ()
 find_package(SfMacros CONFIG REQUIRED)
 find_package(SfBuildCheck CONFIG REQUIRED)
 if (SF_BUILD_QT)
+	# Get the Qt version from the 'build.ini' file.
+	ini_read_value(_QtVer "${CMAKE_CURRENT_LIST_DIR}/build.ini" "config" "qt-ver" "6.10.1")
 	# Install/fetch the Qt Libraries when ENV{QT_VER_DIR} is not set.
-	find_package(SfQtLibrary 6.10.1 CONFIG REQUIRED)
+	find_package(SfQtLibrary "${_QtVer}" CONFIG REQUIRED)
 endif ()
 
 # Set the C++ standard to 20 for all projects which is required for the SfCompiler package.

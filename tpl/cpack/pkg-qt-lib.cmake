@@ -12,7 +12,7 @@ string(TOLOWER "${SF_PROVIDER_NAME}" _ProviderName)
 #set(CPACK_DEBIAN_PACKAGE_VERSION "${SF_QT_VERSION}-${QT_TWEAK_VERSION}")
 
 # Set a different install directory for the Qt packages.
-if (SF_WIN32)
+if (WIN32)
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${SF_PROVIDER_NAME}/qt/${SF_QT_VERSION}/${_CompilerSubDir}")
 	set(CPACK_PACKAGING_INSTALL_PREFIX "/${SF_PROVIDER_NAME}/qt/${SF_QT_VERSION}/${_CompilerSubDir}")
 else ()

@@ -19,6 +19,7 @@
 	command -v clang-format >/dev/null && echo -e "CLang-Format:$(clang-format --version | cut -d' ' -f4)"
 	command -v gdb >/dev/null && echo -e "Gdb:$(gdb --version | head -n 1 | grep -o '[^ ]*$')"
 	command -v ld >/dev/null && echo -e "GNU-Linker:$(ld -version | head -n 1 | grep -o '[^ ]*$')"
+	command -v patchelf >/dev/null && echo -e "PatchElf:$(patchelf --version | head -n 1 | cut -d' ' -f2)"
 	[[ -d ~/lib/qt ]] && find ~/lib/qt -maxdepth 2 -type d -name "*.*.*" -printf "Qt Library:%P\n"
 	command -v doxygen >/dev/null && echo -e "DoxyGen:$(doxygen --version)"
 	command -v dot >/dev/null && echo -e "Graphviz:$(dot -V 2>&1 | cut -d' ' -f5)"
@@ -57,7 +58,7 @@
 		for dir in "${PWD}/lib/toolchain/win-x86_64-"*-combi "${HOME}/tools"; do
 			[[ ! -d "${dir}" ]] && continue
 			version="$(wine "${dir}/bin/patch.exe" --version 2>/dev/null | head -n 1 | tr -d '\r' | grep -o '[^ ]*$')" && echo -e "Wine > GNU-Patch:${version}"
-			version="$(wine "${dir}/bin/7z.exe" | head -n 2 | tail -n 1  | cut -d' ' -f3)" && echo -e "Wine > Z-zip:${version}"
+			version="$(wine "${dir}/bin/7z.exe" | head -n 2 | tail -n 1 | grep -oP '(?<=7-Zip )(?:\([a-z]\) )?\d+\.\d+')" && echo -e "Wine > 7-Zip:${version}"
 			version="$(wine "${dir}/bin/ninja.exe" --version 2>/dev/null)" && echo -e "Wine > Ninja:${version}"
 		done
 	fi

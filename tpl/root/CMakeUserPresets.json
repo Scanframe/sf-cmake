@@ -147,6 +147,21 @@
 			]
 		},
 		{
+			"name": "gnu-debug-appimg",
+			"hidden": false,
+			"displayName": "Debug GNU (AppImage only)",
+			"description": "GNU AppImage package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"AppImage"
+			]
+		},
+		{
 			"name": "gw-debug-zip",
 			"hidden": false,
 			"inherits": [

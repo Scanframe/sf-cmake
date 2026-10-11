@@ -102,7 +102,7 @@ if (CPACK_GENERATOR STREQUAL "DEB")
 		string(JOIN ", " _Dependencies ${_Dependencies})
 		# Output results.
 		message(STATUS "Resulting Dependencies: ${_Dependencies}")
-			# The application uses the separately packaged Qt runtime when Qt support is enabled.
+		# The application uses the separately packaged Qt runtime when Qt support is enabled.
 		set("CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_DEPENDS" "${_Dependencies}")
 	endforeach ()
 endif ()
@@ -115,7 +115,7 @@ if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
 		string(TOUPPER "${_Component}" _ComponentUpper)
 		set(_filename "${SF_PACKAGE_BASE_NAME}-${_Component}")
 		# An archive file is not specific for an OS, so the toolchain is prefixed.
-		if (SF_WIN32)
+		if (WIN32)
 			list(APPEND _filename "win+${SF_TOOLCHAIN_STRING}")
 		else ()
 			list(APPEND _filename "lnx+${SF_TOOLCHAIN_STRING}")
@@ -156,5 +156,104 @@ if (CPACK_GENERATOR STREQUAL "NSIS64")
 	# Add the package revision to the file version part.
 	if (SF_PACKAGE_REVISION)
 		set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.${SF_PACKAGE_REVISION}")
+	endif ()
+endif ()
+
+if (CPACK_GENERATOR STREQUAL "AppImage")
+	# Set AppImage file naming pattern matching the convention.
+	set(_filename "${SF_PACKAGE_BASE_NAME}-lnx+${SF_TOOLCHAIN_STRING}_${SF_GIT_TAG_VERSION}")
+	if (SF_PACKAGE_RELEASE)
+		string(APPEND _filename "-${SF_PACKAGE_RELEASE}")
+	endif ()
+	if (DEFINED SF_PACKAGE_REVISION)
+		string(APPEND _filename ".${SF_PACKAGE_REVISION}")
+	endif ()
+	string(APPEND _filename "_${SF_ARCHITECTURE_SAFE}")
+	# The executable file name.
+	set(CPACK_PACKAGE_FILE_NAME "${_filename}")
+	message(STATUS "CPACK_PACKAGE_FILE_NAME: ${CPACK_PACKAGE_FILE_NAME}")
+	# Desktop and icon configuration.
+	set(_AppDir "${CMAKE_CURRENT_SOURCE_DIR}/data/application")
+	if (EXISTS "${_AppDir}")
+		file(GLOB _DesktopFiles "${_AppDir}/*.desktop")
+		list(GET _DesktopFiles 0 _MainDesktopFilePath)
+		if (EXISTS "${_MainDesktopFilePath}")
+			get_filename_component(_MainDesktopFile "${_MainDesktopFilePath}" NAME)
+			set(CPACK_APPIMAGE_DESKTOP_FILE "${_MainDesktopFile}")
+			string(REGEX REPLACE "desktop$" "svg" CPACK_PACKAGE_ICON "${_MainDesktopFile}")
+			message(STATUS "CPACK_APPIMAGE_DESKTOP_FILE: ${CPACK_APPIMAGE_DESKTOP_FILE}")
+			message(STATUS "CPACK_PACKAGE_ICON: ${CPACK_PACKAGE_ICON}")
+		else ()
+			message(FATAL_ERROR "Desktop file missing!")
+		endif ()
+	endif ()
+endif ()
+
+if (NOT WIN32)
+	# Prevent copying by removing the files for generators not needing them.
+	set(_dir_out "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/etc/ld.so.conf.d")
+	Sf_RemoveFiles("${_dir_out}")
+	# Disabled since it is not needed.
+	if (FALSE)
+		# Create the ld.so configuration file content.
+		file(WRITE "${_dir_out}/${CMAKE_PROJECT_NAME}-libs.conf" "
+# Enable from project file.\n
+# ${CPACK_PACKAGING_INSTALL_PREFIX}/lib\n"
+		)
+	endif ()
+	# Prevent copying by removing the files for generators not needing them.
+	set(_dir_out "${CMAKE_CURRENT_BINARY_DIR}/.sf/debian/bin")
+	Sf_RemoveFiles("${_dir_out}")
+	if (CPACK_GENERATOR STREQUAL "DEB" OR CPACK_GENERATOR STREQUAL "AppImage")
+		# Create launcher scripts for each executable.
+		foreach (_bin_file IN LISTS SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME})
+			get_filename_component(_OutputName "${_bin_file}" NAME_WLE)
+			get_filename_component(_OutputSuffix "${_bin_file}" LAST_EXT)
+			# Create a launcher script in the build directory.
+			set(_FilePath "${_dir_out}/${_OutputName}")
+			message(STATUS "Creating launcher '${_OutputName}': ${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}")
+			file(WRITE "${_FilePath}" [[#!/bin/env bash
+
+# Get the script's directory.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+]])
+			file(APPEND "${_FilePath}" "
+exec \"\${script_dir}/../..${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}\" \"$@\"
+	")
+		endforeach ()
+	endif ()
+	# Prevent copying by removing the files for generators not needing them.
+	set(_dir_out "${CMAKE_CURRENT_BINARY_DIR}/.sf/appimage")
+	Sf_RemoveFiles("${_dir_out}")
+	if (CPACK_GENERATOR STREQUAL "AppImage")
+		# Generate custom AppRun launcher script for AppImage payload.
+		set(_filepath "${_dir_out}/AppRun")
+		file(WRITE "${_filepath}" [[#!/bin/env bash
+# Determine how the application was called externally.
+invocation_name=$(basename "${ARGV0:-$0}")
+script_dir="$(dirname "$(readlink -f "$0")")"
+if [ -f "${script_dir}/usr/bin/${invocation_name}" ]; then
+	exec "${script_dir}/usr/bin/${invocation_name}" "$@"
+else
+	shopt -s nullglob
+	for file in "${script_dir}/usr/bin/"*; do
+		exec "${file}" "$@"
+		break
+	done
+fi
+]])
+		file(APPEND "${_filepath}" [[
+return $?
+]])
+	Sf_GetGitCommitDateTime(_DateTime "${CMAKE_CURRENT_LIST_DIR}")
+	list(GET _DateTime 0 SF_GIT_DATE)
+		list(GET _DateTime 1 SF_GIT_TIME)
+		# Get all template files.
+	file(GLOB _files "${CMAKE_CURRENT_SOURCE_DIR}/data/application/*.appdata.xml.xtpl")
+	foreach (_file_in IN LISTS _files)
+		# Generate the configure the file for doxygen.
+		get_filename_component(_filename "${_file_in}" NAME_WLE)
+		configure_file("${_file_in}" "${_dir_out}/${_filename}" @ONLY)
+	endforeach ()
 	endif ()
 endif ()

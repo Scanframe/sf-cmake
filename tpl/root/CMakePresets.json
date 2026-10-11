@@ -552,7 +552,8 @@
 				".lnx-only"
 			],
 			"targets": [
-				"t_devops-shared-test"
+				"devops-shared-test-catch",
+				"devops-shared-test-google"
 			]
 		},
 		{
@@ -817,6 +818,7 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
 				"TGZ",
+				"AppImage",
 				"DEB"
 			]
 		},
@@ -833,6 +835,7 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
 			"generators": [
 				"TGZ",
+				"AppImage",
 				"DEB"
 			]
 		},
@@ -865,6 +868,7 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
 				"TGZ",
+				"AppImage",
 				"DEB"
 			]
 		},

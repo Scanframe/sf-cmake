@@ -81,10 +81,19 @@ INI_TEMPLATE = r"""
 [config]
 ; File for running an executable with the cmake environment.
 cmake-run-file=cmake/lib/run-executable.cmake
+; The default Qt version and also the initial 'RUN_QT_VER' environment variable and passed as
+; env var 'SF_QT_VERSION' to the docker container.
+;qt-ver=6.10.1
+;qt-ver=6.10.3
+qt-ver=6.12.0
+; Optional download location passed to the Docker container as 'SF_QT_DOWNLOAD_BASE' env var.
+;qt-download-base=https://nexus.scanframe.com/repository/shared/library/qt
 ; Override the default docker image using a smaller one without the QT libraries.
 ;docker-image=nexus.scanframe.com/amd64/gnu-cpp:24.04
-;docker-image=avolphen/amd64-gnu-cpp:24.04
-;docker-image=amd64/gnu-cpp:24.04
+; Custom container name for this project to prevent conflicts with other projects.
+;docker-container-name=my_cpp_builder
+; Base for downloading toolchains and qt libraries.
+library-base-url=https://nexus.scanframe.com/repository/shared/library
 
 ; Sematic versioning type impact map.
 [config-ver-type-map]
@@ -107,21 +116,26 @@ nexus=.nexus-credentials.ini
 
 ; Pulse audio server config. Need volume mapping from host.
 [pulse-audio]
-# Location for the pulse audio server to find the users socket (check with: pactl info).
+; Location for the pulse audio server to find the users socket (check with: pactl info).
 PULSE_SERVER=unix:/run/user/${UID}/pulse/native
-# To get the Qt theme as on the host.
+; To get the Qt theme as on the host.
 QT_QPA_PLATFORMTHEME=xdgdesktopportal
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${UID}/bus
 
-[qt-ver]
-RUN_QT_VER=6.10.1
+[qt-12-fix]
+; Prevent displaying Wine warnings.
+WINEDEBUG=fixme-all
+;WINEDEBUG=fixme-all,+seh,+mscms,+loaddll
+; Required to since Wine 11.0 is missing function 'WcsCreateIccProfile' in 'mscms.dll' and is overridden by our own DLL.
+WINEDLLOVERRIDES=mscms=n,b
 
 ; Environment added when running in Wine natively.
 ; It needs Python 3.12, CMake 4.2, Ninja 1.13 and NSIS 3.11 which can be installed but also shared through the toolchain directory.
 ; Windows Git is not completely working since it is using Cygwin libraries and a Git server/client is devised to overcome it.
 [env.wine@]
+__inherit__=qt-12-fix
 ; Convenient variable for common base directory.
-TOOL_ROOT=Z:${RUN_DIR}\lib\toolchain\win-x86_64-cmake-4.2-combi
+TOOL_ROOT=Z:${RUN_DIR}\lib\toolchain\win-x86_64-combi
 ; Configuration for tools as cmake, git and ninja for within the Wine environment.
 WINEPATH=${TOOL_ROOT}\cmake\bin;${TOOL_ROOT}\bin;${TOOL_ROOT}\python;${TOOL_ROOT}\nsis
 ; Alternate port for the git server incase of conflicts.
@@ -135,7 +149,6 @@ WINEPATH=${TOOL_ROOT}\cmake\bin;${TOOL_ROOT}\bin;${TOOL_ROOT}\python;${TOOL_ROOT
 
 ; Environment added before running with the compiler msvc natively.
 [env.msvc@]
-__inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-msvc
 ; Location of the root of the MSVC toolchain in the Wine environment.
 ; The rest is environment as below is configured in the file CMakePresets.json to allow multiple compilers to be configured in the same project.
@@ -145,7 +158,6 @@ RUN_QT_VER_DIR=${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}
 ; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
 LD_LIBRARY_PATH=${RUN_QT_VER_DIR}\msvc_64\bin
 PATH=${LD_LIBRARY_PATH};${PATH}
-WINEDEBUG=fixme-all
 
 ; Environment added before running with the compiler msvc in Wine.
 [env.msvc.wine@]
@@ -153,13 +165,12 @@ __inherit__=env.msvc@
 
 ; Environment added before running Wine in the Docker container.
 [env.wine.docker@]
-__inherit__=qt-ver,pulse-audio
+__inherit__=pulse-audio,qt-12-fix
 ; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}
 
 ; Environment added before running with the compiler msvc in Wine in the Docker container.
 [env.msvc.wine.docker@]
-__inherit__=qt-ver
 # The Docker container is build with the MSVC toolchain. (fuse-zip mounted in the home directory).
 MSVC_ROOT=Z:\home\${USER}\toolchain\w64-x86_64-msvc-2022
 SF_EXEC_DIR_SUFFIX=-msvc
@@ -168,21 +179,24 @@ PATH=${RUN_QT_VER_DIR}\msvc_64\bin;${PATH}
 
 ; Environment added before running the 'gnu' compiler natively.
 [env.gnu@]
-__inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-gnu
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
-LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
+LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/lib
+; Make the 'appimagetool' available from the PATH.
+PATH=${PATH}:${RUN_DIR}/lib/toolchain/lnx-${MACHINE}-combi/bin
 
 ; Environment added before running the 'gnu' compiler in the Docker container.
 [env.gnu.docker@]
-__inherit__=qt-ver,pulse-audio
+__inherit__=pulse-audio
 SF_EXEC_DIR_SUFFIX=-gnu
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
-LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-x86_64/${RUN_QT_VER}/gcc_64/lib
+LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/lib
+; Make the 'appimagetool' available from the PATH.
+PATH=${PATH}:${HOME}/toolchain/lnx-${MACHINE}-combi/bin
 
 ; Environment added when running wine natively to execute the Windows cross-compiled targets.
 [env.gw@]
-__inherit__=qt-ver
+__inherit__=qt-12-fix
 SF_EXEC_DIR_SUFFIX=-gw
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;${RUN_DIR}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin
 ; Overrides QT_VER_DIR for subcommand 'run'.
@@ -190,42 +204,41 @@ RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
 
 ; Environment added when running wine natively to execute the Aarch64 cross-compiled targets.
 [env.ga@]
-__inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-ga
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/lib
+; Make the 'appimagetool' available from the PATH.
+PATH=${PATH}:${RUN_DIR}/lib/toolchain/lnx-${MACHINE}-combi/bin
 
 ; Environment added before running the 'mingw' compiler natively.
 [env.mingw@]
-__inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-mingw
 ; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
 LD_LIBRARY_PATH=${RUN_DIR}\lib\toolchain\w64-x86_64-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
 PATH=${LD_LIBRARY_PATH};${PATH}
 
 [env.mingw.wine@]
-__inherit__=env.mingw@
+__inherit__=env.mingw@,qt-12-fix
 
 ; Environment added before running the 'mingw' compiler in Docker and Wine.
 [env.mingw.wine.docker@]
-__inherit__=qt-ver
 SF_EXEC_DIR_SUFFIX=-mingw
 PATH=Z:\home\${USER}\toolchain\w64-x86_64-mingw-1320-posix\bin;Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
 
 ; Environment added before running the 'ga' compiler in Docker.
 [env.ga.docker@]
-__inherit__=qt-ver,pulse-audio
+__inherit__=pulse-audio
 ; Puts the binary in 'bin/lnx64-ga'.
 SF_EXEC_DIR_SUFFIX=-ga
+; Make the 'appimagetool' available from the PATH.
+PATH=${PATH}:${HOME}/toolchain/lnx-${MACHINE}-combi/bin
 
 ; Environment added before running the 'gw' compiler in the Docker container.
 [env.gw.docker@]
-__inherit__=qt-ver,pulse-audio
+__inherit__=pulse-audio,qt-12-fix
 SF_EXEC_DIR_SUFFIX=-gw
 ; Provides compiler std libraries to be found.
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;
-; Prevent displaying Wine warnings.
-WINEDEBUG=fixme-all
 # Optional for allowing the .exe files to be executed from Linux. Required compiler std libraries are also part of the Qt library.
 ;WINEPATH=Z:\home\${USER}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
 ; Overrides QT_VER_DIR since Wine does not pass any 'QT_' prefixed variables.
@@ -287,47 +300,6 @@ def is_debugger_active() -> bool:
 		except Exception:
 			pass
 	return False
-
-
-def get_7z_exe() -> str:
-	"""
-	Finds the installation path of 7-Zip on a Windows system by querying the system's registry.
-	:return: The full path to the `7z.exe` executable.
-	:raise: FileNotFoundError when not found.
-	"""
-	if sys.platform != "win32":
-		# noinspection PyDeprecation
-		if path := shutil.which("7z"):
-			return path
-		ex = FileNotFoundError(f"Missing 7z file in path !")
-		ex.add_note("Check if the package is installed.")
-		raise ex
-
-	try:
-		import winreg
-		# Open the 7-Zip registry key
-		key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\7-Zip")
-		# Get the value of the "Path" entry
-		path, _ = winreg.QueryValueEx(key, "Path")
-		winreg.CloseKey(key)
-		# Construct a full path to 7z.exe
-		full_path = os.path.join(path, "7z.exe")
-		if not os.path.exists(full_path):
-			raise FileNotFoundError(f"Missing file at location '{full_path}' !")
-		return full_path
-	except Exception as ex:
-		ex.add_note("Check if 7z executable is installed. Maybe required WinGet packages are not installed.")
-		raise ex
-
-
-def get_container_id() -> str:
-	"""Returns the ID of the running container if it exists."""
-	try:
-		result = subprocess.run(["docker", "ps", "--filter", f"name={CONTAINER_NAME}", "--quiet"], capture_output=True,
-			text=True, check=True)
-		return result.stdout.strip()
-	except subprocess.CalledProcessError:
-		return ""
 
 
 def start_git_server(port: int) -> bool:
@@ -582,8 +554,12 @@ ENV_IGNORED = ["SF_EXEC_DIR_SUFFIX"] if PARENT_ENV.get("CI") else []
 # In Linux and Docker it could be the TEMP environment variable is not set.
 if 'TEMP' not in PARENT_ENV:
 	PARENT_ENV['TEMP'] = tempfile.gettempdir()
+# Architecture of the host system (uname -m).
+PARENT_ENV['MACHINE'] = platform.machine()
 # Add the RUN_DIR so it is available in the '.toolchain-*' files.
 PARENT_ENV['RUN_DIR'] = RUN_DIR
+# The prefix 'RUN_' is needed since Wine does not pass environment variables prefixed with 'QT_'.
+PARENT_ENV['RUN_QT_VER'] = "0.0.0"
 # Add the user id to the parent environment so it can be used.
 if sys.platform != "win32":
 	PARENT_ENV['UID'] = f"{os.getuid()}"
@@ -593,16 +569,12 @@ RUN_ENV = PARENT_ENV.copy()
 DEBUG_FLAG = False
 # Holds the current configuration preset name.
 CONFIG_PRESET = None
-# Default container name for detached operations.
-CONTAINER_NAME = "cpp_builder"
 # Default SSH port for ssh daemon.
 SSHD_PORT = 8022
 # Name of the project subdirectory.
 PROJECT_SUBDIR = os.path.basename(RUN_DIR)
 # Get the configuration of the script.
 CONFIG = create_config_parser(os.path.join(RUN_DIR, str(os.path.splitext(os.path.basename(__file__))[0] + ".ini")))
-# Default Qt version for the Docker image selection.
-QT_VER = "6.10.1"
 # Directory to store the CMake library files.
 CMAKE_LIB_SUBDIR = ["cmake", "lib"]
 
@@ -697,7 +669,8 @@ def extract_by_url(url: str, dest_dir: str, new_dir_name: Optional[str] = None, 
 			# Extract based on the file type.
 			if filename.endswith(('.tar.gz', '.tgz')):
 				with tarfile.open(tmp_path, 'r:gz') as tar:
-					tar.extractall(dest_path)
+					# filter="data" blocks dangerous features like absolute paths or files escaping the destination folder.
+					tar.extractall(dest_path, filter="data")
 					# Get the root directory name from the archive
 					members = tar.getmembers()
 					if members:
@@ -1768,6 +1741,8 @@ class SubCommand(ABC):
 		self.aliases: List[str] = aliases if aliases is not None else []
 		# Holds the sub-parser instance for this subcommand.
 		self.parser: argparse.ArgumentParser | None = None
+		# Get the configuration section.
+		self._config = get_config_section("config", fail=True)
 
 	def register(self) -> SubCommand:
 		"""Registers this class in to the static member of this same class."""
@@ -2167,6 +2142,8 @@ class SubCommandDocker(SubCommand):
 
 	def __init__(self):
 		super().__init__("docker", ["d"])
+		# The default container name.
+		self._container: str = self._config.get("docker-container-name", "cpp_builder")
 
 	def create_parser(self, subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
@@ -2183,42 +2160,50 @@ class SubCommandDocker(SubCommand):
 		# Platform detection logic based on machine architecture.
 		machine = platform.machine()
 		default_platform = "arm64" if machine == 'aarch64' else "amd64"
-		cfg = get_config_section("config", fail=True)
 		# Define Epilog for the help message.
 		parser.epilog = f"""
 examples:
 
-  Show the targets using the {default_platform} platform docker image and Qt version {QT_VER}:
-    {self.script} --platform {default_platform} --qt-ver '{QT_VER}' -- --info
+  Show the targets using the {default_platform} platform docker image:
+    {self.script} --platform {default_platform} -- --info
   Show the uname information of the arm64 container without QT libraries:
-    {self.script} --platform arm64 --qt-ver '' run -- uname -a
+    {self.script} --platform arm64 run -- uname -a
 	"""
 		parser.add_argument("command", type=str, nargs="?",
 			choices=["pull", "run", "start", "wstart", "stop", "kill", "prune", "attach", "status", "sshd", "versions"],
 			help=f"""
 pull         - Pulls the docker image from the Docker registry.
 run -- <cmd> - Runs a command as user 'user' in the container using Docker command.
-start        - Starts a container named '{CONTAINER_NAME}' in the background.
-wstart       - Starts a container named '{CONTAINER_NAME}' in the background and a wineserver for speed.
-attach       - Attaches to the running container named '{CONTAINER_NAME}'.
-status       - Returns info of the running container '{CONTAINER_NAME}'.
+start        - Starts a container named '{self._container}' in the background.
+wstart       - Starts a container named '{self._container}' in the background and a wineserver for speed.
+attach       - Attaches to the running container named '{self._container}'.
+status       - Returns info of the running container '{self._container}'.
 prune        - Remove unused data and anonymous volumes.
-stop/kill    - Stops/Kills the container named '{CONTAINER_NAME}'.
+stop/kill    - Stops/Kills the container named '{self._container}'.
 versions     - Shows versions of most installed applications within the container.
 sshd         - Starts sshd service on port {SSHD_PORT} to allow remote control.
 """)
 		# Check if a fixed docker image is set.
-		if "docker-image" in cfg.keys():
+		if "docker-image" in self._config.keys():
 			parser.description = f"""
-Docker image from configuration: {cfg["docker-image"]}
-This ignores the options: --qt-ver, --platform'
+Docker image from configuration: {self._config["docker-image"]}
+This ignores the options: --platform'
 """
-		parser.add_argument("-q", "--qt-ver", default=QT_VER, metavar="<qt-ver>",
-			help=f"Qt version forming the Docker image name (default: '{QT_VER}').")
+		parser.add_argument("-D", "--debug", action="store_true", dest="flag_debug", default=False,
+			help=f"Sets the DEBUG environment flag for the entrypoint script.")
 		parser.add_argument("-p", "--platform", default=default_platform, choices=['amd64', 'arm64'],
 			help=f"Platform part forming the Docker image (default: '{default_platform}').")
 		parser.add_argument("-n", "--no-build-dir", action="store_false", dest="flag_build_dir", default=True,
 			help="Docker project builds in a regular cmake-build directory as a native build would.")
+
+	def get_container_id(self) -> str:
+		"""Returns the ID of the running container if it exists."""
+		try:
+			result = subprocess.run(["docker", "ps", "--filter", f"name={self._container}", "--quiet"], capture_output=True,
+				text=True, check=True)
+			return result.stdout.strip()
+		except subprocess.CalledProcessError:
+			return ""
 
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
@@ -2230,12 +2215,12 @@ This ignores the options: --qt-ver, --platform'
 
 		def docker_command(options: List[str], image: str, cmd_args: List[str]) -> List[str]:
 			"""Determines whether to use 'docker exec' on a running container or 'docker run' for a new one."""
-			if get_container_id():
+			if self.get_container_id():
 				# If the container is already running (detached), use exec.
 				full_cmd = ["docker", "exec"]
 				if sys.stdin.isatty():
 					full_cmd += ["--interactive", "--tty"]
-				full_cmd += [CONTAINER_NAME, "sudo", "--login", "--user=user", "--"]
+				full_cmd += [self._container, "sudo", "--login", "--user=user", "--"]
 				full_cmd += cmd_args
 			else:
 				# Otherwise start a fresh container.
@@ -2243,7 +2228,7 @@ This ignores the options: --qt-ver, --platform'
 			return full_cmd
 
 		# Construct the Docker image name.
-		img_name = f"nexus.scanframe.com/{args.platform}/gnu-cpp:24.04-{args.qt_ver}".rstrip('-')
+		img_name = f"nexus.scanframe.com/{args.platform}/gnu-cpp:24.04"
 		# Check if the image name is overridden.
 		img_name = get_config_section("config", fail=True).get("docker-image", img_name)
 		logger.info(f"# Docker image used: {img_name}")
@@ -2252,6 +2237,13 @@ This ignores the options: --qt-ver, --platform'
 			"--cap-add", "SYS_ADMIN", "--cap-add", "SYS_PTRACE", "--security-opt", "apparmor:unconfined",
 			"--security-opt", "seccomp=unconfined", "--hostname", platform.node(), "--user", "0:0",
 			"--env", f"LOCAL_USER={os.getuid()}:{os.getgid()}", "--network", "host"]
+		# Pass the Qt version to the container so the entry point downloads them from.
+		if qt_ver := get_config_section("config", fail=True).get("qt-ver"):
+			docker_opts += ["--env", f"SF_QT_VERSION={qt_ver}"]
+		if args.flag_debug:
+			docker_opts += ["--env", "DEBUG=1"]
+		if qt_download_base := get_config_section("config", fail=True).get("qt-download-base"):
+			docker_opts += ["--env", f"QT_DOWNLOAD_BASE={qt_download_base}"]
 		# Only add TTY and interactive flags when stdin is a terminal.
 		if sys.stdin.isatty():
 			docker_opts += ["--tty", "--interactive"]
@@ -2276,13 +2268,13 @@ This ignores the options: --qt-ver, --platform'
 					docker_opts += ["--device", "/dev/dri"]
 				# When 'DBUS_SESSION_BUS_ADDRESS' environment variable is present.
 				if "DBUS_SESSION_BUS_ADDRESS" in RUN_ENV:
-					# This is need when a Qt application wants to match the host's theme.
+					# This is needed when a Qt application wants to match the host's theme.
 					docker_opts += ["--volume", f"/home/{RUN_ENV["USER"]}/.config:/home/user/.config"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
 		# Configure a specific build directory volume if requested.
 		if args.flag_build_dir:
-			build_dir = Path(RUN_DIR) / "cmake-build" / f"docker-{args.platform}-{args.qt_ver}".strip("-")
+			build_dir = Path(RUN_DIR) / "cmake-build" / f"docker-{args.platform}-{qt_ver}".strip("-")
 			build_dir.mkdir(parents=True, exist_ok=True)
 			docker_opts += ["--volume", f"{build_dir}:/mnt/project/{PROJECT_SUBDIR}/cmake-build:rw"]
 		# Set the working directory within the container.
@@ -2295,28 +2287,28 @@ This ignores the options: --qt-ver, --platform'
 		if command == "pull":
 			run_command(["docker", "pull", img_name], dbg_mode=DebugMode.REPORT_ONLY)
 		elif command == "status":
-			if not get_container_id():
-				logger.warning(f": Container '{CONTAINER_NAME}' is not running.")
+			if not self.get_container_id():
+				logger.warning(f": Container '{self._container}' is not running.")
 				return 1
-			if (exit_code := run_command(["docker", "ps", "--filter", f"name={CONTAINER_NAME}"],
+			if (exit_code := run_command(["docker", "ps", "--filter", f"name={self._container}"],
 				dbg_mode=DebugMode.REPORT_ONLY).returncode) != 0:
 				return exit_code
 			return run_command(docker_command(docker_opts, img_name, ["ps", "ax"]),
 				dbg_mode=DebugMode.REPORT_ONLY).returncode
 		#
 		elif command in ["stop", "kill"]:
-			cntr_id = get_container_id()
+			cntr_id = self.get_container_id()
 			if cntr_id:
 				logger.info(f"# Container ID '{cntr_id}' found. Performing {command}...")
 				return run_command(["docker", command, cntr_id], dbg_mode=DebugMode.REPORT_ONLY).returncode
 			else:
-				logger.info(f": Container '{CONTAINER_NAME}' is not running.")
+				logger.info(f": Container '{self._container}' is not running.")
 		#
 		elif command in ["start", "wstart"]:
-			if get_container_id():
-				logger.warning(f": Container '{CONTAINER_NAME}' is already running.")
+			if self.get_container_id():
+				logger.warning(f": Container '{self._container}' is already running.")
 				return 1
-			cmd = ["docker", "run"] + docker_opts + ["--name", CONTAINER_NAME, "--detach", img_name]
+			cmd = ["docker", "run"] + docker_opts + ["--name", self._container, "--detach", img_name]
 			if command == "wstart":
 				cmd += ["/bin/bash", "-c", "sleep infinity && wineserver -p"]
 			else:
@@ -2324,19 +2316,19 @@ This ignores the options: --qt-ver, --platform'
 			return run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode
 		#
 		elif command == "attach":
-			if not get_container_id():
-				logger.warning(f": Container '{CONTAINER_NAME}' is not running.")
+			if not self.get_container_id():
+				logger.warning(f": Container '{self._container}' is not running.")
 				return 1
 			cmd = ["docker", "exec"]
 			if sys.stdin.isatty():
 				cmd += ["--interactive", "--tty"]
-			cmd += [CONTAINER_NAME, "sudo", "--login", "--user=user", "--"]
+			cmd += [self._container, "sudo", "--login", "--user=user", "--"]
 			return run_command(cmd + (args_right or []), dbg_mode=DebugMode.REPORT_ONLY).returncode
 		#
 		elif command == "sshd":
-			cache_dir = Path.home() / "tmp" / f"{CONTAINER_NAME}-cache"
+			cache_dir = Path.home() / "tmp" / f"{self._container}-cache"
 			cache_dir.mkdir(parents=True, exist_ok=True)
-			sshd_cmd = ["docker", "run"] + docker_opts + ["--name", CONTAINER_NAME, "--volume",
+			sshd_cmd = ["docker", "run"] + docker_opts + ["--name", self._container, "--volume",
 				f"{cache_dir}:/home/user/.cache:rw", "--detach", img_name, "sudo", "--", "/usr/sbin/sshd", "-e", "-D", "-p",
 				str(SSHD_PORT)]
 			if run_command(sshd_cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode == 0:
@@ -2387,17 +2379,18 @@ class SubCommandInstall(SubCommand):
 		# Configure the command line options.
 		parser.add_argument("-p", "--project", action="store_true",
 			help="Install the cmake project directories and files from the template repository.")
-		choices: List[str] = ["tools", "mingw", "msvc", "msvc-alt"]
+		choices: List[str] = ["win-tools", "lnx-tools", "mingw", "msvc", "msvc-alt"]
 		if sys.platform != "win32":
 			choices.append("doxygen")
 		parser.add_argument("-t", "--toolchain", type=str, choices=choices,
 			help="""Install a portable toolchains for in Windows or Wine with which the Qt library is build.
 Choices are:
-  tools    - Multiple tools as CMake, Ninja, NSIS and Git client for Wine(Linux Only).
-  mingw    - MinGW x86_64 v13.2.0 posix + msvcrt compiler compatible with the Qt library.
-  msvc     - MSVC 2022 x86_64 compatible with the Qt library preassembled from a Nexus repository.
-  msvc-alt - MSVC 2022 x86_64 compatible with the Qt library from Microsoft itself. (Windows only)
-  doxygen  - Doxygen latest released version. (Linux only)
+  win-tools - Multiple tools as CMake, Ninja, NSIS and Git client for Wine(Linux Only).
+  lnx-tools - Multiple tools as appimagetool, runtime-aarch64 and runtime-x86_64.
+  mingw     - MinGW x86_64 v13.2.0 posix + msvcrt compiler compatible with the Qt library.
+  msvc      - MSVC 2022 x86_64 compatible with the Qt library preassembled from a Nexus repository.
+  msvc-alt  - MSVC 2022 x86_64 compatible with the Qt library from Microsoft itself. (Windows only)
+  doxygen   - Doxygen latest released version. (Linux only)
 """)
 		choices: List[str] = []
 		if sys.platform == "win32":
@@ -2544,8 +2537,7 @@ Choices are depended on the host platform:
 			logger.error(f"! Failed to create environment file '{env_file}': {e}")
 			return False
 
-	@staticmethod
-	def install_toolchain(toolchain: str) -> bool:
+	def install_toolchain(self, toolchain: str) -> bool:
 		"""Installs toolchains."""
 
 		def get_file_from_url(url: str, suffix: str | None = None) -> str:
@@ -2573,37 +2565,35 @@ Choices are depended on the host platform:
 			return False
 		# Make sure it is fully created.
 		os.makedirs(install_dir, exist_ok=True)
+		# Get the base URL for downloading libraries.
+		base_url = self._config.get(field := "library-base-url")
+		if not base_url:
+			logger.error(f"! Missing field '{field}' in configuration section.")
+			return False
 		match toolchain:
-			case "tools":
+
+			case "win-tools":
 				logger.info("# Installing Multiple tools as CMake, Ninja, NSIS and Git client for Wine.")
-				zip_file = get_file_from_url(
-					# This exact one is required in combination with Qt since it is build using this version.
-					url="https://nexus.scanframe.com/repository/shared/library/toolchain/win-x86_64-cmake-4.2-combi.zip",
-					suffix=".7z")
-				if run_command([get_7z_exe(), "x", zip_file, f"-o{install_dir}/win-x86_64-cmake-4.2-combi", "-aos"],
-					dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
-					logger.error(f"! Failed to unzip file: {zip_file}")
+				if not extract_by_url(url := f"{base_url}/toolchain/win-x86_64-combi.tar.gz", os.path.join(install_dir, "win-x86_64-combi")):
+					logger.error(f"! Failed to uncompress: {url}")
+					return False
+
+			case "lnx-tools":
+				logger.info("# Installing Multiple tools as appimagetool, runtime-aarch64 and runtime-x86_64.")
+				if not extract_by_url(url := f"{base_url}/toolchain/lnx-{platform.machine()}-combi.tar.gz", install_dir):
+					logger.error(f"! Failed to uncompress: {url}")
 					return False
 
 			case "mingw":
 				logger.info("# Installing MinGW x86_64 v13.2.0 posix + msvcrt compiler compatible with the Qt library.")
-				zip_file = get_file_from_url(
-					# This exact one is required in combination with Qt since it is build using this version.
-					url="https://nexus.scanframe.com/repository/shared/library/toolchain/w64-x86_64-mingw-1320-posix.zip",
-					suffix=".7z")
-				if run_command([get_7z_exe(), "x", zip_file, f"-o{install_dir}", "-aos"],
-					dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
-					logger.error(f"! Failed to unzip file: {zip_file}")
+				if not extract_by_url(url := f"{base_url}/toolchain/w64-x86_64-mingw-1320-posix.tar.gz", install_dir):
+					logger.error(f"! Failed to uncompress: {url}")
 					return False
 
 			case "msvc":
 				logger.info("# Installing MSVC 2022 x86_64 compatible with the Qt library. (preassembled)")
-				zip_file = get_file_from_url(
-					# This exact one is required in combination with Qt since it is build using this version.
-					url="https://nexus.scanframe.com/repository/shared/library/toolchain/w64-x86_64-msvc-2022.zip", suffix=".zip")
-				if run_command([get_7z_exe(), "x", zip_file, f"-o{install_dir}", "-aos"],
-					dbg_mode=DebugMode.REPORT_ONLY).returncode != 0:
-					logger.error(f"! Failed to unzip file: {zip_file}")
+				if not extract_by_url(url := f"{base_url}/toolchain/w64-x86_64-msvc-2022.tar.gz", install_dir):
+					logger.error(f"! Failed to uncompress: {url}")
 					return False
 
 			case "msvc-alt":
@@ -3897,7 +3887,7 @@ NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 				continue
 
 			ext = upload_file.rsplit('.', 1)[-1].lower()
-			if ext not in ["deb", "zip", "zip-def", "exe", "gz", "tgz", "bz2", "xz", "7z", "yaml", "yml"]:
+			if ext not in ["deb", "zip", "zip-def", "exe", "gz", "tgz", "bz2", "xz", "7z", "yaml", "yml", "appimage"]:
 				logger.warning(f"! No upload method for extension '{ext}' file: {upload_file}")
 				continue
 			try:
@@ -4067,6 +4057,7 @@ if __name__ == "__main__":
 	_widen_console_buffer()
 	exitcode = 0
 	try:
+		PARENT_ENV['RUN_QT_VER'] = get_config_section("config", fail=True).get("qt-ver", PARENT_ENV['RUN_QT_VER'])
 		# Change to the directory of this script.
 		os.chdir(RUN_DIR)
 		exitcode = main()

@@ -9,6 +9,7 @@
 
 int main(int argc, char** argv)
 {
+	listLoadedLibraries(std::cout);
 	std::cout << "Application: " + getApplicationVersion() << std::endl;
 	std::cout << "Timestamp: " + utcTimeString() << std::endl;
 	std::cout << "Qemu Virtualization: " << (isQemu() ? "Yes" : "No") << std::endl;

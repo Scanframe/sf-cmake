@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.29...4.4)
 
 set(SF_QT_COMPONENT_PREFIX "sf_qt_" CACHE INTERNAL "The install component prefix used to identify them (NSIS does not handle '-' hyphens).")
 set(SF_QT_PACKAGE_FILENAME_PREFIX "sf-qt-" CACHE INTERNAL "The package filename prefix used for creating Qt packages.")
+set(SF_QT_INSTALL_PREFIX "." CACHE INTERNAL "The Qt library install default prefix used for creating Qt packages reset by CPack e.g. AppImage.")
 
 ##!
 # Downloads a QT-library zip files and unzips it the directory specified by variable 'SF_COMMON_LIB_DIR'.
@@ -162,39 +163,6 @@ function(Sf_QtLibraryDownload _Version)
 endfunction()
 
 ##!
-# Finds all the Qt versions located in defined positions for Linux or Windows.
-# @param _VarOut Out: List of all found Qt versions.
-#
-function(Sf_FindQtVersions _VarOut)
-	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-		set(_Locations "${SF_COMMON_LIB_DIR}/qt/lnx-${SF_ARCHITECTURE}")
-	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-		set(_Locations "${SF_COMMON_LIB_DIR}/qt/win-${SF_ARCHITECTURE}")
-	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-		# Iterate through all the specified locations.
-		set(_Locations
-			"${SF_COMMON_LIB_DIR}/qt/w64-${SF_ARCHITECTURE}"
-			"C:/Qt" "D:/Qt" "E:/Qt" "F:/Qt" "G:/Qt" "H:/Qt" "I:/Qt" "J:/Qt" "K:/Qt" "L:/Qt" "M:/Qt" "N:/Qt"
-			"O:/Qt" "P:/Qt" "Q:/Qt" "R:/Qt" "S:/Qt" "T:/Qt" "U:/Qt" "V:/Qt" "W:/Qt" "X:/Qt" "Y:/Qt" "Z:/Qt"
-		)
-	endif ()
-	# Iterate through the location and use the first one that matches.
-	foreach (_Location ${_Locations})
-		if (EXISTS "${_Location}")
-			message(STATUS "A Qt library root found in '${_Location}'!")
-			Sf_GetSubDirectories(_SubDirs "${_Location}" "^[0-9]+\\.[0-9]+\\.[0-9]+$")
-			list(LENGTH _SubDirs _Len)
-			if (NOT ${_Len})
-				message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Qt versioned library not found in '${_Location}'!")
-				return()
-			endif ()
-		endif ()
-	endforeach ()
-	list(SORT _SubDirs COMPARE NATURAL ORDER DESCENDING)
-	set(${_VarOut} "${_SubDirs}" PARENT_SCOPE)
-endfunction()
-
-##!
 # Finds the Qt directory located a defined position for Linux and Windows.
 # @param _VarOut Out: Highest of the found Qt version directories and "${_OutVar}-NOTFOUND" when not found.
 #
@@ -202,15 +170,26 @@ function(Sf_FindQtVersionDirectory _VarOut)
 	Sf_GetOptionalArgument(_Version 0 "${ARGN}")
 	set(_QtDir "")
 	if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-		set(_Locations "${SF_COMMON_LIB_DIR}/qt/lnx-${SF_ARCHITECTURE}")
+		set(_Locations
+			# Location in the project not available when symlinked and running Docker.
+			"${SF_COMMON_LIB_DIR}/qt/lnx-${SF_ARCHITECTURE}"
+			# Location of the compressed libraries mounted in the home directory.
+			"$ENV{HOME}/lib/qt/lnx-${SF_ARCHITECTURE}"
+		)
 	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-		set(_Locations "${SF_COMMON_LIB_DIR}/qt/win-${SF_ARCHITECTURE}")
+		set(_Locations
+			# Location in the project not available when symlinked and running Docker.
+			"${SF_COMMON_LIB_DIR}/qt/win-${SF_ARCHITECTURE}"
+			# Location of the compressed libraries mounted in the home directory.
+			"$ENV{HOME}/lib/qt/win-${SF_ARCHITECTURE}"
+		)
 	elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
 		# Iterate through all the specified locations.
 		set(_Locations
+			# Location in the project not available when symlinked and running Docker + Wine.
 			"${SF_COMMON_LIB_DIR}/qt/w64-${SF_ARCHITECTURE}"
-			"C:/Qt" "D:/Qt" "E:/Qt" "F:/Qt" "G:/Qt" "H:/Qt" "I:/Qt" "J:/Qt" "K:/Qt" "L:/Qt" "M:/Qt" "N:/Qt"
-			"O:/Qt" "P:/Qt" "Q:/Qt" "R:/Qt" "S:/Qt" "T:/Qt" "U:/Qt" "V:/Qt" "W:/Qt" "X:/Qt" "Y:/Qt" "Z:/Qt"
+			# Location of the compressed libraries mounted in the home directory.
+			"Z:/home/$ENV{USERNAME}/lib/qt/w64-${SF_ARCHITECTURE}"
 		)
 	endif ()
 	# Iterate through the location and use the first one that matches.
@@ -339,7 +318,6 @@ endfunction()
 #
 function(Sf_QtLibraryInstall _IncDev)
 	Sf_GetOptionalArgument(_QtDir 0 "${ARGN}")
-	set(_base "." #[["qt"]])
 	if (NOT DEFINED _QtDir)
 		set(_QtDir "${QT_DIR}")
 	endif ()
@@ -359,9 +337,9 @@ function(Sf_QtLibraryInstall _IncDev)
 			if (EXISTS "${_QtSourceDir}/${_dir}")
 				if (_dir STREQUAL "bin")
 					file(GLOB _qt_libs LIST_DIRECTORIES FALSE "${_QtSourceDir}/${_dir}/*.dll")
-					install(FILES ${_qt_libs} DESTINATION "${_base}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+					install(FILES ${_qt_libs} DESTINATION "\${SF_QT_INSTALL_PREFIX}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
 				else ()
-					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "${_base}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "\${SF_QT_INSTALL_PREFIX}/" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
 				endif ()
 			endif ()
 			if (_IncDev)
@@ -376,9 +354,9 @@ function(Sf_QtLibraryInstall _IncDev)
 			if (EXISTS "${_QtSourceDir}/${_dir}")
 				if (_dir STREQUAL "lib")
 					file(GLOB _qt_libs LIST_DIRECTORIES FALSE "${_QtSourceDir}/${_dir}/*.so" "${_QtSourceDir}/${_dir}/*.so.[0-9]*")
-					install(FILES ${_qt_libs} DESTINATION "${_base}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+					install(FILES ${_qt_libs} DESTINATION "\${SF_QT_INSTALL_PREFIX}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
 				else ()
-					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "${_base}" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
+					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "\${SF_QT_INSTALL_PREFIX}/" COMPONENT "${SF_QT_COMPONENT_PREFIX}rt")
 				endif ()
 			endif ()
 		endforeach ()
@@ -403,14 +381,14 @@ function(Sf_QtLibraryInstall _IncDev)
 					endforeach ()
 					# Install all subdirectories (including their entire sub-contents).
 					if (_subdirs)
-						install(DIRECTORY ${_subdirs} DESTINATION "${_base}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+						install(DIRECTORY ${_subdirs} DESTINATION "\${SF_QT_INSTALL_PREFIX}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
 					endif ()
 					# Install root files excluding '.so' files.
 					if (_non_so_files)
-						install(FILES ${_non_so_files} DESTINATION "${_base}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+						install(FILES ${_non_so_files} DESTINATION "\${SF_QT_INSTALL_PREFIX}/${_dir}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
 					endif ()
 				else ()
-					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "${_base}" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
+					install(DIRECTORY "${_QtSourceDir}/${_dir}" DESTINATION "\${SF_QT_INSTALL_PREFIX}/" COMPONENT "${SF_QT_COMPONENT_PREFIX}dev")
 				endif ()
 			endforeach ()
 		endif ()

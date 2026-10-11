@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Validate this file using: appstreamcli validate &#45;&#45;pedantic <xml-file>
+-->
+<component type="desktop-application">
+	<id>org.scanframe.HelloWorldQt</id>
+
+	<name>Hello World Qt</name>
+	<summary>Simple demonstration C++ application</summary>
+	<launchable type="desktop-id">org.scanframe.HelloWorldQt.desktop</launchable>
+
+	<developer id="org.scanframe">
+		<name>Scanframe</name>
+	</developer>
+
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0-or-later</project_license>
+
+	<description>
+		<p>Demonstration of a C++ boilerplate application.
+		The application demonstrates the use of CMake and many other tools.</p>
+	</description>
+
+	<launchable type="desktop-id">org.scanframe.HelloWorldQt.desktop</launchable>
+	<url type="homepage">https://github.com/Scanframe/sf-cmake</url>
+	<provides>
+		<binary>hello-world-qt</binary>
+		<binary>hello-world</binary>
+	</provides>
+
+	<content_rating type="oars-1.1"/>
+
+	<releases>
+		<release
+			version="@CPACK_PACKAGE_VERSION@"
+			date="@SF_GIT_DATE@"
+		/>
+	</releases>
+</component>

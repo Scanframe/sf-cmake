@@ -5,6 +5,7 @@
 /.run
 /.vscode
 /.vs
+/.qtcreator
 # Python virtual environment.
 /venv
 /.venv
@@ -20,21 +21,18 @@
 /bin/gcov/*
 /bin/pkg/*
 # Ignore all binary directories.
-/bin/lnx64*/*
-/bin/win64*/*
-/bin/man/*
+/bin/lnx64*
+/bin/win64*
+/bin/man
 # Location of downloaded and uncompressed libraries in the project root.
-/lib/*
-# Hidden credential files of any kind.
+/lib
+# Credential files for testing CI-pipeline called scripts.
 /.*credentials*
+# Docker .ssh/environment additions.
+/.ssh-environment
 # Debug messages for testing conventinal commit.
 /.version-bump*
 # Test bash scripts.
-/test-*.sh
-# Downloaded tools directory locations for machines (Windows only).
-/.tools-dir-*
-# CMake include file overrulling the cache instead of changing the CMakePresets.json file.
-# Keeps an empty directory.
-!**/.gitkeep
+/test-*.*
 # Toochain environment files.
 /.tc-*

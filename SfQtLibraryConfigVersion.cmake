@@ -1,7 +1,7 @@
 # Import Qt common functions.
 include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommonConfig.cmake")
 # Latest known available version.
-set(PACKAGE_VERSION 6.10.1)
+set(PACKAGE_VERSION 6.12.0)
 
 # When no version was given use the default version set here above.
 if (PACKAGE_FIND_VERSION STREQUAL "")
@@ -57,4 +57,7 @@ if (PACKAGE_VERSION_COMPATIBLE)
 else ()
 	set(PACKAGE_VERSION_UNSUITABLE TRUE)
 	message(STATUS "Package '${PACKAGE_FIND_NAME}' version ${PACKAGE_VERSION} is not compatible with the requested version ${PACKAGE_FIND_VERSION}")
+	if (SF_DOCKER)
+		message(STATUS "Maybe you are running the wrong Docker image or started it with the wrong options.")
+	endif ()
 endif ()

@@ -12,6 +12,8 @@
 		#include <Windows.h>
 	#endif
 	#include <tlhelp32.h>
+#else
+	#include <link.h>
 #endif
 
 std::string utcTimeString()
@@ -121,4 +123,25 @@ std::string getHello(int how)
 		rv = "Hello World!";
 	}
 	return rv;
+}
+
+void listLoadedLibraries(std::ostream& os)
+{
+#if !IS_WIN
+	// Callback function executed for each loaded library.
+	auto callback = [](dl_phdr_info* info, size_t, void* data) -> int {
+		auto& os = *static_cast<std::ostream*>(data);
+		// The first entry is usually the main executable itself, which has an empty name.
+		if (info->dlpi_name && info->dlpi_name[0] != '\0')
+		{
+			os << "Library: " << info->dlpi_name << " (Base Address: 0x" << std::hex << info->dlpi_addr << std::dec << ")\n";
+		}
+		else
+		{
+			os << "Executable: 0x" << std::hex << info->dlpi_addr << "\n";
+		}
+		return 0;
+	};
+	dl_iterate_phdr(callback, &os);
+#endif
 }

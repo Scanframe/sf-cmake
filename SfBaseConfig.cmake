@@ -132,6 +132,50 @@ function(Sf_GetSubDirectories _VarOut _Directory)
 	set(${_VarOut} ${_list} PARENT_SCOPE)
 endfunction()
 
+##
+# Reads a value from an ini-file.
+#
+# ini_read_value(<out-var> <file> <section> <key> [DEFAULT <value>])
+#
+# Sets <out-var> in the calling scope. When the file, section or key is missing, <out-var> is set to
+# the DEFAULT value, or left unset when no DEFAULT is given.
+function(ini_read_value OUT_VAR INI_FILE SECTION KEY)
+	cmake_parse_arguments(ARG "" "DEFAULT" "" ${ARGN})
+	set(found FALSE)
+	set(value "")
+	Sf_GetOptionalArgument(_default 0 "${ARGN}")
+	if(EXISTS "${INI_FILE}")
+		# Re-run the configure step when the ini-file changes.
+		set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${INI_FILE}")
+		# Only read lines which are not blank and do not start with ';' or '#'.
+		file(STRINGS "${INI_FILE}" lines REGEX "^[ \t]*[^ \t;#]")
+		set(current_section "")
+		foreach(line IN LISTS lines)
+			if("${line}" MATCHES "^[ \t]*\\[([^]]*)\\][ \t]*$")
+				# Section header.
+				set(current_section "${CMAKE_MATCH_1}")
+				string(STRIP "${current_section}" current_section)
+			elseif("${line}" MATCHES "^[ \t]*([^=]*[^= \t])[ \t]*=[ \t]*(.*)$")
+				# Key/value pair.
+				set(line_key "${CMAKE_MATCH_1}")
+				set(line_value "${CMAKE_MATCH_2}")
+				if("${current_section}" STREQUAL "${SECTION}" AND "${line_key}" STREQUAL "${KEY}")
+					string(STRIP "${line_value}" value)
+					set(found TRUE)
+					break()
+				endif()
+			endif()
+		endforeach()
+	endif()
+	if(found)
+		set(${OUT_VAR} "${value}" PARENT_SCOPE)
+	elseif(DEFINED _default)
+		set(${OUT_VAR} "${_default}" PARENT_SCOPE)
+	else()
+		unset(${OUT_VAR} PARENT_SCOPE)
+	endif()
+endfunction()
+
 ##!
 # Maps the passed UNC path to a mounted drive share when it exists.
 # It uses an external PowerShell script to perform it.
@@ -185,6 +229,18 @@ function(Sf_GetFilenameComponent _out_var _file_path _component)
 	endif ()
 	# Set the output variable in the parent scope.
 	set(${_out_var} "${_result}" PARENT_SCOPE)
+endfunction()
+
+##!
+# Removes only files from the given target directory.
+#
+function (Sf_RemoveFiles _TargetDir)
+	# Find all items inside the directory (* matches everything).
+	file(GLOB _dir_contents LIST_DIRECTORIES FALSE "${_TargetDir}/*")
+	# Delete the contents if the list isn't empty.
+	foreach (_file IN LISTS _dir_contents)
+		file(REMOVE "${_file}")
+	endforeach ()
 endfunction()
 
 ##!
@@ -252,6 +308,32 @@ function(Sf_GetSafeArchitectureName _OutVar)
 endfunction()
 
 ##!
+# Gets the date and time of the last commit.
+# Returns a list: 1: date (YYYY-MM-DD), 2: time (HH:MM:SS), 3: UTC offset (+0200).
+#
+function(Sf_GetGitCommitDateTime _VarOut _SrcDir)
+	find_package(Git QUIET)
+	if (NOT GIT_FOUND)
+		message(FATAL_ERROR "Git program not found!")
+	endif ()
+	execute_process(
+		COMMAND "${GIT_EXECUTABLE}" show -s --date=iso "--format=%ad"
+		WORKING_DIRECTORY "${_SrcDir}"
+		OUTPUT_VARIABLE _Result
+		RESULT_VARIABLE _ExitCode
+		ERROR_QUIET
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+	if (NOT _ExitCode EQUAL 0 OR _Result STREQUAL "")
+		set(${_VarOut} ";;" PARENT_SCOPE)
+		return()
+	endif ()
+	# "2026-10-06 14:23:45 +0200" -> "2026-10-06;14:23:45;+0200"
+	string(REPLACE " " ";" _Result "${_Result}")
+	set(${_VarOut} "${_Result}" PARENT_SCOPE)
+endfunction()
+
+##!
 # Gets the version from the Git repository using 'PROJECT_SOURCE_DIR' variable.
 # Always returns a versions list where per index:
 # 1: Actual version
@@ -261,18 +343,21 @@ endfunction()
 # When no tag is set it simulates finding 'v0.0.0-rc.0' as the version tag.
 #
 function(Sf_GetGitTagVersion _VarOut _SrcDir)
+	# Workaround when called from CPack.
+	if (NOT CMAKE_BINARY_DIR)
+		set(CMAKE_BINARY_DIR "${SF_BINARY_DIR}")
+	endif ()
 	# Initialize return value.
 	set(${_VarOut} "" PARENT_SCOPE)
-	# Get git binary location for execution.
-	find_program(_GitExe "git" PATHS "$ENV{SYSTEMDRIVE}/cygwin64/bin")
-	if (NOT _GitExe)
-		message(SEND_ERROR "Git program not found!")
+	find_package(Git QUIET)
+	if (NOT GIT_FOUND)
+		message(FATAL_ERROR "Git program not found!")
 	endif ()
 	if ("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
 		# Get the toplevel directory of this repository or submodule.
 		# This is faster then the other call and cache the version result to speed configuration up.
 		execute_process(COMMAND
-			"${_GitExe}" rev-parse --show-toplevel
+			"${GIT_EXECUTABLE}" rev-parse --show-toplevel
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _FilePath
@@ -288,9 +373,8 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		# Check if the cache file exists.
 		if (NOT EXISTS "${_FilePath}")
 			# Only annotated tags so no '--tags' option.
-			execute_process(COMMAND
-				#"${_GitExe}" rev-parse --show-toplevel
-				"${_GitExe}" describe --dirty --match "v*.*.*"
+			execute_process(
+				COMMAND "${GIT_EXECUTABLE}" -C "${_SrcDir}" describe --long --match "v*.*.*"
 				# Use the current project directory to find.
 				WORKING_DIRECTORY "${_SrcDir}"
 				OUTPUT_VARIABLE _Version
@@ -312,7 +396,8 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 		endif ()
 	else ()
 		# Only annotated tags so no '--tags' option.
-		execute_process(COMMAND "${_GitExe}" -C "${_SrcDir}" describe --dirty --match "v*.*.*"
+		execute_process(
+			COMMAND "${GIT_EXECUTABLE}" -C "${_SrcDir}" describe --long --match "v*.*.*"
 			# Use the current project directory to find.
 			WORKING_DIRECTORY "${_SrcDir}"
 			OUTPUT_VARIABLE _Version
@@ -325,7 +410,7 @@ function(Sf_GetGitTagVersion _VarOut _SrcDir)
 	# Check the exist code for an error.
 	if (_ExitCode GREATER 0)
 		message(VERBOSE "Repository '${_SrcDir}' not having a version tag like 'v1.2.3' or 'v1.2.3-rc.4 ?!")
-		message(VERBOSE "${_GitExe} describe --dirty --match v* ... Exited with (${_ExitCode}). '${_ErrorText}'")
+		message(VERBOSE "${GIT_EXECUTABLE} describe --long --match v* ... Exited with (${_ExitCode}). '${_ErrorText}'")
 		# Set an initial version to allow continuing.
 		set(_Version "v0.0.0-rc.0-dirty")
 	endif ()
