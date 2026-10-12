@@ -34,4 +34,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_compile_definitions(QT_MESSAGELOGCONTEXT)
 endif()
 
+# Fix for running in Wine11 since it is missing function 'WcsCreateIccProfile()' in 'mscms.dll'.
+# Function used in Qt 6.12.0 and up.
+Sf_Wine11DllFixForQt(${PROJECT_NAME} ${QT_VERSION})
+
 # //! [all]

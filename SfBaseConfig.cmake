@@ -1628,6 +1628,93 @@ function(Sf_GetDependencyFilenames _OutVar _BinFile)
 	set("${_OutVar}" "${_deps}" PARENT_SCOPE)
 endfunction()
 
+#[[
+For a Windows executable target, downloads the 'mscms.dll' Wine fix (once) into
+'<binary-dir>/.sf' and copies it next to the executable after the build.
+Only needed (and only done) when Qt is version 6.12 or higher and the installed
+Wine has major version 11 or lower. Once the DLL exists in '<binary-dir>/.sf'
+the version checks are skipped since the DLL was needed then.
+To make Wine use the DLL, set the environment variable: WINEDLLOVERRIDES=mscms=n,b
+
+@param _target Executable target.
+@param _qt_version Version of Qt used for building like '6.12.0' .
+]]
+function(Sf_Wine11DllFixForQt _target _qt_version)
+	# Only applies when building for Windows.
+	if (NOT WIN32)
+		return()
+	endif ()
+	if (NOT TARGET "${_target}")
+		message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}(): '${_target}' is not a target.")
+		return()
+	endif ()
+	get_target_property(_type "${_target}" TYPE)
+	if (NOT _type STREQUAL "EXECUTABLE")
+		message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}(): '${_target}' is not an executable target.")
+		return()
+	endif ()
+	#
+	set(_url "https://nexus.scanframe.com/repository/shared/library/mscms-wine-fix.zip")
+	set(_dir "${CMAKE_BINARY_DIR}/.sf")
+	set(_zip "${_dir}/mscms-wine-fix.zip")
+	set(_dll "${_dir}/mscms.dll")
+	# When the DLL exists it was needed before, so the version checks are only done when it does not.
+	if (NOT EXISTS "${_dll}")
+		# Only Qt 6.12 and higher needs the DLL.
+		if (_qt_version VERSION_LESS "6.12")
+			message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): Qt ${_qt_version} does not need the DLL.")
+			return()
+		endif ()
+		# Check if running CMake in Wine itself by testing 'WINELOADER' env var.
+		# In Wine itself the is no command to get the version version and assuming the DLL is needed.
+		if ("$ENV{WINELOADER}" STREQUAL "")
+			# Get the Wine version which looks like 'wine-11.0'.
+			execute_process(
+				COMMAND wine --version
+				OUTPUT_VARIABLE _wine_out
+				RESULT_VARIABLE _wine_res
+				ERROR_QUIET
+				OUTPUT_STRIP_TRAILING_WHITESPACE)
+			if (NOT _wine_res STREQUAL "0")
+				message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): Wine not found, DLL not needed.")
+				return()
+			endif ()
+			if (NOT _wine_out MATCHES "^wine-([0-9]+)")
+				message(WARNING "${CMAKE_CURRENT_FUNCTION}(${_target}): Unexpected Wine version output '${_wine_out}'.")
+				return()
+			endif ()
+			set(_wine_major "${CMAKE_MATCH_1}")
+			# Only Wine major version 11 and lower needs the DLL.
+			if (_wine_major GREATER 11)
+				message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): '${_wine_out}' does not need the DLL.")
+				return()
+			endif ()
+		endif ()
+		file(MAKE_DIRECTORY "${_dir}")
+		# Download the ZIP-file only when it is not present yet.
+		if (NOT EXISTS "${_zip}")
+			message(STATUS "${CMAKE_CURRENT_FUNCTION}(): Downloading '${_url}'")
+			file(DOWNLOAD "${_url}" "${_zip}" STATUS _status TLS_VERIFY ON)
+			list(GET _status 0 _code)
+			if (NOT _code EQUAL 0)
+				list(GET _status 1 _msg)
+				file(REMOVE "${_zip}")
+				message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(): Download failed: ${_msg}")
+			endif ()
+		endif ()
+		# Extract the DLL (the ZIP-file only contains the DLL).
+		file(ARCHIVE_EXTRACT INPUT "${_zip}" DESTINATION "${_dir}" PATTERNS "mscms.dll")
+		if (NOT EXISTS "${_dll}")
+			message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}(): '${_dll}' not found after extracting '${_zip}'.")
+		endif ()
+	endif ()
+	add_custom_command(TARGET "${_target}" POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:${_target}>/mscms.dll"
+		COMMENT "${CMAKE_CURRENT_FUNCTION}(): Checking 'mscms.dll' for target '${_target}'"
+		VERBATIM)
+	message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): Add the environment variable 'WINEDLLOVERRIDES=mscms=n,b' to run it with Wine.")
+endfunction()
+
 ##!
 # Reports information about the CMake and sets compiler general
 # options depending on the selected compiler.
