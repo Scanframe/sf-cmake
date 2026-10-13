@@ -1653,6 +1653,11 @@ function(Sf_Wine11DllFixForQt _target _qt_version)
 		message(SEND_ERROR "${CMAKE_CURRENT_FUNCTION}(): '${_target}' is not an executable target.")
 		return()
 	endif ()
+	# Only Qt 6.12 and higher needs the DLL.
+	if (_qt_version VERSION_LESS "6.12")
+		message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): Qt ${_qt_version} does not need the DLL.")
+		return()
+	endif ()
 	#
 	set(_url "https://nexus.scanframe.com/repository/shared/library/mscms-wine-fix.zip")
 	set(_dir "${CMAKE_BINARY_DIR}/.sf")
@@ -1660,11 +1665,6 @@ function(Sf_Wine11DllFixForQt _target _qt_version)
 	set(_dll "${_dir}/mscms.dll")
 	# When the DLL exists it was needed before, so the version checks are only done when it does not.
 	if (NOT EXISTS "${_dll}")
-		# Only Qt 6.12 and higher needs the DLL.
-		if (_qt_version VERSION_LESS "6.12")
-			message(STATUS "${CMAKE_CURRENT_FUNCTION}(${_target}): Qt ${_qt_version} does not need the DLL.")
-			return()
-		endif ()
 		# Check if running CMake in Wine itself by testing 'WINELOADER' env var.
 		# In Wine itself the is no command to get the version version and assuming the DLL is needed.
 		if ("$ENV{WINELOADER}" STREQUAL "")

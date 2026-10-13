@@ -1,6 +1,6 @@
 # Import Qt common functions.
 include("${CMAKE_CURRENT_LIST_DIR}/SfQtLibraryCommonConfig.cmake")
-# Latest known available version.
+# Latest known and available version.
 set(PACKAGE_VERSION 6.12.0)
 
 # When no version was given use the default version set here above.
@@ -10,11 +10,9 @@ endif ()
 
 # Find if the version of Qt when available.
 Sf_FindQtVersion(_AvailQtVer "${PACKAGE_FIND_VERSION}")
-# When greater, reassign the package version.
+# When the requested version is found, reassign the package version.
 if (_AvailQtVer)
-	if ("${_AvailQtVer}" VERSION_GREATER "${PACKAGE_VERSION}")
 		set(PACKAGE_VERSION "${_AvailQtVer}")
-	endif ()
 endif ()
 
 # Split the the package version string.
