@@ -18,6 +18,17 @@ fi
 source "${include_dir}/inc/Miscellaneous.sh"
 
 # When set in the environment do not look any further.
+# The 'RUN_' prefix prevents Wine from not propagating 'QT_' prefixed environment variables.
+if [[ -n "${RUN_QT_VER_DIR}" ]]; then
+	if [[ ! -d "${RUN_QT_VER_DIR}" ]]; then
+		WriteLog "Environment RUN_QT_VER_DIR set to non existing directory: ${RUN_QT_VER_DIR} !"
+		exit 1
+	fi
+	echo -n "${RUN_QT_VER_DIR}"
+	exit 0
+fi
+
+# When set in the environment do not look any further.
 if [[ -n "${QT_VER_DIR}" ]]; then
 	if [[ ! -d "${QT_VER_DIR}" ]]; then
 		WriteLog "Environment QT_VER_DIR set to non existing directory: ${QT_VER_DIR} !"
