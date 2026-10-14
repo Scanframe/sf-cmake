@@ -12,7 +12,7 @@ fi
 
 # When the file 'check-format.sh' exists call it to check if the formatting is correct.
 if [[ -f check-format.sh ]]; then
-	if ! ./check-format.sh; then
+	if ! GIT_PRE_COMMIT_HOOK=1 ./check-format.sh; then
 		echo "Source is not formatted correctly!"
 		exit 1
 	fi

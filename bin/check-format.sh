@@ -8,7 +8,7 @@ run_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 arguments=()
 # Add quiet option when call from the Git pre-commit hook.
-if [[ "$(ps -o comm= $PPID)" == "pre-commit" ]]; then
+if [[ "${GIT_PRE_COMMIT_HOOK}" == "1" ]]; then
 	# Makes the WriteLog function not use colors.
 	export TERM="dumb"
 	# Report only problems and totals.
