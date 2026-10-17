@@ -1,0 +1,124 @@
+@startuml cmake-presets-build
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+	}
+
+	rectangle {
+		FontColor #black
+		BackgroundColor #D6EAF8-#2E86C1
+		.condition {
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.base {
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+}
+
+</style>
+
+skinparam RankSep 90
+skinparam NodeSep 10
+
+title "CMake Build Presets Inheritance"
+
+'top to bottom direction
+left to right direction
+
+legend top
+  **Legend:**
+  **<<base>>** — Hidden base preset with common settings
+  **<<condition>>** — Platform condition (Linux/Windows)
+  **<<build>>** — Build-type preset
+end legend
+
+frame "Build Presets" as build {
+	rectangle ".build" as buildBase <<base>>
+	rectangle ".lnx-only" as buildLnx <<condition>>
+	rectangle ".w64-only" as buildW64 <<condition>>
+
+	rectangle "gnu-debug" as bGnuDebug <<build>>
+	rectangle "ga-debug" as bGaDebug <<build>>
+	rectangle "gnu-coverage" as bGnuCov <<build>>
+	rectangle "gw-coverage" as bGwCov <<build>>
+	rectangle "gnu-release" as bGnuRel <<build>>
+	rectangle "ga-release" as bGaRel <<build>>
+	rectangle "gw-debug" as bGwDebug <<build>>
+	rectangle "gw-release" as bGwRel <<build>>
+	rectangle "mingw-debug" as bMingwDebug <<build>>
+	rectangle "mingw-release" as bMingwRel <<build>>
+	rectangle "msvc-debug" as bMsvcDebug <<build>>
+	rectangle "msvc-release" as bMsvcRel <<build>>
+
+	buildBase --> bGnuDebug
+	buildLnx --> bGnuDebug
+
+	buildBase --> bGaDebug
+	buildLnx --> bGaDebug
+
+	buildBase --> bGnuCov
+	buildLnx --> bGnuCov
+
+	buildBase --> bGwCov
+	buildLnx --> bGwCov
+
+	buildBase --> bGnuRel
+	buildLnx --> bGnuRel
+
+	buildBase --> bGaRel
+	buildLnx --> bGaRel
+
+	buildBase --> bGwDebug
+	buildLnx --> bGwDebug
+
+	buildBase --> bGwRel
+	buildLnx --> bGwRel
+
+	buildW64 --> bMingwDebug
+	buildBase --> bMingwDebug
+
+	buildW64 --> bMingwRel
+	buildBase --> bMingwRel
+
+	buildW64 --> bMsvcDebug
+	buildBase --> bMsvcDebug
+
+	buildW64 --> bMsvcRel
+	buildBase --> bMsvcRel
+}
+
+@enduml

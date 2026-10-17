@@ -17,12 +17,14 @@ inspecting a PE/COFF file from Linux.
 """
 
 from __future__ import annotations
+import sys
+
+sys.dont_write_bytecode = True
 import argparse
 import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -33,6 +35,10 @@ import pefile
 SEPARATOR = "→"
 # Marker reported when a dependency could not be resolved.
 MISSING = "Missing"
+# Timeout for subprocess calls.
+RUN_TIME_OUT = 30
+# Flag to control quiet mode.
+_flag_quiet: bool = False
 
 
 def _init_colors() -> Dict[str, str]:
@@ -86,7 +92,7 @@ def get_elf_arch(path: Path) -> Optional[Tuple[str, int]]:
 	try:
 		with open(path, "rb") as stream:
 			elf = ELFFile(stream)
-			return (elf.header["e_machine"], elf.elfclass)
+			return elf.header["e_machine"], elf.elfclass
 	except Exception:
 		return None
 
@@ -232,6 +238,9 @@ def list_needed(path: Path, dll_mode: bool) -> List[str]:
 # Cached mapping of the loader configuration: library name to list of (flags, path) tuples.
 _ld_cache: Optional[Dict[str, List[Tuple[str, str]]]] = None
 
+# Cached Wine PATH and WINEPATH directories translated to Unix paths.
+_wine_paths_cache: Optional[Tuple[List[str], List[str]]] = None
+
 
 def ld_config_lookup(name: str, arch: Optional[Tuple[str, int]] = None) -> Optional[Path]:
 	"""Resolve a library name using the loader configuration cache like 'ldconfig -p' reports it."""
@@ -317,30 +326,51 @@ def table_columns(flag_check: bool) -> Tuple[str, ...]:
 	return ("Library", "Via", "Directory") if flag_check else ("Library",)
 
 
+def _is_wineserver_running() -> bool:
+	"""Check if the Wine server process is currently running using 'pgrep'."""
+	try:
+		result = subprocess.run(["wineserver", "-k0"], capture_output=True, text=True, check=False, timeout=RUN_TIME_OUT)
+		return result.returncode == 0
+	except (OSError, subprocess.TimeoutExpired):
+		return False
+
+
 def wine_paths() -> Tuple[List[str], List[str]]:
 	"""Return the Wine 'PATH' and 'WINEPATH' directories translated to Unix paths."""
 
-	def to_unix(win_dirs: List[str]) -> List[str]:
-		"""Translate Windows directories using 'winepath'."""
-		win_dirs = [entry.strip() for entry in win_dirs if entry.strip()]
-		if not win_dirs:
-			return []
+	global _wine_paths_cache
+	if _wine_paths_cache is None:
+		# Warn the user if the Wine server is not yet running, as the first call will trigger a cold start.
+		if not _is_wineserver_running():
+			write_log("# Wine server is not running; execution will take longer.")
+		_wine_paths_cache = [], []
 		try:
-			result = subprocess.run(["winepath", "-u", *win_dirs], capture_output=True, text=True, check=False)
-		except OSError:
-			return []
-		return [line.rstrip("/") or "/" for line in result.stdout.splitlines() if line.strip()]
+			cmd = ["wine", "cmd", "/c", "echo %PATH%"]
+			if not _flag_quiet: write_log(f"- Command: {' '.join(cmd)}, executing after {int(time.time() - start_time)}s.")
+			# Get the default system path from the Wine environment.
+			default = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=RUN_TIME_OUT).stdout.strip()
+			if not _flag_quiet: write_log(f"- Command: {' '.join(cmd)}, executed after {int(time.time() - start_time)}s.")
+		except (OSError, subprocess.TimeoutExpired):
+			default = ""
+		sys_dirs = _to_unix(default.split(";"))
+		path_dirs = _to_unix(os.environ.get("WINEPATH", "").split(";"))
+		_wine_paths_cache = (path_dirs, sys_dirs)
+	return _wine_paths_cache
 
+
+def _to_unix(win_dirs: List[str]) -> List[str]:
+	"""Translate Windows directories using 'winepath'."""
+	win_dirs = [entry.strip() for entry in win_dirs if entry.strip()]
+	if not win_dirs:
+		return []
 	try:
-		# Get the default system path from the Wine environment.
-		default = subprocess.run(
-			["wine", "cmd", "/c", "echo %PATH%"], capture_output=True, text=True, check=False
-		).stdout.strip()
-	except OSError:
-		default = ""
-	sys_dirs = to_unix(default.split(";"))
-	path_dirs = to_unix(os.environ.get("WINEPATH", "").split(";"))
-	return path_dirs, sys_dirs
+		command = ["winepath", "-u", *win_dirs]
+		if not _flag_quiet: write_log(f"- Command: {' '.join(command)}, executing after {int(time.time() - start_time)}s.")
+		result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=RUN_TIME_OUT)
+		if not _flag_quiet: write_log(f"- Command: {' '.join(command)}, executed after {int(time.time() - start_time)}s.")
+	except (OSError, subprocess.TimeoutExpired):
+		return []
+	return [line.rstrip("/") or "/" for line in result.stdout.splitlines() if line.strip()]
 
 
 def handle_windows(
@@ -352,13 +382,13 @@ def handle_windows(
 	flag_verbose: bool,
 	flag_exclude_system: bool,
 	flag_format: bool,
-	flag_quiet: bool
 ) -> None:
 	"""Handle dependency reporting for PE/COFF targets on Windows/Cygwin or through Wine."""
+	global _flag_quiet
 	if flag_recurse:
-		write_log("- Recursing through dependencies")
+		if not _flag_quiet: write_log("- Recursing through dependencies")
 	else:
-		write_log("- Not recursing through dependencies")
+		if not _flag_quiet: write_log("- Not recursing through dependencies")
 	#
 	app_dir: str = ""
 	# Get the system root for comparison.
@@ -369,7 +399,7 @@ def handle_windows(
 	# When an application is passed get its executable directory.
 	if app_bin:
 		app_dir = str(Path(app_bin).resolve().parent)
-		if not flag_quiet:
+		if not _flag_quiet:
 			write_log(f"# Executable path app: {app_bin}")
 			write_log(f"- {app_dir}")
 	if is_windows_host():
@@ -377,19 +407,18 @@ def handle_windows(
 		path_dirs = [entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry]
 		sys_dirs: List[str] = []
 	else:
-		if not flag_quiet: write_log(f"# Retrieving wine paths ({int(time.time() - start_time)}s).")
 		path_dirs, sys_dirs = wine_paths()
-		if not flag_quiet: write_log(f"# Finished retrieving wine paths({int(time.time() - start_time)}s).")
+		if not _flag_quiet: write_log(f"# Retrieved wine paths after({int(time.time() - start_time)}s).")
 	#
 	resolve_dependencies = flag_check or flag_cmake
 	if resolve_dependencies:
 		if flag_verbose:
-			if not flag_quiet:
+			if not _flag_quiet:
 				write_log("# Paths:")
 				for directory in path_dirs:
 					write_log(f"- {directory}")
 
-	if not flag_quiet:
+	if not _flag_quiet:
 		write_log(f"# Configured....")
 
 	# Keys of the files reported on to prevent endless recursion on circular dependencies.
@@ -401,7 +430,7 @@ def handle_windows(
 		"""Add a resolved dependency path to the exported CMake list at once."""
 		# Convert backslashes to forward slashes for CMake compatibility.
 		resolved = os.path.abspath(path).replace("\\", "/")
-		if flag_verbose and not flag_quiet:
+		if flag_verbose and not _flag_quiet:
 			write_log(f"# Adding: {resolved}")
 		if resolved not in cmake_seen:
 			cmake_seen.add(resolved)
@@ -409,7 +438,7 @@ def handle_windows(
 
 	def process(files: Sequence[Path]) -> None:
 		"""Report the dependencies of the passed files in a single table and recurse when requested."""
-		if not flag_quiet:
+		if not _flag_quiet:
 			write_log(f"# Processing files: {files}")
 		rows: List[str] = []
 		recurse_queue: List[str] = []
@@ -419,7 +448,7 @@ def handle_windows(
 			if key in processed:
 				continue
 			processed.add(key)
-			if flag_verbose and not flag_quiet:
+			if flag_verbose and not _flag_quiet:
 				write_log(f"# Checking: {target}")
 			for dep in list_needed(target, dll_mode=True):
 				if not resolve_dependencies:
@@ -451,7 +480,7 @@ def handle_windows(
 								if flag_recurse:
 									recurse_queue.append(candidate)
 							else:
-								if flag_verbose and not flag_quiet:
+								if flag_verbose and not _flag_quiet:
 									write_log(f"# Excluding: {candidate}")
 							found = 2
 							break
@@ -491,7 +520,7 @@ def handle_windows(
 				# Skip the ones already reported on.
 				if processed_key(dep_path) in processed:
 					continue
-				if flag_verbose and not flag_quiet:
+				if flag_verbose and not _flag_quiet:
 					write_log(f"# Recursing through: {dep_path}")
 				process([Path(dep_path)])
 
@@ -508,7 +537,6 @@ def handle_linux(
 	flag_verbose: bool,
 	flag_exclude_system: bool,
 	flag_format: bool,
-	flag_quiet: bool,
 	lib_arch: Optional[str] = None
 ) -> None:
 	"""Handle dependency reporting for ELF targets on Linux."""
@@ -516,27 +544,27 @@ def handle_linux(
 	# Check if the environment variable 'LD_LIBRARY_PATH' was set.
 	if flag_check and os.environ.get("LD_LIBRARY_PATH"):
 		entries = [entry for entry in os.environ["LD_LIBRARY_PATH"].split(":") if entry]
-		if entries and not flag_quiet:
+		if entries and not _flag_quiet:
 			write_log("# Loader Paths:")
 		for entry in entries:
 			# Check if the path directory is absolute.
-			if os.path.isabs(entry) and not flag_quiet:
+			if os.path.isabs(entry) and not _flag_quiet:
 				write_log(f"- {entry}")
 				ld_path_dirs.append(entry)
 			else:
 				# Prepend the working directory.
 				resolved = os.path.join(os.getcwd(), entry)
-				if not flag_quiet:
+				if not _flag_quiet:
 					write_log(f"- {entry} => {resolved}")
 				ld_path_dirs.append(resolved)
 	# Configure fallback system search directories.
 	sys_dirs: List[str] = []
 	if lib_arch:
 		for sys_candidate in (
-			f"/lib/{lib_arch}",
-			f"/usr/lib/{lib_arch}",
-			f"/usr/{lib_arch}/lib",
-			f"/usr/{lib_arch}/usr/lib",
+				f"/lib/{lib_arch}",
+				f"/usr/lib/{lib_arch}",
+				f"/usr/{lib_arch}/lib",
+				f"/usr/{lib_arch}/usr/lib",
 		):
 			if os.path.isdir(sys_candidate) and sys_candidate not in sys_dirs:
 				sys_dirs.append(sys_candidate)
@@ -572,19 +600,19 @@ def handle_linux(
 			return
 		processed.add(key)
 		bin_arch = get_elf_arch(bin_path)
-		if not flag_quiet:
+		if not _flag_quiet:
 			write_log(f"# File RUNPATH: {bin_path}")
 		origin = str(Path(bin_path).resolve().parent)
 		run_path_dirs: List[str] = []
 		for entry in read_runpath(bin_path):
 			resolved_path = resolve_origin(origin, entry)
-			if not flag_quiet:
+			if not _flag_quiet:
 				if resolved_path == entry:
 					write_log(f"- {entry}")
 				else:
 					write_log(f"- {entry} => {resolved_path}")
 			run_path_dirs.append(resolved_path)
-		if not flag_quiet:
+		if not _flag_quiet:
 			write_log("# Paths:")
 			for directory in [*ld_path_dirs, *run_path_dirs]:
 				write_log(f"- {directory}")
@@ -618,7 +646,7 @@ def handle_linux(
 								add_cmake_dependency(candidate)
 							rows.append(f"{dep}{SEPARATOR}RUNPATH{SEPARATOR}{os.path.dirname(candidate)}")
 						else:
-							if flag_verbose and not flag_quiet:
+							if flag_verbose and not _flag_quiet:
 								write_log(f"# Excluding: {candidate}")
 						found = 2
 						if flag_recurse:
@@ -633,7 +661,7 @@ def handle_linux(
 							add_cmake_dependency(str(candidate_path))
 						rows.append(f"{dep}{SEPARATOR}LD_CONF{SEPARATOR}{candidate_path.parent}")
 					else:
-						if flag_verbose and not flag_quiet:
+						if flag_verbose and not _flag_quiet:
 							write_log(f"# Excluding: {candidate_path}")
 					found = 3
 			# When not found, check architecture-specific fallback system directories...
@@ -646,7 +674,7 @@ def handle_linux(
 								add_cmake_dependency(candidate)
 							rows.append(f"{dep}{SEPARATOR}SYS_PATH{SEPARATOR}{directory}")
 						else:
-							if flag_verbose and not flag_quiet:
+							if flag_verbose and not _flag_quiet:
 								write_log(f"# Excluding: {candidate}")
 						found = 4
 						if flag_recurse:
@@ -663,7 +691,7 @@ def handle_linux(
 				# Skip the ones already reported on.
 				if processed_key(dep_path) in processed:
 					continue
-				if flag_verbose and not flag_quiet:
+				if flag_verbose and not _flag_quiet:
 					write_log(f"# Recursing through: {dep_path}")
 				process_one(Path(dep_path))
 
@@ -702,6 +730,7 @@ def parse_args(argv: Sequence[str]) -> Optional[argparse.Namespace]:
 
 def main(argv: Sequence[str]) -> int:
 	"""CLI entry point."""
+	global _flag_quiet
 	args = parse_args(argv)
 	if args is None:
 		return 1
@@ -710,13 +739,15 @@ def main(argv: Sequence[str]) -> int:
 		if not target.exists():
 			write_log(f"File '{target}' not found!")
 			return 1
+	#
+	_flag_quiet = args.quiet
 	# Determine if Windows or Linux is targeted.
 	if is_windows_host() or is_pe_file(targets[0]):
 		handle_windows(targets, args.check, args.recurse, args.app, args.cmake, args.verbose, args.exclude_system,
-			not args.no_format, args.quiet)
+			not args.no_format)
 	else:
 		handle_linux(targets, args.check, args.recurse, args.cmake, args.verbose, args.exclude_system, not args.no_format,
-			args.quiet, args.lib_arch)
+			args.lib_arch)
 	return 0
 
 
@@ -725,14 +756,14 @@ if __name__ == "__main__":
 	exitcode = 0
 	try:
 		main(sys.argv[1:])
-		origin = [sys.platform]
-		write_log(f"- {os.path.basename(__file__)} ({'>'.join(origin)}), executed in {int(time.time() - start_time)}s.")
+		write_log(
+			f"- {os.path.basename(__file__)} ({'>'.join([sys.platform])}), executed in {int(time.time() - start_time)}s.")
 	except KeyboardInterrupt:
 		write_log("! Interrupted by user.")
 		exitcode = 130
 	except subprocess.CalledProcessError as cmd_ex:
 		if cmd_ex.returncode != 130:
-			write_log(f"! Command error({cmd_ex.returncode}): {' '.join(cmd_ex.cmd)}")
+			write_log(f"! Command error '{os.path.basename(__file__)}' ({cmd_ex.returncode}): {' '.join(cmd_ex.cmd)}")
 			if cmd_ex.stdout:
 				write_log(cmd_ex.stdout.decode("utf-8"))
 			if cmd_ex.stderr:

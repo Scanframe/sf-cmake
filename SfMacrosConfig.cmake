@@ -187,7 +187,7 @@ endfunction()
 function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
 	# Get the first optional argument.
 	Sf_GetOptionalArgument(_arg3 0 "${ARGN}")
-	if (DEFINED _arg3 AND _arg3)
+	if (_arg3)
 		# Set default version to the latest.
 		set(_Options "--latest")
 	else ()
@@ -205,6 +205,7 @@ function(Sf_GetGitHubVersions _VarOut _Owner _Repository)
 			WORKING_DIRECTORY "${CMAKE_CURRENT_FUNCTION_LIST_DIR}"
 			OUTPUT_VARIABLE _Versions
 			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_STRIP_TRAILING_WHITESPACE
 			COMMAND_ERROR_IS_FATAL ANY
 			ECHO_OUTPUT_VARIABLE
 			ECHO_ERROR_VARIABLE

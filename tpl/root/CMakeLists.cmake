@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.25...4.4)
+cmake_minimum_required(VERSION 3.29...4.4)
 
 # Make it so our own packages are found and also the ones in the sub-module library.
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake" "${CMAKE_CURRENT_LIST_DIR}/cmake/lib")
@@ -51,7 +51,7 @@ if (SF_BUILD_QT)
 	find_package(SfQtLibrary "${_QtVer}" CONFIG REQUIRED)
 endif ()
 
-# Set the C++ standard to 20 for all projects which is required for the SfCompiler package.
+# Set the C++ standard to 17 for all projects which is required for the SfCompiler package.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 17)
 
@@ -59,8 +59,12 @@ set(CMAKE_C_STANDARD 17)
 Sf_ToolChainInfo()
 
 if (SF_BUILD_TESTING)
-	# Sets the version for SfCatch2 package other then the default.
-	find_package(SfCatch2 3.12.0 CONFIG)
+	# Pin the version for the SfCatch2 package other then the default.
+	ini_read_value(_Version "${CMAKE_CURRENT_LIST_DIR}/build.ini" "config" "catch2-ver" "3.12.0")
+	find_package(SfCatch2 "${_Version}" CONFIG)
+	# Pin the version for the SfGoogleTest package other then the default.
+	ini_read_value(_Version "${CMAKE_CURRENT_LIST_DIR}/build.ini" "config" "googletest-ver" "1.17.0")
+	find_package(SfGoogleTest "${_Version}" CONFIG REQUIRED)
 	# Prevents Catch2 from adding targets.
 	set_property(GLOBAL PROPERTY CTEST_TARGETS_ADDED 1)
 	# Enable the tests added with add_test.

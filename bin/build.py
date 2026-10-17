@@ -24,6 +24,9 @@ Author: Arjan van Olphen <arjan@scanframe.nl>
 """
 
 from __future__ import annotations
+import sys
+
+# sys.dont_write_bytecode = True
 import argparse
 import configparser
 import copy
@@ -33,7 +36,6 @@ import stat
 import platform
 import re
 import shutil
-import sys
 import time
 import socket
 import subprocess
@@ -79,17 +81,17 @@ INI_TEMPLATE = r"""
 ; File for adding environment during the nested calls of the script.
 
 [config]
-; File for running an executable with the cmake environment.
-cmake-run-file=cmake/lib/run-executable.cmake
 ; The default Qt version and also the initial 'RUN_QT_VER' environment variable and passed as
 ; env var 'SF_QT_VERSION' to the docker container.
-;qt-ver=6.10.1
-;qt-ver=6.10.3
 qt-ver=6.12.0
+; Version passed to the SfCatch2 package.
+catch2-ver=3.16.0
+; Version passed to the SfGoogleTest package.
+googletest-ver=1.18.0
 ; Optional download location passed to the Docker container as 'SF_QT_DOWNLOAD_BASE' env var.
 ;qt-download-base=https://nexus.scanframe.com/repository/shared/library/qt
 ; Override the default docker image using a smaller one without the QT libraries.
-;docker-image=nexus.scanframe.com/amd64/gnu-cpp:24.04
+docker-image=nexus.scanframe.com/amd64/gnu-cpp:24.04-6.12.0
 ; Custom container name for this project to prevent conflicts with other projects.
 ;docker-container-name=my_cpp_builder
 ; Base for downloading toolchains and qt libraries.
@@ -126,8 +128,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${UID}/bus
 ; Prevent displaying Wine warnings.
 WINEDEBUG=fixme-all
 ;WINEDEBUG=fixme-all,+seh,+mscms,+loaddll
-; Required to since Wine 11.0 is missing function 'WcsCreateIccProfile' in 'mscms.dll' and is overridden by our own DLL.
-WINEDLLOVERRIDES=mscms=n,b
+; Required to since Wine 11.0 is missing function 'WcsCreateIccProfile' in 'mscms.dll'
+; and is overridden by our own DLL placed in the system32 directory. But still this below is needed.
+WINEDLLOVERRIDES=mscms=n
 
 ; Environment added when running in Wine natively.
 ; It needs Python 3.12, CMake 4.2, Ninja 1.13 and NSIS 3.11 which can be installed but also shared through the toolchain directory.
@@ -135,11 +138,11 @@ WINEDLLOVERRIDES=mscms=n,b
 [env.wine@]
 __inherit__=qt-12-fix
 ; Convenient variable for common base directory.
-TOOL_ROOT=Z:${RUN_DIR}\lib\toolchain\win-x86_64-combi
+TOOL_ROOT=Z:${RUN_DIR}\lib\toolchain\win-${MACHINE}-combi
 ; Configuration for tools as cmake, git and ninja for within the Wine environment.
 WINEPATH=${TOOL_ROOT}\cmake\bin;${TOOL_ROOT}\bin;${TOOL_ROOT}\python;${TOOL_ROOT}\nsis
-; Alternate port for the git server incase of conflicts.
-;GIT_SERVER_PORT=8888
+; Start of port numbers to look for an unused one for the git server.
+;GIT_SERVER_PORT=8000
 ; Alternate Wine prefix directory.
 ;WINEPREFIX=
 
@@ -152,9 +155,9 @@ WINEPATH=${TOOL_ROOT}\cmake\bin;${TOOL_ROOT}\bin;${TOOL_ROOT}\python;${TOOL_ROOT
 SF_EXEC_DIR_SUFFIX=-msvc
 ; Location of the root of the MSVC toolchain in the Wine environment.
 ; The rest is environment as below is configured in the file CMakePresets.json to allow multiple compilers to be configured in the same project.
-MSVC_ROOT=${RUN_DIR}\lib\toolchain\w64-x86_64-msvc-2022
+MSVC_ROOT=${RUN_DIR}\lib\toolchain\w64-${MACHINE}-msvc-2022
 ; Overrides QT_VER_DIR for subcommand 'run'.
-RUN_QT_VER_DIR=${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}
+RUN_QT_VER_DIR=${RUN_DIR}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}
 ; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
 LD_LIBRARY_PATH=${RUN_QT_VER_DIR}\msvc_64\bin
 PATH=${LD_LIBRARY_PATH};${PATH}
@@ -167,40 +170,40 @@ __inherit__=env.msvc@
 [env.wine.docker@]
 __inherit__=pulse-audio,qt-12-fix
 ; Overrides QT_VER_DIR for subcommand 'run'.
-RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}
+RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}
 
 ; Environment added before running with the compiler msvc in Wine in the Docker container.
 [env.msvc.wine.docker@]
-# The Docker container is build with the MSVC toolchain. (fuse-zip mounted in the home directory).
-MSVC_ROOT=Z:\home\${USER}\toolchain\w64-x86_64-msvc-2022
+; The Docker container is build with the MSVC toolchain. (fuse-zip mounted in the home directory).
+MSVC_ROOT=Z:\home\${USER}\toolchain\w64-${MACHINE}-msvc-2022
 SF_EXEC_DIR_SUFFIX=-msvc
-RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}
+RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}
 PATH=${RUN_QT_VER_DIR}\msvc_64\bin;${PATH}
 
 ; Environment added before running the 'gnu' compiler natively.
 [env.gnu@]
 SF_EXEC_DIR_SUFFIX=-gnu
-# Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
+; Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/lib
-; Make the 'appimagetool' available from the PATH.
-PATH=${PATH}:${RUN_DIR}/lib/toolchain/lnx-${MACHINE}-combi/bin
+; Make the 'appimagetool' and designer available from the PATH.
+PATH=${RUN_DIR}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/bin:${RUN_DIR}/lib/toolchain/lnx-${MACHINE}-combi/bin:${PATH}
 
 ; Environment added before running the 'gnu' compiler in the Docker container.
 [env.gnu.docker@]
 __inherit__=pulse-audio
 SF_EXEC_DIR_SUFFIX=-gnu
-# Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
+; Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/lib
 ; Make the 'appimagetool' available from the PATH.
-PATH=${PATH}:${HOME}/toolchain/lnx-${MACHINE}-combi/bin
+PATH=${HOME}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/bin:${HOME}/toolchain/lnx-${MACHINE}-combi/bin:${PATH}
 
 ; Environment added when running wine natively to execute the Windows cross-compiled targets.
 [env.gw@]
 __inherit__=qt-12-fix
 SF_EXEC_DIR_SUFFIX=-gw
-WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;${RUN_DIR}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin
+WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;${RUN_DIR}\lib\qt\win-${MACHINE}\${RUN_QT_VER}\mingw_64\bin
 ; Overrides QT_VER_DIR for subcommand 'run'.
-RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-x86_64/${RUN_QT_VER}
+RUN_QT_VER_DIR=${RUN_DIR}/lib/qt/win-${MACHINE}/${RUN_QT_VER}
 
 ; Environment added when running wine natively to execute the Aarch64 cross-compiled targets.
 [env.ga@]
@@ -208,13 +211,13 @@ SF_EXEC_DIR_SUFFIX=-ga
 # Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=${RUN_DIR}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/lib
 ; Make the 'appimagetool' available from the PATH.
-PATH=${PATH}:${RUN_DIR}/lib/toolchain/lnx-${MACHINE}-combi/bin
+PATH=${RUN_DIR}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/bin:${RUN_DIR}/lib/toolchain/lnx-aarch-combi/bin:${PATH}
 
 ; Environment added before running the 'mingw' compiler natively.
 [env.mingw@]
 SF_EXEC_DIR_SUFFIX=-mingw
 ; Even though this variable is not used by Windows it is used to locate the DLL's for running the application.
-LD_LIBRARY_PATH=${RUN_DIR}\lib\toolchain\w64-x86_64-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
+LD_LIBRARY_PATH=${RUN_DIR}\lib\toolchain\w64-${MACHINE}-mingw-1320-posix\bin;${RUN_DIR}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}\mingw_64\bin;lib
 PATH=${LD_LIBRARY_PATH};${PATH}
 
 [env.mingw.wine@]
@@ -223,7 +226,7 @@ __inherit__=env.mingw@,qt-12-fix
 ; Environment added before running the 'mingw' compiler in Docker and Wine.
 [env.mingw.wine.docker@]
 SF_EXEC_DIR_SUFFIX=-mingw
-PATH=Z:\home\${USER}\toolchain\w64-x86_64-mingw-1320-posix\bin;Z:\home\${USER}\lib\qt\w64-x86_64\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
+PATH=Z:\home\${USER}\toolchain\w64-${MACHINE}-mingw-1320-posix\bin;Z:\home\${USER}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}\mingw_64\bin;lib;${PATH}
 
 ; Environment added before running the 'ga' compiler in Docker.
 [env.ga.docker@]
@@ -231,7 +234,7 @@ __inherit__=pulse-audio
 ; Puts the binary in 'bin/lnx64-ga'.
 SF_EXEC_DIR_SUFFIX=-ga
 ; Make the 'appimagetool' available from the PATH.
-PATH=${PATH}:${HOME}/toolchain/lnx-${MACHINE}-combi/bin
+PATH=${HOME}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/bin:${HOME}/toolchain/lnx-${MACHINE}-combi/bin:${PATH}
 
 ; Environment added before running the 'gw' compiler in the Docker container.
 [env.gw.docker@]
@@ -240,9 +243,9 @@ SF_EXEC_DIR_SUFFIX=-gw
 ; Provides compiler std libraries to be found.
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;
 # Optional for allowing the .exe files to be executed from Linux. Required compiler std libraries are also part of the Qt library.
-;WINEPATH=Z:\home\${USER}\lib\qt\win-x86_64\${RUN_QT_VER}\mingw_64\bin;lib
+;WINEPATH=Z:\home\${USER}\lib\qt\win-${MACHINE}\${RUN_QT_VER}\mingw_64\bin;lib
 ; Overrides QT_VER_DIR since Wine does not pass any 'QT_' prefixed variables.
-RUN_QT_VER_DIR=/home/${USER}/lib/qt/win-x86_64/${RUN_QT_VER}
+RUN_QT_VER_DIR=/home/${USER}/lib/qt/win-${MACHINE}/${RUN_QT_VER}
 
 """.replace('\r', '')
 
@@ -302,11 +305,11 @@ def is_debugger_active() -> bool:
 	return False
 
 
-def start_git_server(port: int) -> bool:
+def start_git_server(port: int) -> int:
 	"""
 	Starts the listener in a background thread.
-	:param port: Port to listen on.
-	:return: True on success.
+	:param port: Start port to try to listen on.
+	:return: The actual port listened on and zero on failure.
 	"""
 
 	def translate_path(wine_path: str):
@@ -334,49 +337,81 @@ def start_git_server(port: int) -> bool:
 		# Fallback if the link doesn't exist (unlikely for active drives)
 		return wine_path
 
-	def server_loop():
+	def handle_client(conn):
 		"""
-		Thread function.
+		Handles a single client connection in its own thread.
+		:param conn: The client socket.
 		:return: None
 		"""
-		server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		server.bind(('127.0.0.1', port))
-		server.listen(10)
-		logger.info(f"= Git Proxy Listener started on port '{port}'.")
-		while True:
-			conn, addr = server.accept()
-			try:
-				raw_data = conn.recv(4096).decode('utf-8')
-				if not raw_data:
+		try:
+			# Accumulate data until we have a complete JSON payload
+			buffer = b""
+			raw_data = None
+			payload = None
+			while True:
+				chunk = conn.recv(4096)
+				if not chunk:
+					return
+				buffer += chunk
+				try:
+					raw_data = buffer.decode('utf-8')
+					payload = json.loads(raw_data)
+					break
+				except json.JSONDecodeError:
 					continue
-				payload = json.loads(raw_data)
-				# Assemble the command.
-				cmd = ['git']
+			if not raw_data:
+				return
+			# Assemble the command.
+			cmd = ['git']
+			if payload:
 				for arg in payload['args']:
 					# Convert the argument when matching a Windows full path with forward slashes.
 					if bool(re.match(r'^[a-zA-Z]:/(?:[^\\/:*?"<>|\r\n]+/)*[^\\/:*?"<>|\r\n]*$', arg)):
 						cmd.append(translate_path(arg))
 					else:
 						cmd.append(arg)
-				# Execute Git and capture everything
-				logger.info(f"= Git server: {' '.join(cmd)}")
-				proc = subprocess.run(cmd, cwd=translate_path(payload['cwd']),
-					# Captures both stdout and stderr
-					capture_output=True,
-					# Keep as bytes for raw data transfer
-					text=False
-				)
-				# Prepare the response using hex encoding prevents JSON breakages.
-				# noinspection PyUnresolvedReferences
-				response = {"exit_code": proc.returncode, "stdout": proc.stdout.hex(), "stderr": proc.stderr.hex()}
-				conn.sendall(json.dumps(response).encode('utf-8'))
-			finally:
-				conn.close()
+			# Execute Git and capture everything
+			logger.info(f"= Git server: {' '.join(cmd)}")
+			proc = subprocess.run(cmd, cwd=translate_path(payload['cwd']),
+				# Captures both stdout and stderr
+				capture_output=True,
+				# Keep as bytes for raw data transfer
+				text=False
+			)
+			# Prepare the response using hex encoding prevents JSON breakages.
+			# noinspection PyUnresolvedReferences
+			response = {"exit_code": proc.returncode, "stdout": proc.stdout.hex(), "stderr": proc.stderr.hex()}
+			conn.sendall(json.dumps(response).encode('utf-8'))
+		finally:
+			conn.close()
 
+	def server_loop():
+		"""
+		Thread function that accepts connections and dispatches each to a handler thread.
+		:return: None
+		"""
+		while True:
+			conn, addr = server.accept()
+			threading.Thread(target=handle_client, args=(conn,), daemon=True).start()
+
+	# Try to bind to the port, incrementing until successful
+	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	counter: int = 0
+	server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+	while True:
+		try:
+			server.bind(('127.0.0.1', port + counter))
+			break
+		except OSError:
+			counter += 1
+			# When tried too many ports, bailout with an error.
+			if counter > 20:
+				return 0
+	server.listen(10)
+	logger.info(f"= Git Proxy Listener started on port '{port + counter}'.")
 	# Launch the main server loop in its own thread
 	threading.Thread(target=server_loop, daemon=True).start()
-	return True
+	return port + counter
 
 
 def _widen_console_buffer() -> None:
@@ -527,7 +562,7 @@ def create_config_parser(ini_path: str, cfg: configparser.ConfigParser | None = 
 		with open(ini_path, "w", encoding="utf-8") as file:
 			file.write(INI_TEMPLATE)
 	if len(cfg.read(ini_path)) == 0:
-		logger.info(f"~ Unable to read file: {ini_path}")
+		logger.info(f": Unable to read file: {ini_path}")
 	if cfg.has_section(section := "__include__"):
 		items = cfg.items(section)
 		cfg.remove_section(section)
@@ -556,6 +591,9 @@ if 'TEMP' not in PARENT_ENV:
 	PARENT_ENV['TEMP'] = tempfile.gettempdir()
 # Architecture of the host system (uname -m).
 PARENT_ENV['MACHINE'] = platform.machine()
+# In Wine 'AMD64' is returned.
+if PARENT_ENV['MACHINE'] == "AMD64":
+	PARENT_ENV['MACHINE'] = "x86_64"
 # Add the RUN_DIR so it is available in the '.toolchain-*' files.
 PARENT_ENV['RUN_DIR'] = RUN_DIR
 # The prefix 'RUN_' is needed since Wine does not pass environment variables prefixed with 'QT_'.
@@ -1425,20 +1463,30 @@ def run_command(cmd_list: List[str], input_data: bytes | None = None, shell: boo
 	Raises 'subprocess.CalledProcessError' if the command fails.
 	"""
 	cwd = os.getcwd() if cwd is None else cwd
+	cmd_str = " ".join(cmd_list)
+	# A fix for not being able to execute an executable in Wine from the current working directory.
+	if sys.platform == "win32":
+		# Try each PATHEXT extension but 'as is' first.
+		for ext in [""] + RUN_ENV.get("PATHEXT", ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC").split(";"):
+			cmd_path = os.path.join(cwd, cmd_list[0] + ext)
+			if os.path.isfile(cmd_path):
+				if DEBUG_FLAG: logger.info(
+					f"- Windows: Modifying the command '{cmd_list[0]}{ext}' was found relative to working directory as: {cmd_path}")
+				cmd_list[0] = cmd_path
+				break
 	# When debugging, and the command is to report only.
 	if DEBUG_FLAG and dbg_mode == DebugMode.REPORT_ONLY:
-		cmd_str = " ".join(cmd_list)
 		logger.info(f"~ Not executing from ({cwd}): {cmd_str}")
 		# Simulate a completion.
 		return subprocess.CompletedProcess(args=cmd_list, returncode=0)
 	# Report when not mode is not silent.
 	if dbg_mode != DebugMode.SILENT or DEBUG_FLAG:
-		cmd_str = " ".join(cmd_list)
 		logger.info(f"~ Executing from({cwd}): {cmd_str}")
 	# Raises a 'CalledProcessError' exception on error.
 	try:
-		return subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV, capture_output=capture_output,
-			input=input_data)
+		result = subprocess.run(cmd_list, shell=shell, cwd=cwd, check=check, env=RUN_ENV,
+			capture_output=capture_output, input=input_data)
+		return result
 	except Exception as ex:
 		ex.add_note(f"Subprocess: {' '.join(cmd_list)}")
 		raise ex
@@ -1868,6 +1916,7 @@ examples:
 		parser.add_argument("-L", "--label-regex", type=str, metavar="<regex>",
 			help="Regular expression selecting labels of tests to be executed.")
 		parser.add_argument("-p", "--package", action="store_true", help="Create packages.")
+		parser.add_argument("--profile", action="store_true", help="Profile execution of cmake.")
 		parser.add_argument("-w", "--workflow", action="store_true", help="Runs workflow presets.")
 		parser.add_argument("-n", "--target", type=str, metavar="<trg>",
 			help="Overrides the build targets set in the preset by a single target.")
@@ -1988,6 +2037,8 @@ examples:
 						cmd.append("--fresh")
 					if args.debug:
 						cmd.append("--debug-output")
+					if args.profile:
+						cmd += ["--profiling-format=google-trace", "--profiling-output=profile-make.json"]
 					# Execute the configure command for creating makefiles.
 					run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 
@@ -1998,6 +2049,8 @@ examples:
 				return 1
 			cmd: List[str] = ["cmake", "--build", "--preset", str(build_preset_name)]
 			cmd += ["--parallel", str(os.cpu_count())]
+			if args.profile:
+				cmd += ["--profiling-format=google-trace", "--profiling-output=profile-build.json"]
 			if args.clean:
 				cmd.append("--clean-first")
 			if args.target_select:
@@ -2088,6 +2141,12 @@ class SubCommandWine(SubCommand):
 		"""Adds options to the given parser for the wine command."""
 		# Adds the standard help option.
 		super().options(parser)
+		#
+		parser.add_argument("command", type=str, nargs="?",
+			choices=["run"],
+			help=f"""
+run -- <cmd> - Runs a command in Wine .
+""")
 		parser.add_argument("-g", "--git-server", action="store_true", help="Force start of git-server in the background.")
 		# Define Epilog for the help message.
 		parser.epilog = f"""
@@ -2108,33 +2167,42 @@ examples:
 		if shutil.which("wine") is None:
 			logger.error(f"! The 'wine' command not found. Please install required packages.")
 			return 1
-		# When the temporary directory by environment variable 'TEMP' is used, the cmake build directory is not preserved.
-		# To make the 'TEMP' a valid location with Wine in Docker, it needs to be in the project which is mounted on the host.
-		if is_docker() and "HOME" in RUN_ENV:
-			user_dir = os.path.join(RUN_ENV["HOME"], ".wine/drive_c/users/user")
-			temp_dir = os.path.join(user_dir, "Temp")
-			if not os.path.exists(temp_dir) and os.path.exists(user_dir):
-				os.symlink(os.path.join(os.path.abspath(os.path.curdir), "cmake-build"), os.path.join(user_dir, "Temp"))
 		# Set the run environment for wine since start_git_server() uses it.
 		set_environment("wine")
+		# Add this env var since Windows/Wine cannot handle symlinks.
+		RUN_ENV["PY_SCRIPT_DIR"] = os.path.dirname(os.path.realpath(__file__))
+		# When there are arguments on the right, and the first argument does not start with a hyphen.
+		if not args.git_server and args_right and args_right[0][:1] == '-':
+			# Split the arguments again on the second '--' and parse the right command arguments and show help when invalid.
+			if cmd_args := SubCommandNative().parse_args(split_arguments(args_right)[0], False):
+				# Some commands demand the Git server to be present.
+				args.git_server = cmd_args.make or cmd_args.build or cmd_args.workflow
+		# Start running the git server only when needed or forced.
+		if args.git_server:
+			# Get the port or path for the Git server.
+			port: int = start_git_server(int(RUN_ENV.get('GIT_SERVER_PORT', '8000')))
+			# Check for an error when the actual port is zero.
+			if port == 0:
+				return 1
+			# set the environment variables for the Git client script.
+			RUN_ENV["GIT_SERVER_PORT"] = str(port)
+		# Assemble the arguments to execute and start with wine itself.
+		arguments: List[str] = ["wine"]
+		# When the command is run.
+		if args.command == "run":
+			# When no the right arguments exist, execute "cmd".
+			if not args_right:
+				arguments += ["cmd"]
+		else:
+			arguments += ["python", str(self.script)]
+		# Execute those arguments.
 		if args_right:
-			if not args_right[0] in ["run"]:
-				# Split the arguments again on the second '--' and parse the right command arguments and show help when invalid.
-				cmd_args = SubCommandNative().parse_args(split_arguments(args_right)[0], False)
-				if cmd_args:
-					# Some commands demand the Git server to be present.
-					args.git_server |= cmd_args.make or cmd_args.build or cmd_args.workflow
-				# Start running the git server only when needed or forced.
-				if args.git_server:
-					if not start_git_server(int(RUN_ENV.get('GIT_SERVER_PORT', '9999'))):
-						return 1
-			# Suppress Wine fix-me messages when 'WINEDEBUG' is not set.
-			if "WINEDEBUG" not in RUN_ENV:
-				RUN_ENV["WINEDEBUG"] = 'fixme-all'
-			arguments: List[str] = ["wine", "python", str(self.script)] + args_right
-			logger.debug(f"# Running: WINEPATH='{RUN_ENV.get("WINEPATH", "")}' {' '.join(arguments)}")
-			return run_command(arguments, dbg_mode=DebugMode.REPORT_ONLY).returncode
-		return 0
+			arguments += args_right
+		# Suppress Wine fix-me messages when 'WINEDEBUG' is not set.
+		if "WINEDEBUG" not in RUN_ENV:
+			RUN_ENV["WINEDEBUG"] = 'fixme-all'
+		logger.debug(f"# Running: WINEPATH='{RUN_ENV.get("WINEPATH", "")}' {' '.join(arguments)}")
+		return run_command(arguments, dbg_mode=DebugMode.REPORT_ONLY).returncode
 
 
 class SubCommandDocker(SubCommand):
@@ -2170,7 +2238,7 @@ examples:
     {self.script} --platform arm64 run -- uname -a
 	"""
 		parser.add_argument("command", type=str, nargs="?",
-			choices=["pull", "run", "start", "wstart", "stop", "kill", "prune", "attach", "status", "sshd", "versions"],
+			choices=["pull", "run", "start", "wstart", "stop", "kill", "attach", "status", "sshd", "versions"],
 			help=f"""
 pull         - Pulls the docker image from the Docker registry.
 run -- <cmd> - Runs a command as user 'user' in the container using Docker command.
@@ -2178,7 +2246,6 @@ start        - Starts a container named '{self._container}' in the background.
 wstart       - Starts a container named '{self._container}' in the background and a wineserver for speed.
 attach       - Attaches to the running container named '{self._container}'.
 status       - Returns info of the running container '{self._container}'.
-prune        - Remove unused data and anonymous volumes.
 stop/kill    - Stops/Kills the container named '{self._container}'.
 versions     - Shows versions of most installed applications within the container.
 sshd         - Starts sshd service on port {SSHD_PORT} to allow remote control.
@@ -2193,8 +2260,14 @@ This ignores the options: --platform'
 			help=f"Sets the DEBUG environment flag for the entrypoint script.")
 		parser.add_argument("-p", "--platform", default=default_platform, choices=['amd64', 'arm64'],
 			help=f"Platform part forming the Docker image (default: '{default_platform}').")
-		parser.add_argument("-n", "--no-build-dir", action="store_false", dest="flag_build_dir", default=True,
-			help="Docker project builds in a regular cmake-build directory as a native build would.")
+		parser.add_argument("-b", "--build-dir", dest="build_dir", default="prj", choices=["prj", "tmp", "ntv", "vol"],
+			help="""Mount for the build directory.
+Choices are:
+  ntv  - Same as the host and no mount made for the container.
+  prj  - Mount in the project directory as a subdirectory from 'cmake-build' named as docker image used.
+  tmp  - Mount in the operating systems's temporary directory.
+  vol  - Mount a docker volume directory.
+""")
 
 	def get_container_id(self) -> str:
 		"""Returns the ID of the running container if it exists."""
@@ -2272,9 +2345,21 @@ This ignores the options: --platform'
 					docker_opts += ["--volume", f"/home/{RUN_ENV["USER"]}/.config:/home/user/.config"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
+		build_dir: Path = Path()
 		# Configure a specific build directory volume if requested.
-		if args.flag_build_dir:
-			build_dir = Path(RUN_DIR) / "cmake-build" / f"docker-{args.platform}-{qt_ver}".strip("-")
+		if args.build_dir == "tmp":
+			build_dir = Path("/tmp") / "cmake-build" / Path(PROJECT_SUBDIR)
+			if sys.platform == "win32":
+				build_dir = Path(RUN_ENV.get("TEMP", r"C:\TEMP")) / "cmake-build" / Path(PROJECT_SUBDIR)
+		elif args.build_dir == "prj":
+			build_dir = Path(RUN_DIR) / "cmake-build"
+		if args.build_dir == "vol":
+			# Mount a Docker volume.
+			docker_opts += ["--mount", f"type=volume,source=cmake-build,target=/mnt/project/{PROJECT_SUBDIR}/cmake-build"]
+		# Otherwise use the volume option.
+		else:
+			build_dir /= f"docker-{args.platform}-{qt_ver}".strip("-")
+			logger.info(f"= Build Dir: [{PROJECT_SUBDIR}] {build_dir}")
 			build_dir.mkdir(parents=True, exist_ok=True)
 			docker_opts += ["--volume", f"{build_dir}:/mnt/project/{PROJECT_SUBDIR}/cmake-build:rw"]
 		# Set the working directory within the container.
@@ -2308,12 +2393,20 @@ This ignores the options: --platform'
 			if self.get_container_id():
 				logger.warning(f": Container '{self._container}' is already running.")
 				return 1
-			cmd = ["docker", "run"] + docker_opts + ["--name", self._container, "--detach", img_name]
-			if command == "wstart":
-				cmd += ["/bin/bash", "-c", "sleep infinity && wineserver -p"]
-			else:
-				cmd += ["sleep", "infinity"]
-			return run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode
+			# Assemble the start command.
+			cmd = ["docker", "run"] + docker_opts + ["--name", self._container, "--detach", img_name, "sleep", "infinity"]
+			returncode: int = run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode
+			if returncode == 0 and command == "wstart":
+				delay = 10
+				logger.info(f"# Starting 'wineserver' after a delay of {delay} seconds to give the container time to settle.")
+				time.sleep(delay)
+				returncode = run_command(docker_command([], img_name, ["wineserver", "-p"]),
+					dbg_mode=DebugMode.REPORT_ONLY).returncode
+				if returncode == 0:
+					logger.info(f"# Running 'winepath' to prevent a failure when used for the first time.")
+					returncode = run_command(docker_command([], img_name, ["winepath"]),
+						dbg_mode=DebugMode.REPORT_ONLY).returncode
+			return returncode
 		#
 		elif command == "attach":
 			if not self.get_container_id():
@@ -2574,7 +2667,8 @@ Choices are depended on the host platform:
 
 			case "win-tools":
 				logger.info("# Installing Multiple tools as CMake, Ninja, NSIS and Git client for Wine.")
-				if not extract_by_url(url := f"{base_url}/toolchain/win-x86_64-combi.tar.gz", os.path.join(install_dir, "win-x86_64-combi")):
+				if not extract_by_url(url := f"{base_url}/toolchain/win-x86_64-combi.tar.gz",
+					os.path.join(install_dir, "win-x86_64-combi")):
 					logger.error(f"! Failed to uncompress: {url}")
 					return False
 
@@ -3497,9 +3591,7 @@ examples:
       ./{self.script} {self.command} -p msvc-debug -- hello-world.exe
       ./{self.script} {self.command} -p gw-debug -- cmd /c echo %PATH%
 
-  Execute command without the cmake environment:
-      {self.script} --exec -- cl
-      {self.script} --exec -- gcc --version
+  Execute a command with the preset environment:
       {self.script} --preset gnu-debug -- cmd /c echo ^%PATH^%
 """
 		if self.parser is None:
@@ -3513,9 +3605,10 @@ examples:
 		# Configure the command line options.
 		parser.add_argument("-p", "--preset", type=str, nargs="?", required=True, metavar="<preset>",
 			help="The configure preset providing for the environment and working directory.")
-		parser.add_argument("-e", "--exec", action="store_true", help="Execute command without the cmake set environment.")
-		parser.add_argument("-v", "--verbose", action="store_true",
+		parser.add_argument("-V", "--verbose", action="store_true",
 			help="Shows information when the command is executed for error analysis.")
+		parser.add_argument("-n", "--native", action="store_true",
+			help="Run the command natively when the preset commands Wine (Linux only).")
 
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
@@ -3527,7 +3620,7 @@ examples:
 		# When no command is given, list the files in the directory.
 		if args_right is None or not len(args_right):
 			# When executing from Linux and the Windows cross-compiler is used.
-			if sys.platform != "win32" and not args.exec and get_compiler_type(args.preset, PresetTypes.CONFIGURE) == "gw":
+			if sys.platform != "win32" and get_compiler_type(args.preset, PresetTypes.CONFIGURE) == "gw":
 				args_right = ["cmd", "/c", "dir", "/a"]
 			elif sys.platform == "win32":
 				args_right = ["cmd", "/c", "dir", "/a"]
@@ -3536,74 +3629,61 @@ examples:
 		# Toolchain environment by preset and bailout when not set.
 		if not set_environment_by_preset(args.preset, PresetTypes.CONFIGURE):
 			return 1
-
 		# Get the preset object.
 		preset = get_preset_by_name(PresetTypes.CONFIGURE, args.preset)
-
 		# Populate RUN_ENV with environment variables from the preset to allow macro expansion.
 		env = preset.get("environment", {})
 		for var in env:
 			RUN_ENV[var] = expand_macros(preset, env.get(var), context=env)
-
-		# Check if an application is to be executed without the cmake script.
-		if args.exec:
-			# Get the binary directory from preset expanding then macros.
-			bin_dir = expand_macros(preset, env.get("SF_EXECUTABLE_DIR"), True)
-			cmake_bin_dir = expand_macros(preset,
-				preset.get("cacheVariables", {}).get("CMAKE_RUNTIME_OUTPUT_DIRECTORY", {}).get("value"), True)
-			logger.debug(f"~ Working directory set as 'CMAKE_RUNTIME_OUTPUT_DIRECTORY' to: {cmake_bin_dir}")
-			if bin_dir is None:
-				logger.error(f"! Field 'binaryDir' not found for configure preset '{args.preset}'.")
-				return 1
-			return run_command(args_right, cwd=bin_dir, dbg_mode=DebugMode.REPORT_ONLY).returncode
+		# Get the binary directory from preset expanding macros.
+		bin_dir = expand_macros(preset, env.get("SF_EXECUTABLE_DIR"), True)
+		cmake_bin_dir = expand_macros(preset,
+			preset.get("cacheVariables", {}).get("CMAKE_RUNTIME_OUTPUT_DIRECTORY", {}).get("value"), True)
+		logger.debug(f"~ Working directory set as 'CMAKE_RUNTIME_OUTPUT_DIRECTORY' to: {cmake_bin_dir}")
+		if bin_dir is None:
+			logger.error(f"! Field 'binaryDir' not found for configure preset '{args.preset}'.")
+			return 1
+		compiler_type = get_compiler_type(args.preset, PresetTypes.CONFIGURE)
+		# Get the library output directory for path setup.
+		lib_dir = expand_macros(preset,
+			preset.get("cacheVariables", {}).get("CMAKE_LIBRARY_OUTPUT_DIRECTORY", {}).get("value"), True)
+		# Get the Qt bin subdirectory from the preset's cacheVariables.
+		qt_bin_subdir = preset.get("cacheVariables", {}).get("SF_QT_BIN_SUBDIR", {}).get("value", "")
+		# If RUN_QT_VER_DIR is set, copy to QT_VER_DIR (Wine workaround).
+		if "RUN_QT_VER_DIR" in RUN_ENV:
+			RUN_ENV["QT_VER_DIR"] = RUN_ENV["RUN_QT_VER_DIR"]
+			logger.info(f"~ Environment 'RUN_QT_VER_DIR' overrides 'QT_VER_DIR'.")
+		# Set up environment based on platform and compiler.
+		if sys.platform != "win32" and compiler_type == "gw":
+			# Linux running Windows cross-compiler: set up WINEPATH and prefix with command with 'wine'.
+			if not args.native:
+				args_right = ["wine"] + args_right
+			if "QT_VER_DIR" in RUN_ENV and qt_bin_subdir:
+				qt_bin_dir = os.path.join(RUN_ENV["QT_VER_DIR"], qt_bin_subdir)
+				wine_qt_bin = "Z:" + qt_bin_dir.replace("/", "\\")
+				if lib_dir is not None:
+					wine_lib_dir = "Z:" + lib_dir.replace("/", "\\")
+					existing_winepath = RUN_ENV.get("WINEPATH", "")
+					RUN_ENV["WINEPATH"] = f"{wine_qt_bin};{wine_lib_dir};{existing_winepath}"
+				else:
+					existing_winepath = RUN_ENV.get("WINEPATH", "")
+					RUN_ENV["WINEPATH"] = f"{wine_qt_bin};{existing_winepath}"
+				if args.verbose:
+					logger.info(f"~ WINEPATH: {RUN_ENV['WINEPATH']}")
+		elif sys.platform == "win32" and compiler_type in ("mingw", "msvc"):
+			# Windows native: set up PATH with Qt bin directory.
+			if "QT_VER_DIR" in RUN_ENV and qt_bin_subdir:
+				qt_bin_dir = os.path.join(RUN_ENV["QT_VER_DIR"], qt_bin_subdir)
+				if os.path.isdir(qt_bin_dir):
+					existing_path = RUN_ENV.get("PATH", "")
+					RUN_ENV["PATH"] = f"{existing_path};{qt_bin_dir}"
+					if args.verbose:
+						logger.info(f"~ PATH: {RUN_ENV['PATH']}")
 		else:
-			# Holds the cmake script and raise an exception on failure.
-			cmake_script = str(get_config_section("config", fail=True).get("cmake-run-file",
-				os.path.join(*(CMAKE_LIB_SUBDIR + ["run-executable.cmake"]))))
-			# Check if the required cmake script is present and if not, bailout.
-			if not os.path.exists(cmake_script):
-				logger.info(f": Sub command 'run' disabled due to missing '{cmake_script}' file.")
-				return 1
-			# Since CMake v4.4.0 the '--preset' option is not allowed in script mode (-P).
-			# So the variables are passed manually using the '-D' option.
-			cmd: List[str] = ["cmake", f"-DSF_EXECUTABLE={self.cmake_encode(args_right)}"]
-			if args.verbose:
-				cmd += [f"-DSF_VERBOSE=ON"]
-			# Pass SF_COMPILER if available
-			compiler_type = get_compiler_type(args.preset)
-			if compiler_type:
-				cmd += [f"-DSF_COMPILER={compiler_type}"]
-			# Pass CMAKE_BINARY_DIR
-			binary_dir = expand_macros(preset, preset.get("binaryDir"), True)
-			if binary_dir:
-				cmd += [f"-DCMAKE_BINARY_DIR={binary_dir}"]
-			# Pass output directories from cacheVariables
-			cache_vars = preset.get("cacheVariables", {})
-			for var in ["CMAKE_RUNTIME_OUTPUT_DIRECTORY", "CMAKE_LIBRARY_OUTPUT_DIRECTORY"]:
-				val = cache_vars.get(var)
-				if isinstance(val, dict):
-					val = val.get("value")
-				expanded_val = expand_macros(preset, val, True)
-				if expanded_val:
-					cmd += [f"-D{var}={expanded_val}"]
-			# Add the script to be executed.
-			cmd += ["-P", cmake_script]
-			return run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY).returncode
-
-	@staticmethod
-	def cmake_encode(args: List[str]) -> str:
-		"""
-		Encodes only the characters ';', '/', ':', '=', '?' and '%,'
-		which matches the custom argument decode logic in CMake.
-		"""
-		# Mapping of characters to their hex codes where '%' must be first to avoid double-encoding the '%' in '%3B', etc.
-		replacements = [("%", "%25"), (";", "%3B"), (" ", "%20")]
-		encoded = []
-		for entry in args:
-			for char, hex_code in replacements:
-				entry = entry.replace(char, hex_code)
-			encoded.append(entry)
-		return ";".join(encoded)
+			# Linux native: log LD_LIBRARY_PATH if verbose.
+			if args.verbose and "LD_LIBRARY_PATH" in RUN_ENV:
+				logger.info(f"~ LD_LIBRARY_PATH: {RUN_ENV['LD_LIBRARY_PATH']}")
+		return run_command(args_right, cwd=bin_dir, dbg_mode=DebugMode.REPORT_ONLY).returncode
 
 
 class SubCommandPublish(SubCommand):
@@ -3892,7 +3972,7 @@ NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 				continue
 			try:
 				if ext == "deb":
-					logger.info(f"- Uploading APT repo file: {upload_file}")
+					logger.info(f"- Uploading APT repo file: {upload_file} ({self.get_readable_file_size(upload_file)})")
 					upload_url = (
 						f"{str(nexus_server_url).rstrip('/')}/service/rest/v1/components"
 						f"?repository={quote(str(nexus_apt_repo), safe='')}"
@@ -3905,7 +3985,7 @@ NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 					# Trigger a cache refresh for a winget package.
 					if ext == "zip-def":
 						flag_cache_refresh = True
-					logger.info(f"~ Uploading RAW repo file: {upload_file}")
+					logger.info(f"~ Uploading RAW repo file: {upload_file} ({self.get_readable_file_size(upload_file)})")
 					raw_sub = str(nexus_raw_subdir).strip('/\\').replace('\\', '/')
 					raw_parts = [quote(part, safe="") for part in raw_sub.split('/') if part]
 					raw_parts.append(quote(Path(upload_file).name, safe=""))
@@ -3938,6 +4018,19 @@ NEXUS_WINGET_REFRESH=winget/stable/admin/refresh
 				return 1
 		return 0
 
+	@staticmethod
+	def get_readable_file_size(filepath):
+		"""Returns a human-readable file size."""
+		try:
+			size_bytes = os.path.getsize(filepath)
+		except FileNotFoundError:
+			return "File not found"
+		for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti']:
+			precision: int = 2 if len(unit) != 0 else 0
+			if size_bytes < 1024.0:
+				return f"{size_bytes:.{precision}f} {unit}B"
+			size_bytes /= 1024.0
+
 
 def split_arguments(arguments: List[str], split_arg: str = "--") -> tuple[List[str], List[str]]:
 	"""
@@ -3950,6 +4043,60 @@ def split_arguments(arguments: List[str], split_arg: str = "--") -> tuple[List[s
 	args_left = arguments[:arg_sep_idx] if arg_sep_idx >= 0 else arguments
 	args_right = arguments[arg_sep_idx + 1:] if len(arguments) > arg_sep_idx >= 0 else []
 	return args_left, args_right
+
+
+def _load_subcommand_modules():
+	"""
+	Dynamically import all 'build-*.py' modules in the script's directory.
+	Each module is expected to define and register a SubCommand subclass.
+	The prefix 'build-' is derived from the main script name 'build.py'.
+
+	Subcommand modules must NOT use 'from build import ...' because that would
+	re-import build.py from the script's directory, re-running module-level code.
+	Instead, they should use 'sys.modules["build"].SubCommand' to reference the
+	already-loaded module.
+	"""
+	import importlib.util
+
+	# Use the real directory of the script (resolves symlinks), since subcommand
+	# modules live alongside the actual build.py, not the symlink.
+	script_dir = os.path.dirname(os.path.realpath(__file__)) if not "PY_SCRIPT_DIR" in PARENT_ENV \
+		else PARENT_ENV["PY_SCRIPT_DIR"]
+	# Under Wine, os.path.realpath() does not resolve Linux symlinks, so
+	# script_dir may point to the project root instead of the actual script
+	# directory (e.g., 'sbin/').  Collect all candidate directories to search
+	# for 'build-*.py' modules, deduplicating them to avoid double-loading.
+	directories_to_search = [script_dir]
+	sbin_dir = os.path.join(script_dir, "sbin")
+	if os.path.isdir(sbin_dir) and sbin_dir not in directories_to_search:
+		directories_to_search.append(sbin_dir)
+	pattern = "build-*.py"
+	seen_files = set()
+	for search_dir in directories_to_search:
+		for module_file in sorted(glob.glob(os.path.join(search_dir, pattern))):
+			# Skip duplicates (same file found in multiple search dirs)
+			real_file = os.path.realpath(module_file)
+			if real_file in seen_files:
+				continue
+			seen_files.add(real_file)
+			# Skip the main build.py itself and __pycache__
+			module_name = os.path.splitext(os.path.basename(module_file))[0]
+			if module_name == "build":
+				continue
+			# Skip if already imported
+			if module_name in sys.modules:
+				continue
+			try:
+				spec = importlib.util.spec_from_file_location(module_name, module_file)
+				if spec is not None and spec.loader is not None:
+					module = importlib.util.module_from_spec(spec)
+					sys.modules[module_name] = module
+					spec.loader.exec_module(module)
+					logger.debug(f"# Loaded subcommand module '{module_name}' from '{module_file}'.")
+				else:
+					logger.warning(f"! Could not load module spec for '{module_file}'.")
+			except Exception as ex:
+				logger.error(f"! Failed to import subcommand module '{module_file}': {ex}")
 
 
 def main() -> int:
@@ -3976,6 +4123,8 @@ def main() -> int:
 	SubCommandVersion().register()
 	SubCommandRun().register()
 	SubCommandPublish().register()
+	# Dynamically import and register subcommand modules named 'build-*.py'.
+	_load_subcommand_modules()
 	#
 	parser = argparse.ArgumentParser(description="""Helper for running CMake , CTest, CPack commands using 'CMakePresets.json' and 'CMakeUserPresets.json'.
 Running Native, Docker, Wine and nested as in Docker > Wine.
@@ -4072,7 +4221,7 @@ if __name__ == "__main__":
 		exitcode = 130
 	except subprocess.CalledProcessError as cmd_ex:
 		if cmd_ex.returncode != 130:
-			logger.error(f"! Command error({cmd_ex.returncode}): {' '.join(cmd_ex.cmd)}")
+			logger.error(f"! Command error '{os.path.basename(__file__)}' ({cmd_ex.returncode}): {' '.join(cmd_ex.cmd)}")
 			if cmd_ex.stdout:
 				logger.error(cmd_ex.stdout.decode("utf-8"))
 			if cmd_ex.stderr:

@@ -12,8 +12,8 @@ Functions:
   - get_elf_info: Extracts metadata from Linux ELF (Executable and Linkable Format) files.
   - main: Entry point of the script that determines the file type and extracts metadata.
 """
-import os
 import sys
+import os
 from elftools.elf.elffile import ELFFile
 import pefile
 

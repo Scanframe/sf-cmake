@@ -1,70 +1,120 @@
-@startuml
+@startuml GitLab Pipeline
+!theme plain
+
 <style>
-	FontName Arial
-	FontSize 13
 	root
 	{
-		Padding 0
-		Margin 0
-		HorizontalAlignment Left
+		FontName Arial
+		FontSize 13
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
 	}
 	frame {
-		' define a new style, using CSS class syntax
-			FontColor Black
-			LineColor Gray
-			' Transparency is also possible
-			'BackgroundColor #52A0DC55
-			BackgroundColor #F9F9F9-#E9E9E9
-			'[From top left to bottom right <&fullscreen-enter>]
-			RoundCorner 10
-		}
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+		'HorizontalAlignment Left
 	}
-	rectangle
-	{
-		.event
-		{
-			'Green gradient
-			BackgroundColor #77BC65-#069A2E
-			RoundCorner 10
-		}
-		.gitlab-ci
-		{
-			BackgroundColor #FFDE59-#B47804
-		}
+	rectangle {
+		RoundCorner 10
+		.event {BackgroundColor #77BC65-#069A2E}
+		.gitlab-ci {BackgroundColor #FFDE59-#B47804}
+		.job {BackgroundColor #D6EAF8-#2E86C1}
+		.gitlab-ci1 {BackgroundColor #D5F5E3-#27AE60}
+		.child-job {BackgroundColor #D5F5E3-#27AE60}
 	}
-	arrow
-	{
-		LineColor darkred
+	arrow { LineColor DarkRed; FontColor DarkBlue; LineThickness 1 }
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
 	}
-}
 </style>
 
-skinparam TitleFontStyle Bold
-skinparam TitleFontSize 20
-skinparam RankSep 40
-skinparam NodeSep 10
+skinparam RankSep 10
+skinparam NodeSep 15
+'skinparam linetype ortho
 
-title "CI-Pipeline & Triggers"
+title GitLab Merge Request and Release Pipeline
 
-frame "Pipeline" as pipeline {
-	left to right direction
-	frame "Push Events" as events {
-		rectangle "Merge Request" <<event>> as merge_event
-		rectangle "Protected Branch" <<event>> as protected_event
-	}
-	frame "GitLab-CI" as gitlab_ci {
-		rectangle "Child: GNU-Build" <<gitlab-ci>> as gnu_cmake
-		rectangle "Child: GW-Build" <<gitlab-ci>> as gw_cmake
-		rectangle "Child: MSVC-Build" <<gitlab-ci>> as msvc_cmake
-		rectangle "Child: GNU-Coverage" <<gitlab-ci>> as gnu_coverage
-		rectangle "Main" <<gitlab-ci>> as main
-	}
-	'Connectors
-	protected_event -> main : trigger
-	merge_event --> main : trigger
-	main --> gnu_cmake : trigger
-	main --> gw_cmake : trigger
-	main --> msvc_cmake : trigger
-	main --> gnu_coverage : trigger
+left to right direction
+top to bottom direction
+
+frame "Events" as events {
+	rectangle "Merge request" <<event>> as mr
+	rectangle "Protected branch" <<event>> as branch
+	rectangle "Web / signal" <<event>> as web
 }
+
+frame "Parent pipeline" as parent {
+	rectangle "check-env\nformat and environment" <<gitlab-ci>> as check
+	rectangle "trigger child pipelines" <<gitlab-ci>> as trigger
+	rectangle "coverage report" <<gitlab-ci>> as report
+}
+
+frame "Child build pipelines" as children {
+	rectangle "MinGW\nWine" <<job-option>> as mingw
+	rectangle "GNU x86_64\nLinux/Native" <<job>> as gnu
+	rectangle "GNU aarch64\ncross-build" <<job>> as ga
+	rectangle "GW \ncross-build" <<job>> as gw
+	rectangle "MSVC\nWine" <<job>> as msvc
+}
+
+frame "Each child" as child {
+	rectangle "configure" <<child-job>> as configure
+	rectangle "build" <<child-job>> as build
+	rectangle "CTest" <<child-job>> as test
+	rectangle "CPack" <<child-job>> as pack
+	rectangle "deploy rules" <<child-job>> as deploy
+}
+
+mr --> check
+branch --> check
+web -> check
+check -> trigger
+trigger --> gnu
+trigger --> ga
+trigger --> gw
+trigger --> msvc
+gnu --> configure
+ga --> configure
+gw --> configure
+msvc --> configure
+configure --> build
+build -> test
+test -> pack
+pack -> deploy
+test -> report : coverage child
+
+note bottom of deploy {
+Non-release branches
+normally target develop.
+Staging and stable are
+environment/release-controlled.
+}
+
+' Keep each block internally vertical.
+mr -[hidden]down-> branch
+'branch -[hidden]down-> web
+'check -[hidden]down-> trigger
+'trigger -[hidden]down-> report
+'gnu -[hidden]down-> ga
+'ga -[hidden]down-> gw
+'gw -[hidden]down-> msvc
+
+' Arrange the four major blocks as two readable columns.
+events -[hidden]right-> children
+parent -[hidden]right-> child
+events -[hidden]down-> parent
+children -[hidden]down-> child
+
 @enduml

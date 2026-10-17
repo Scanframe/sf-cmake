@@ -27,31 +27,12 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	else ()
 		set(_TlsCheck TRUE)
 	endif ()
-	if (WIN32)
-		find_program(_DoxygenExe
-			NAMES doxygen
-			NO_CACHE
-			DOC "Doxygen executable"
-		)
-	else ()
-		find_program(_DoxygenExe
-			NAMES doxygen
-			NO_CACHE
-			NO_DEFAULT_PATH
-			PATHS
-			# Try finding it in the local toolchain directory when it exists.
-			"${CMAKE_SOURCE_DIR}/lib/toolchain/doxygen/bin"
-			"/opt/doxygen/bin"
-			"/usr/bin"
-			DOC "Doxygen executable"
-		)
-	endif ()
 	# Add doxygen project when doxygen executable was found.
-	if (NOT _DoxygenExe)
+	if (NOT DOXYGEN_EXECUTABLE)
 		message(WARNING "${CMAKE_CURRENT_FUNCTION}(): Doxygen application was not found!")
 		return()
 	endif ()
-	message(STATUS "Doxygen: ${_DoxygenExe}")
+	message(STATUS "Doxygen: ${DOXYGEN_EXECUTABLE}")
 	# Check if the version was passed in the optional argument.
 	if (NOT DEFINED _PlantUmlVer)
 		# Get the latest release version number from 'https://github.com/plantuml/plantuml/tags' through the API.
@@ -84,24 +65,24 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 	set(DG_ProjectVersion "${CMAKE_PROJECT_VERSION}")
 	set(DG_ProjectDescription "${CMAKE_PROJECT_DESCRIPTION}")
 	if (WIN32)
-		find_program(_DotExe
+		find_program(DOT_EXECUTABLE
 			NAMES dot
 			PATHS
-				"C:/Program Files/Graphviz/bin"
-				"C:/Program Files (x86)/Graphviz/bin"
-				"$ENV{ProgramFiles}/Graphviz/bin"
-				"$ENV{ProgramFiles\(x86\)}/Graphviz/bin"
+			"C:/Program Files/Graphviz/bin"
+			"C:/Program Files (x86)/Graphviz/bin"
+			"$ENV{ProgramFiles}/Graphviz/bin"
+			"$ENV{ProgramFiles\(x86\)}/Graphviz/bin"
 			DOC "Graphviz dot executable"
 			REQUIRED
 		)
 	else ()
-		find_program(_DotExe
+		find_program(DOT_EXECUTABLE
 			NAMES dot
 			DOC "Graphviz dot executable"
 			REQUIRED
 		)
 	endif ()
-	set(DG_GraphizDotPath "${_DotExe}")
+	set(DG_GraphizDotPath "${DOT_EXECUTABLE}")
 	# For cygwin only relative path are working.
 	file(RELATIVE_PATH DG_LogoFile "${CMAKE_CURRENT_BINARY_DIR}" "${_DocBaseDir}/logo.png")
 	# Path to images of the document base directory.
@@ -166,7 +147,7 @@ function(Sf_AddDoxygenDocumentation _Target _DocBaseDir _ImageDirs _OutDir _Sour
 		# Remove previous resulting 'html' directory.
 		COMMAND ${CMAKE_COMMAND} -E rm -rf "${_HtmlDir}/"
 		# Execute Doxygen and generate the document.
-		COMMAND ${_DoxygenExe} "${_FileOut}"
+		COMMAND ${DOXYGEN_EXECUTABLE} "${_FileOut}"
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		COMMENT "Generating documentation with Doxygen"
 		VERBATIM

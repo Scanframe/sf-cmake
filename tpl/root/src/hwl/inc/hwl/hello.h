@@ -19,6 +19,12 @@ _HWL_FUNC bool isQemu();
 _HWL_FUNC bool isWine();
 
 /**
+ * @brief Gets the Wine version string.
+ * @return Wine version string or nullptr if not running under Wine.
+ */
+_HWL_FUNC std::string getWineVersion();
+
+/**
  * @brief Gets the Cpu architecture.
  */
 _HWL_FUNC std::string getCpuArchitecture();

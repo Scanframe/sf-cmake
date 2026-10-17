@@ -16,6 +16,7 @@ It can be changed by environment variable GIT_SERVER_PORT.
 	# Assemble the payload.
 	payload = {"cwd": os.getcwd(), "args": sys.argv[1:]}
 	client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	client.settimeout(300)
 	client.connect(('127.0.0.1', PORT_NUMBER))
 	client.sendall(json.dumps(payload).encode('utf-8'))
 	# Accumulate full JSON response

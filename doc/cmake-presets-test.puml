@@ -1,0 +1,122 @@
+@startuml cmake-presets-test
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+		FontColor #black
+		BackgroundColor #D5F5E3-#27AE60
+		.condition {
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.base {
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+}
+</style>
+
+skinparam RankSep 90
+skinparam NodeSep 10
+
+title "CMake Test Presets Inheritance"
+
+'top to bottom direction
+left to right direction
+
+legend top
+	Legend:
+	<<base>> — Hidden base preset with common settings
+	<<condition>> — Platform condition (Linux/Windows)
+	<<test>> — Test-type preset
+	<<local>> — Local environment user preset
+end legend
+
+frame "Test Presets" as test {
+
+	rectangle ".test" as testBase <<base>>
+	rectangle ".lnx-only" as testLnx <<condition>>
+	rectangle ".w64-only" as testW64 <<condition>>
+
+	rectangle "gnu-debug" as tGnuDebug <<test>>
+	rectangle "ga-debug" as tGaDebug <<test>>
+	rectangle "gnu-coverage" as tGnuCov <<test>>
+	rectangle "gw-coverage" as tGwCov <<test>>
+	rectangle "gnu-release" as tGnuRel <<test>>
+	rectangle "ga-release" as tGaRel <<test>>
+	rectangle "gw-debug" as tGwDebug <<test>>
+	rectangle "gw-release" as tGwRel <<test>>
+	rectangle "mingw-debug" as tMingwDebug <<test>>
+	rectangle "mingw-release" as tMingwRel <<test>>
+	rectangle "msvc-debug" as tMsvcDebug <<test>>
+	rectangle "msvc-release" as tMsvcRel <<test>>
+
+	testBase --> tGnuDebug
+	testLnx --> tGnuDebug
+
+	testBase --> tGaDebug
+	testLnx --> tGaDebug
+
+	testBase --> tGnuCov
+	testLnx --> tGnuCov
+
+	testBase --> tGwCov
+	testLnx --> tGwCov
+
+	testBase --> tGnuRel
+	testLnx --> tGnuRel
+
+	testBase --> tGaRel
+	testLnx --> tGaRel
+
+	testBase --> tGwDebug
+	testLnx --> tGwDebug
+
+	testBase --> tGwRel
+	testLnx --> tGwRel
+
+	testW64 --> tMingwDebug
+	testBase --> tMingwDebug
+
+	testW64 --> tMingwRel
+	testBase --> tMingwRel
+
+	testW64 --> tMsvcDebug
+	testBase --> tMsvcDebug
+
+	testW64 --> tMsvcRel
+	testBase --> tMsvcRel
+}
+
+@enduml

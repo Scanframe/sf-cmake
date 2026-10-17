@@ -4,15 +4,15 @@
 # noinspection PySingleQuotedDocstring
 "exec" "python3" "$0" "$@"
 
-import xml.etree.ElementTree as ET
 import sys
+import xml.etree.ElementTree as ElementTree
 import os
 import shutil
 
 
 def fix_svg_for_qt(file_path):
-	ET.register_namespace('', "http://www.w3.org/2000/svg")
-	tree = ET.parse(file_path)
+	ElementTree.register_namespace('', "http://www.w3.org/2000/svg")
+	tree = ElementTree.parse(file_path)
 	root = tree.getroot()
 
 	changed = False
@@ -46,7 +46,7 @@ def fix_svg_for_qt(file_path):
 			else:
 				print(f"⚠️  Warning: Missing 'x' or 'y' in TextPosition for element at line {text_elem.sourceline if hasattr(text_elem, 'sourceline') else 'unknown'}")
 			# Create a new tspan element.
-			new_tspan = ET.Element('tspan', attrib=attrs)
+			new_tspan = ElementTree.Element('tspan', attrib=attrs)
 			new_tspan.text = text_content
 			new_tspan.set('class', 'TextParagraph')
 			# Remove the child elements.

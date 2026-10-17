@@ -1,0 +1,223 @@
+@startuml cmake-presets-configure
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor #darkblue
+		LineStyle 0
+		.tc {
+			LineColor #darkred
+			'LineStyle 5-5
+		}
+		.cond {
+			LineColor #blue
+			LineColor #274f3a
+			'LineStyle 6-7
+		}
+		.base {
+			LineColor #3d005b
+			LineStyle 5-5
+		}
+		.qt {
+			LineColor #6CB54230
+			LineThickness 3
+			LineStyle 0
+		}
+	}
+	rectangle {
+		BackgroundColor #D5F5E3-#27AE60
+		.condition {
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.base {
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+		.qt {
+			BackgroundColor #acccb0-#6CB542
+		}
+		.configure
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+		}
+		.combined
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+		}
+		.toolchain
+		{
+			BackgroundColor #FADBD8-#E74C3C
+		}
+		.script
+		{
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+}
+</style>
+
+skinparam RankSep 150
+skinparam NodeSep 15
+
+title "CMake Configure Presets Inheritance"
+
+'top to bottom direction
+left to right direction
+
+legend top
+	**Legend:**
+	**<<base>>** — Hidden base preset with common settings
+	**<<qt>>** — Hidden preset enabling the Qt framework
+	**<<condition>>** — Platform condition (Linux/Windows)
+	**<<toolchain>>** — Compiler toolchain preset
+	**<<linux>>** — Linux native config template
+	**<<windows-cross>>** — Windows cross-compile config (Linux host)
+	**<<windows-native>>** — Windows native config (Windows host)
+	**<<combined>>** — Visible combined preset
+end legend
+
+frame "Configure Presets" as configure {
+
+	package "Hidden Base" as cfgBase {
+		rectangle ".cfg" as cfg <<base>>
+		rectangle ".lnx-only" as lnxOnly <<condition>>
+		rectangle ".w64-only" as w64Only <<condition>>
+	}
+
+	package "Platform Config" as cfgPlat {
+		rectangle ".cfg-lnx" as cfgLnx <<linux>>
+		rectangle ".cfg-win" as cfgWin <<windows-cross>>
+		rectangle ".cfg-w64" as cfgW64 <<windows-native>>
+	}
+
+	package "Framework Config" as cfgFramework {
+		rectangle ".qt" as qt <<qt>>
+	}
+
+	package "Toolchains" as cfgTC {
+		rectangle ".tc-gnu" as tcGnu <<toolchain>>
+		rectangle ".tc-ga" as tcGa <<toolchain>>
+		rectangle ".tc-gw" as tcGw <<toolchain>>
+		rectangle ".tc-mingw" as tcMingw <<toolchain>>
+		rectangle ".tc-msvc" as tcMsvc <<toolchain>>
+		rectangle ".tc-msvc-2022" as tcMsvc22 <<toolchain>>
+		rectangle ".tc-msvc-2026" as tcMsvc26 <<toolchain>>
+	}
+
+	package "GNU Combined" as cfgGnuCombined {
+		rectangle "gnu-debug" as gnuDebug <<combined>>
+		rectangle "gnu-release" as gnuRel <<combined>>
+		rectangle "gnu-coverage" as gnuCov <<combined>>
+	}
+
+	package "GW Combined" as cfgGwCombined {
+		rectangle "gw-coverage" as gwCov <<combined>>
+		rectangle "gw-debug" as gwDebug <<combined>>
+		rectangle "gw-release" as gwRel <<combined>>
+	}
+
+	package "GA Combined" as cfgGaCombined {
+		rectangle "ga-debug" as gaDebug <<combined>>
+		rectangle "ga-release" as gaRel <<combined>>
+	}
+
+	package "MinGW Combined" as cfgMingwCombined {
+		rectangle "mingw-debug" as mingwDebug <<combined>>
+		rectangle "mingw-release" as mingwRel <<combined>>
+	}
+
+	package "MSVC Combined" as cfgMsvcCombined {
+		rectangle "msvc-debug" as msvcDebug <<combined>>
+		rectangle "msvc-release" as msvcRel <<combined>>
+	}
+
+	cfgBase <-[hidden]- cfgPlat
+
+	cfg --> cfgLnx <<base>>
+	lnxOnly --> cfgLnx
+	cfg --> cfgWin <<base>>
+	lnxOnly --> cfgWin
+	cfg --> cfgW64 <<base>>
+	w64Only --> cfgW64
+
+	tcMsvc -[norank]-> tcMsvc22 <<tc>>
+	tcMsvc -[norank]-> tcMsvc26 <<tc>>
+
+	qt --> gnuDebug <<qt>>
+	tcGnu --> gnuDebug <<tc>>
+	cfgLnx --> gnuDebug <<cond>>
+
+	qt --> gaDebug <<qt>>
+	tcGa --> gaDebug <<tc>>
+	cfgLnx --> gaDebug <<cond>>
+
+	qt --> gnuCov <<qt>>
+	tcGnu --> gnuCov <<tc>>
+	cfgLnx --> gnuCov <<cond>>
+
+	qt --> gwCov <<qt>>
+	tcGw --> gwCov <<tc>>
+	cfgWin --> gwCov <<cond>>
+
+	qt --> gnuRel <<qt>>
+	tcGnu --> gnuRel <<tc>>
+	cfgLnx --> gnuRel <<cond>>
+
+	qt --> gaRel <<qt>>
+	tcGa --> gaRel <<tc>>
+	cfgLnx --> gaRel <<cond>>
+
+	qt --> gwDebug <<qt>>
+	tcGw --> gwDebug <<tc>>
+	cfgWin --> gwDebug <<cond>>
+
+	qt --> gwRel <<qt>>
+	tcGw --> gwRel <<tc>>
+	cfgWin --> gwRel <<cond>>
+
+	qt --> mingwDebug <<qt>>
+	tcMingw --> mingwDebug <<tc>>
+	cfgW64 --> mingwDebug <<cond>>
+
+	qt --> mingwRel <<qt>>
+	tcMingw --> mingwRel <<tc>>
+	cfgW64 --> mingwRel <<cond>>
+
+	qt --> msvcDebug <<qt>>
+	tcMsvc22 --> msvcDebug <<tc>>
+	cfgW64 --> msvcDebug <<cond>>
+
+	qt --> msvcRel <<qt>>
+	tcMsvc22 --> msvcRel <<tc>>
+	cfgW64 --> msvcRel  <<cond>>
+}
+
+@enduml

@@ -39,13 +39,40 @@ bool isQemu()
 bool isWine()
 {
 #if IS_WIN
-	HMODULE handle = ::GetModuleHandleA("ntdll.dll");
-	if (handle && ::GetProcAddress(handle, "wine_get_version"))
-	{
-		return true;
-	}
-#endif
+	static const bool underWine = [] {
+		HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+		return ntdll && ::GetProcAddress(ntdll, "wine_get_version") != nullptr;
+	}();
+	return underWine;
+#else
 	return false;
+#endif
+}
+
+std::string getWineVersion()
+{
+	std::string retval;
+#if IS_WIN
+	static const char* version = reinterpret_cast<const char*>(UINTPTR_MAX);
+	// Sentry for Wine version detection.
+	if (reinterpret_cast<uintptr_t>(version) == UINTPTR_MAX)
+	{
+		HMODULE ntdll = ::GetModuleHandleA("ntdll.dll");
+		if (ntdll)
+		{
+			// using wine_get_version_t = const char* (*)();
+			auto wine_get_version = reinterpret_cast<const char* (*)()>(GetProcAddress(ntdll, "wine_get_version"));
+			version = wine_get_version ? wine_get_version() : nullptr;
+		}
+		else
+		{
+			version = nullptr;
+		}
+	}
+	return version ? version : "";
+#else
+	return "";
+#endif
 }
 
 std::string getCpuArchitecture()
@@ -88,7 +115,7 @@ std::string getCompilerVersion()
 #elif defined(__GNUC__)
 	return std::string("GCC ") + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
 #else
-	return {"Unknown ?.?.?"}
+	return {"Unknown ?.?.?"};
 #endif
 }
 

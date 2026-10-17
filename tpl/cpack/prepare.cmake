@@ -45,7 +45,7 @@ if (CMAKE_CXX_COMPILER_ID)
 	set(SF_TOOLCHAIN_STRING "${SF_TOOLCHAIN_ID}")
 	if (CMAKE_CXX_COMPILER_VERSION)
 		string(REGEX REPLACE "([0-9]+\\.[0-9]+).*" "\\1" SF_TOOLCHAIN_VERSION "${CMAKE_CXX_COMPILER_VERSION}")
-		string(APPEND SF_TOOLCHAIN_STRING "-${SF_TOOLCHAIN_VERSION}")
+		string(APPEND SF_TOOLCHAIN_STRING "${SF_TOOLCHAIN_VERSION}")
 	endif ()
 	Sf_GetSafeArchitectureName(SF_ARCHITECTURE_SAFE "${SF_ARCHITECTURE}")
 	# Set custom package filename including toolchain
@@ -130,6 +130,9 @@ if (WIN32)
 	message(STATUS "Winget channel 'SF_WINGET_GROUP' set to: ${SF_WINGET_GROUP}")
 endif ()
 
+# List of components depending on the Qt framework.
+set(SF_QT_COMPONENTS)
+
 # Create a launcher for each executable.
 foreach (_ExecTarget IN LISTS _ExecTargets)
 	Sf_GetTargetOutputPath("${_ExecTarget}" _OutputPath)
@@ -141,6 +144,14 @@ foreach (_ExecTarget IN LISTS _ExecTargets)
 	endif ()
 	list(APPEND SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME} "${_OutputPath}")
 	get_target_property(_OutputSuffix "${_ExecTarget}" SUFFIX)
+	# Check if the executable target depends on the QT framework by checking the 'qt' flag set fo the target.
+	Sf_HasTargetFlag(_Flag "${_ExecTarget}" qt)
+	if ("${_Flag}")
+		list(FIND SF_QT_COMPONENTS "${SF_DEFAULT_COMPONENT_NAME}" _Flag)
+		if (_Flag EQUAL -1)
+			list(APPEND SF_QT_COMPONENTS "${SF_DEFAULT_COMPONENT_NAME}")
+		endif ()
+	endif ()
 	# Only for Linux targeted OSes.
 	if (WIN32)
 		# For a windows package create a launcher link.
@@ -274,7 +285,7 @@ Author: '${SF_PROVIDER_NAME}'
 PackageName: 'sf-qt-rt-${SF_QT_VERSION}'
 License: GPL
 ShortDescription: 'Qt v${SF_QT_VERSION} runtime library'
-Description: 'Custom from source partial build Qt v${SF_QT_VERSION} library files'
+Description: 'Custom from source partial build Qt v${SF_QT_VERSION} library'
 ReleaseDate: '${_current_date}'
 InstallerType: zip
 NestedInstallerType: portable

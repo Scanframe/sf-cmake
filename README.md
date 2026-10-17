@@ -59,8 +59,9 @@ This repository makes using CMake in C++ projects easier and features:
 	* A coverage build that reports the percentage of coverage as well as a detailed HTML-report. (GNU compiler only)
 	* Locates the required Qt library version and downloads it when it does not exist.
 * Provides a skeleton [`gitlab-ci`](tpl/root/gitlab-ci) configuration directory which:
-	* Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
-	* Uploads the coverage HTML report to a MinIO server and accessible from the GitLab merge request.
+  * Uploads to a Nexus APT repository of Debian packages or raw upload for Windows as ZIP or installer.
+  * Uploads the coverage HTML report to a Nexus server `exchange` repository and accessible from the GitLab merge-request
+    page in a message created from the pipeline.
 * A version bump bash script to determine the next version based on which (merge-)commit is released when using
 	conventional commit messages.
 
@@ -471,7 +472,7 @@ To package the Qt library for distribution, set variable `SF_PACKAGE_QT`
 which is also the Debian revision package number (use `0` for the first version).
 
 ```bash
-./build.py --package gnu-debug -- -DSF_PACKAGE_QT=1
+./build.py --package gnu-debug -- -DSF_PACKAGE_QT=0
 ```
 
 > The same name is also used for non debian package generators.

@@ -28,25 +28,46 @@ and is as follows where the blank lines are separators between description, body
 
 ### A Full Example
 
-Below is a full example of a commit message where the body has multiple paragraphs and the footers are identifiable.
+Below is a full example of a commit message where the body groups changes by commit type.
+When a single commit encompasses changes across multiple areas, the body can organize bullet points
+under type-based subheadings (e.g., `build:`, `feat:`, `fix:`).
+The `build.py version` command extracts the body as-is for release notes, so this structure
+produces well-organized changelists.
 
 ```
-feat(compiler): add strict null pointer checking optimizations
+refactor: modernize build system and improve engine
 
-The optimizer framework currently treats all pointer arithmetic as potentially
-null-unsafe, forcing redundant safety branches into the generated assembly.
-This heavily degrades pipeline execution speeds on tight loop structures.
+Refactor the build system to modernize CMake configuration and update dependencies.
+Improve the TTS engine with better logging and synthesis fixes.
 
-Overhaul the pointer tracking system to identify statically proven non-null
-references. This allows the compiler to strip unnecessary branch instructions
-during the final code emission phase.
+build:
+- Modernize CMake configuration and presets in `CMakePresets.json`
+- Make Qt version configurable via `build.ini` instead of hard-coded
+- Update Piper library to v1.6.0-rc.1 with improved CMake config
+
+feat:
+- Add audio playback support to CLI test tool
+- Add `SF_QT_LOGGING_RULES` env var support for Wine compatibility
+
+fix:
+- Fix synthesize method and improve logging context in engine
+- Fix Doxygen typos in `TextToSpeechEngine.h`
+- Fix member naming in CommandLine test class: `m` prefix to `_` prefix
+
+refactor:
+- Unify logging categories across engine and test apps
+- Improve settings handling in GUI test app
+
+docs:
+- Add troubleshooting section to `README.md` with logging examples
+- Document `SF_QT_LOGGING_RULES` usage for Wine compatibility
+
+chore:
+- Clean up `.gitignore` with consolidated patterns
+- Update `build.ini` with Wine fixes and Qt version config
 
 Fixes: #1420
 Signed-off-by: Jane Doe <jane.doe@example.com>
-Co-authored-by: Alex Smith <alex.smith@example.com>
-Co-authored-by: Bob Jones <bob.jones@example.com>
-Reviewed-by: Sarah Connor <sarah.connor@example.com>
-See-also: https://github.com
 ```
 
 ### Header

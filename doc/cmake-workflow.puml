@@ -1,0 +1,102 @@
+@startuml
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+		.configure
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+		}
+		.build
+		{
+			BackgroundColor #D5F5E3-#27AE60
+		}
+		.test
+		{
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.package
+		{
+			BackgroundColor #FADBD8-#E74C3C
+		}
+		.script
+		{
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+}
+</style>
+
+skinparam RankSep 30
+skinparam NodeSep 10
+
+title "Build Workflow — Configure, Build, Test, Package"
+
+top to bottom direction
+
+rectangle "build.py" <<script>> as buildPy
+rectangle "CMakePresets.json" <<configure>> as presets
+rectangle "CMake Configure" <<configure>> as configure
+rectangle "CMake Build" <<build>> as build
+rectangle "CTest" <<test>> as ctest
+rectangle "CPack" <<package>> as cpack
+
+buildPy --> presets : select preset
+presets --> configure : configure preset
+configure --> build : makefiles generated
+build --> ctest : binaries built
+ctest --> cpack : tests passed
+
+note right of buildPy
+  Orchestrates the entire workflow:
+  - Preset selection (interactive or CLI)
+  - Environment setup (Wine/Docker)
+  - Configure → Build → Test → Package
+  - Coverage reporting
+end note
+
+note right of ctest
+  Runs Catch2 and GoogleTest targets.
+  Can be executed from CLion IDE
+  or command line via build.py.
+end note
+
+note right of cpack
+  Creates platform packages:
+  - Linux: deb, rpm, AppImage
+  - Windows: NSIS, zip
+end note
+
+@enduml

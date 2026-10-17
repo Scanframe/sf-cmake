@@ -16,6 +16,11 @@ if (CPACK_GENERATOR STREQUAL "RPM")
 		else ()
 			set("CPACK_RPM_${_ComponentUpper}_PACKAGE_NAME" "${CPACK_PACKAGE_NAME}-${_Component}")
 		endif ()
+		# When in the list of components depending on the Qt framework add the Qt version to the name.
+		list(FIND SF_QT_COMPONENTS "${_Component}" _Flag)
+		if (NOT _Flag EQUAL -1)
+			string(APPEND "CPACK_RPM_${_ComponentUpper}_PACKAGE_NAME" "-qt${SF_QT_VERSION}")
+		endif ()
 		set("CPACK_RPM_${_ComponentUpper}_PACKAGE_GROUP" "Applications/System")
 		set("CPACK_RPM_${_ComponentUpper}_PACKAGE_RELEASE" "${SF_PACKAGE_RELEASE}")
 		set("CPACK_RPM_${_ComponentUpper}_PACKAGE_SUMMARY" "Executables and shared libraries for the application.")
@@ -35,6 +40,11 @@ if (CPACK_GENERATOR STREQUAL "DEB")
 			set("CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_NAME" "${CPACK_PACKAGE_NAME}")
 		else ()
 			set("CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_NAME" "${CPACK_PACKAGE_NAME}-${_Component}")
+		endif ()
+		# When in the list of components depending on the Qt framework add the Qt version to the name.
+		list(FIND SF_QT_COMPONENTS "${_Component}" _Flag)
+		if (NOT _Flag EQUAL -1)
+			string(APPEND "CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_NAME" "-qt${SF_QT_VERSION}")
 		endif ()
 		set("CPACK_DEBIAN_${_ComponentUpper}_PACKAGE_SECTION" "misc")
 		set("CPACK_DEBIAN_${_ComponentUpper}_DESCRIPTION" "Executables and shared libraries for the application.")
@@ -114,11 +124,11 @@ if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
 	foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
 		string(TOUPPER "${_Component}" _ComponentUpper)
 		set(_filename "${SF_PACKAGE_BASE_NAME}-${_Component}")
-		# An archive file is not specific for an OS, so the toolchain is prefixed.
-		if (WIN32)
-			list(APPEND _filename "win+${SF_TOOLCHAIN_STRING}")
-		else ()
-			list(APPEND _filename "lnx+${SF_TOOLCHAIN_STRING}")
+		list(APPEND _filename "${SF_TOOLCHAIN_STRING}")
+		# When in the list of components depending on the Qt framework add the Qt version to the name.
+		list(FIND SF_QT_COMPONENTS "${_Component}" _Flag)
+		if (NOT _Flag EQUAL -1)
+			string(APPEND _filename "-qt${SF_QT_VERSION}")
 		endif ()
 		list(APPEND _filename "${SF_GIT_TAG_VERSION}")
 		if (SF_PACKAGE_RELEASE)
@@ -127,7 +137,12 @@ if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
 		if (DEFINED SF_PACKAGE_REVISION)
 			string(APPEND _filename ".${SF_PACKAGE_REVISION}")
 		endif ()
-		list(APPEND _filename "${SF_ARCHITECTURE_SAFE}")
+		if (WIN32)
+			string(REPLACE "_" "-" _Architecture "${SF_ARCHITECTURE}")
+			list(APPEND _filename "${_Architecture}")
+		else ()
+			list(APPEND _filename "${SF_ARCHITECTURE_SAFE}")
+		endif ()
 		string(REPLACE ";" "_" _filename "${_filename}")
 		set("CPACK_ARCHIVE_${_ComponentUpper}_FILE_NAME" "${_filename}")
 		# Add the package revision to the file version part.
@@ -138,21 +153,34 @@ if (CPACK_GENERATOR IN_LIST SF_SUPPORTED_ARCHIVE_GENERATORS)
 	endif ()
 endif ()
 
-
 if (CPACK_GENERATOR STREQUAL "NSIS64")
+	set(_QtUsed FALSE)
 	foreach (_Component IN LISTS CPACK_COMPONENTS_ALL)
 		# Add description (and optional display name) to the component.
 		cpack_add_component("${_Component}"
 			#DISPLAY_NAME "Main Application"
 			DESCRIPTION "Installs the main executable binaries and required ${_Component} libraries."
 		)
+		# When in the list of components depending on the Qt framework add the Qt version to the name.
+		list(FIND SF_QT_COMPONENTS "${_Component}" _Flag)
+		if (NOT _Flag EQUAL -1)
+			set(_QtUsed TRUE)
+		endif ()
 	endforeach ()
 	set(CPACK_NSIS_WELCOME_TITLE "Installer from ${SF_PROVIDER_NAME} for ${SF_PACKAGE_BASE_NAME}")
 	# Determine the menu folder for shortcuts.
 	set(CPACK_NSIS_PACKAGE_NAME "${SF_PROVIDER_NAME}")
 	set(CPACK_NSIS_DISPLAY_NAME "${SF_PACKAGE_NAME} ${SF_GIT_TAG_VERSION}-${SF_PACKAGE_RELEASE}")
 	# The executable file name.
-	set(CPACK_PACKAGE_FILE_NAME "${SF_PACKAGE_NAME}_${SF_GIT_TAG_VERSION}-${SF_PACKAGE_RELEASE}")
+	set(_filename "${SF_PACKAGE_BASE_NAME}-${SF_TOOLCHAIN_STRING}")
+	# When one of the components uses Qt add the Qt version to the filename.
+	if (${_QtUsed})
+		string(APPEND _filename "-qt${SF_QT_VERSION}")
+	endif ()
+	string(APPEND _filename "_${SF_GIT_TAG_VERSION}-${SF_PACKAGE_RELEASE}")
+	string(REPLACE "_" "-" _Architecture "${SF_ARCHITECTURE}")
+	string(APPEND _filename "_${_Architecture}")
+	set(CPACK_PACKAGE_FILE_NAME "${_filename}")
 	# Add the package revision to the file version part.
 	if (SF_PACKAGE_REVISION)
 		set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.${SF_PACKAGE_REVISION}")
@@ -161,7 +189,13 @@ endif ()
 
 if (CPACK_GENERATOR STREQUAL "AppImage")
 	# Set AppImage file naming pattern matching the convention.
-	set(_filename "${SF_PACKAGE_BASE_NAME}-lnx+${SF_TOOLCHAIN_STRING}_${SF_GIT_TAG_VERSION}")
+	set(_filename "${SF_PACKAGE_BASE_NAME}-${SF_TOOLCHAIN_STRING}")
+	# When one of the components uses Qt add the Qt version to the filename.
+	if (NOT "${SF_QT_COMPONENTS}" STREQUAL "")
+		string(APPEND _filename "-qt${SF_QT_VERSION}")
+	endif ()
+	# Add the Git tag formed version.
+	string(APPEND _filename "_${SF_GIT_TAG_VERSION}")
 	if (SF_PACKAGE_RELEASE)
 		string(APPEND _filename "-${SF_PACKAGE_RELEASE}")
 	endif ()
@@ -245,15 +279,15 @@ fi
 		file(APPEND "${_filepath}" [[
 return $?
 ]])
-	Sf_GetGitCommitDateTime(_DateTime "${CMAKE_CURRENT_LIST_DIR}")
-	list(GET _DateTime 0 SF_GIT_DATE)
+		Sf_GetGitCommitDateTime(_DateTime "${CMAKE_CURRENT_LIST_DIR}")
+		list(GET _DateTime 0 SF_GIT_DATE)
 		list(GET _DateTime 1 SF_GIT_TIME)
 		# Get all template files.
-	file(GLOB _files "${CMAKE_CURRENT_SOURCE_DIR}/data/application/*.appdata.xml.xtpl")
-	foreach (_file_in IN LISTS _files)
-		# Generate the configure the file for doxygen.
-		get_filename_component(_filename "${_file_in}" NAME_WLE)
-		configure_file("${_file_in}" "${_dir_out}/${_filename}" @ONLY)
-	endforeach ()
+		file(GLOB _files "${CMAKE_CURRENT_SOURCE_DIR}/data/application/*.appdata.xml.xtpl")
+		foreach (_file_in IN LISTS _files)
+			# Generate the configure the file for doxygen.
+			get_filename_component(_filename "${_file_in}" NAME_WLE)
+			configure_file("${_file_in}" "${_dir_out}/${_filename}" @ONLY)
+		endforeach ()
 	endif ()
 endif ()

@@ -1,7 +1,6 @@
 # Required first entry checking the cmake version.
 cmake_minimum_required(VERSION 3.29...4.4)
 
-message(STATUS "Message Log Level: ${CMAKE_MESSAGE_LOG_LEVEL}")
 # Satisfy usage by cmake to prevent warning.
 if (CMAKE_VERBOSE_MAKEFILE)
 	message(STATUS "Verbosity enabled.")
@@ -37,7 +36,7 @@ if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/cmake/cpack/prepare.cmake")
 	include("${CMAKE_CURRENT_LIST_DIR}/cmake/cpack/prepare.cmake")
 endif ()
 
-
+# Initialize the default component name for installing.
 set(SF_DEFAULT_COMPONENT_NAME "runtime")
 
 # Guard around function 'define_property'.
@@ -51,6 +50,8 @@ if (SF_CMAKE_ROLE STREQUAL "PROJECT")
 	# - cov: a test application for performing coverage testing.
 	# - plugin: a plugin library and no application which directly dependent on it.
 	# - doc: part of the documentation.
+	# - pack: included in the CPack packaging.
+	# - qt: a dependency on the Qt framework for executables (no test apps).
 	#
 	define_property(
 		TARGET PROPERTY SF_FLAGS
@@ -520,9 +521,12 @@ function(Sf_SetTargetDefaultOptions _Target)
 	elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 		# Set options depending on the build type.
 		if (CMAKE_BUILD_TYPE STREQUAL "Release")
+		elseif (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+			set_target_properties(${_Target} PROPERTIES MSVC_DEBUG_INFORMATION_FORMAT Embedded)
 			# This bellow could also be the default already.
 			#target_compile_options("${_Target}" PRIVATE "-O3 -DNDEBUG")
 		elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+			set_target_properties(${_Target} PROPERTIES MSVC_DEBUG_INFORMATION_FORMAT Embedded)
 			#[[
 						# When compiling with MSVC in Wine and the target is a dynamic library.
 						if (DEFINED ENV{WINE_HOST_HOME})
@@ -1659,9 +1663,9 @@ function(Sf_Wine11DllFixForQt _target _qt_version)
 		return()
 	endif ()
 	#
-	set(_url "https://nexus.scanframe.com/repository/shared/library/mscms-wine-fix.zip")
+	set(_url "https://nexus.scanframe.com/repository/shared/library/mscms-wine.tgz")
 	set(_dir "${CMAKE_BINARY_DIR}/.sf")
-	set(_zip "${_dir}/mscms-wine-fix.zip")
+	set(_zip "${_dir}/mscms-wine-fix.tgz")
 	set(_dll "${_dir}/mscms.dll")
 	# When the DLL exists it was needed before, so the version checks are only done when it does not.
 	if (NOT EXISTS "${_dll}")

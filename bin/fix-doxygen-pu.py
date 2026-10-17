@@ -15,11 +15,11 @@ Example input file with multiple diagrams::
 	@enduml
 """
 
+import sys
 import argparse
 import glob
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 # The directory of the current file.

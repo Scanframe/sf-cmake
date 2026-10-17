@@ -1,5 +1,5 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.25...4.4)
+cmake_minimum_required(VERSION 3.29...4.4)
 
 # Include the CPackComponent module.
 include(CPackComponent)
@@ -172,6 +172,8 @@ if (SF_PACKAGE_QT)
 	else ()
 		message(STATUS "Packaging Qt Library Components: ${CPACK_COMPONENTS_ALL}")
 	endif ()
+	# Clear this variable since it is the first description line shared by each with component and unwanted.
+	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "")
 	include("${CMAKE_CURRENT_LIST_DIR}/pkg-qt-lib.cmake")
 else ()
 	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${CMAKE_PROJECT_DESCRIPTION}")
@@ -252,7 +254,9 @@ endmacro()
 #ShowAllVars()
 #ShowAllEnvVars()
 
-message(STATUS "SF_ZIP_MANIFEST_FILE: ${SF_ZIP_MANIFEST_FILE}")
+if (WIN32)
+	message(STATUS "SF_ZIP_MANIFEST_FILE: ${SF_ZIP_MANIFEST_FILE}")
+endif ()
 # Skip stuff not needed for packaging QT libraries.
 if (NOT SF_PACKAGE_QT)
 	message(STATUS "CPACK_OUTPUT_FILE_PREFIX: ${CPACK_OUTPUT_FILE_PREFIX}")

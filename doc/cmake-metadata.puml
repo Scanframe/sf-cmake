@@ -1,0 +1,130 @@
+@startuml
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+		.windows
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+		}
+		.linux
+		{
+			BackgroundColor #D5F5E3-#27AE60
+		}
+		.cmake
+		{
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.tool
+		{
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+	frame {
+		.version {
+			BackgroundColor #white
+		}
+	}
+}
+</style>
+
+'skinparam linetype ortho
+skinparam RankSep 30
+skinparam NodeSep 10
+
+
+title "Binary Version Metadata — Windows vs Linux"
+
+top to bottom direction
+'left to right direction
+
+frame "Version" <<version>> {
+
+
+frame "CMake" as cmakeFrame <<cmake>> {
+	rectangle "Sf_AddTarget(... VERSION)" <<cmake>> as addTarget
+	rectangle "Sf_AddVersionResource()" <<cmake>> as addVersion
+	rectangle "Sf_AddExifTarget()" <<cmake>> as addExif
+}
+
+addTarget --> addVersion : calls
+addTarget --> addExif : calls (EXIF flag)
+
+frame "Windows (PE)" as winFrame <<windows>> {
+	rectangle "version.rc template" <<windows>> as rcTemplate
+	rectangle "configure_file()" <<windows>> as rcGen
+	rectangle "PE Resource (.rc)" <<windows>> as peResource
+	rectangle "Compiled .exe / .dll" <<windows>> as peBinary
+}
+
+frame "Linux (ELF)" as linuxFrame <<linux>> {
+	rectangle "version.cpp template" <<linux>> as cppTemplate
+	rectangle "configure_file()" <<linux>> as cppGen
+	rectangle "ELF .meta sections" <<linux>> as elfMeta
+	rectangle "Compiled binary / .so" <<linux>> as elfBinary
+}
+
+addVersion ---> rcTemplate : WIN32
+addVersion ----> cppTemplate : NOT WIN32
+rcTemplate --> rcGen : @ONLY
+cppTemplate --> cppGen : @ONLY
+rcGen --> peResource : target_sources
+cppGen --> elfMeta : target_sources
+peResource --> peBinary : compiled
+elfMeta --> elfBinary : compiled
+
+frame "Verification" as toolFrame <<tool>> {
+	rectangle "exiftool.py" <<tool>> as exifTool
+	rectangle "Custom 'exif' target" <<tool>> as exifTarget
+}
+
+peBinary --> exifTool : reads PE headers
+elfBinary --> exifTool : reads ELF .meta
+exifTool --> exifTarget : reports metadata
+
+note top of rcTemplate {
+  Contains VS_VERSION_INFO block
+  with FILEVERSION, PRODUCTVERSION,
+  CompanyName, FileDescription, etc.
+}
+note top of cppTemplate {
+  Declares const char arrays in
+  __attribute__((section(".meta.name")))
+  for CompanyName, FileVersion, etc.
+}
+
+}
+
+@enduml

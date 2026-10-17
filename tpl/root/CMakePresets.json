@@ -2,7 +2,7 @@
 	"version": 6,
 	"cmakeMinimumRequired": {
 		"major": 3,
-		"minor": 25,
+		"minor": 29,
 		"patch": 0
 	},
 	"configurePresets": [
@@ -87,6 +87,10 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "gnu"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "gcc_64/bin"
 				}
 			},
 			"vendor": {
@@ -103,6 +107,10 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "ga"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "gcc_64/bin"
 				}
 			},
 			"vendor": {
@@ -119,6 +127,10 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "gw"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "mingw_64/bin"
 				}
 			},
 			"vendor": {
@@ -135,6 +147,10 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "mingw"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "mingw_64/bin"
 				}
 			},
 			"vendor": {
@@ -164,6 +180,10 @@
 				"SF_COMPILER": {
 					"type": "STRING",
 					"value": "msvc"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "msvc_64/bin"
 				}
 			},
 			"vendor": {
@@ -818,8 +838,8 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
 				"TGZ",
-				"AppImage",
-				"DEB"
+				"DEB",
+				"AppImage"
 			]
 		},
 		{
@@ -835,8 +855,8 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
 			"generators": [
 				"TGZ",
-				"AppImage",
-				"DEB"
+				"DEB",
+				"AppImage"
 			]
 		},
 		{
@@ -868,8 +888,8 @@
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
 				"TGZ",
-				"AppImage",
-				"DEB"
+				"DEB",
+				"AppImage"
 			]
 		},
 		{

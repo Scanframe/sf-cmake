@@ -1,11 +1,11 @@
 # Required first entry checking the cmake version.
-cmake_minimum_required(VERSION 3.25...4.4)
+cmake_minimum_required(VERSION 3.29...4.4)
 
 # Set the global project name.
 project("document")
 
 # Add doxygen project when SfDoxygen was found.
-find_package(SfDoxygen QUIET)
+find_package(SfDoxygen 1.16.1 CONFIG QUIET)
 if (SfDoxygen_FOUND)
 	set(_src_list)
 	# Get the markdown files in this directory and the cmake library.
@@ -18,15 +18,9 @@ if (SfDoxygen_FOUND)
 		file(GLOB _Sources RELATIVE "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/${_image_dir}/*.md")
 		list(APPEND _src_list ${_Sources})
 	endforeach ()
-	# Retrieve all non-test targets from the global project.
-	Sf_GetAllTargets(_targets "${CMAKE_SOURCE_DIR}" TRUE)
-	set(_doc_targets)
-	# Iterate through all targets and skip all non 'doc' flagged targets.
-	foreach (_target IN LISTS _targets)
-		Sf_HasTargetFlag(_is_doc "${_target}" doc)
-		if (NOT _is_doc)
-			continue()
-		endif ()
+	# Retrieve all 'doc;' flagged targets from the global projects.
+	Sf_GetTargetsByFlag(_doc_targets "doc")
+	foreach (_target IN LISTS _doc_targets)
 		# Exclude fetched targets.
 		get_target_property(_source_dir "${_target}" SOURCE_DIR)
 		string(FIND "${_source_dir}" "${FETCHCONTENT_BASE_DIR}" _Pos)

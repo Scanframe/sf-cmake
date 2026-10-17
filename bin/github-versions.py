@@ -14,18 +14,20 @@ Matches the behavior of the provided bash script:
 - --json prints raw API JSON.
 """
 
+import sys
 import argparse
 import json
 import re
-import sys
 import tempfile
 import time
 import requests
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 SEM_VER_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 REL_VER_RE = re.compile(r"^Release_(\d+)_(\d+)_(\d+)$")
+
 
 def parse_owner_repo_from_url(url: str) -> Tuple[str, str]:
 	url = url.strip()
@@ -33,7 +35,7 @@ def parse_owner_repo_from_url(url: str) -> Tuple[str, str]:
 		path = url[len("https://github.com/"):]
 	else:
 		path = url
-	path = path.rstrip(".git")
+	path = path.strip("/").removesuffix(".git")
 	if "/" not in path:
 		raise ValueError("URL does not contain owner/repo")
 	owner, repo = path.split("/", 1)
@@ -83,10 +85,18 @@ def file_age_seconds(path: Path) -> float:
 
 
 def fetch_tags(api_url: str) -> List[dict]:
-	resp = requests.get(api_url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=15)
-	resp.raise_for_status()
-	return resp.json()
-
+	headers = {"Accept": "application/vnd.github+json"}
+	token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+	if token:
+		headers["Authorization"] = f"Bearer {token}"
+	tags: List[dict] = []
+	url = f"{api_url}?per_page=100"
+	while url:
+		resp = requests.get(url, headers=headers, timeout=15)
+		resp.raise_for_status()
+		tags.extend(resp.json())
+		url = resp.links.get("next", {}).get("url")
+	return tags
 
 def extract_versions_from_tags(tags: List[dict]) -> List[str]:
 	versions = []
@@ -135,30 +145,23 @@ def main(argv: List[str]) -> int:
 	cache_file = Path(
 		(args.cache_dir if args.cache_dir else tempfile.gettempdir())) / f"github-tags-{owner}-{repo}.json"
 	tags = load_cache(cache_file)
-	cache_age = None
-	if cache_file.exists():
-		cache_age = file_age_seconds(cache_file)
-		# Renew after 1800 seconds (30 minutes)
-		if cache_age > 1800:
-			# noinspection PyBroadException
-			try:
-				cache_file.unlink()
-			except Exception:
-				pass
-			tags = None
+	cache_age = file_age_seconds(cache_file) if tags is not None else None
+	stale = None
+	if cache_age is not None and cache_age > 1800:
+		# Keep the old data in memory as a fallback instead of deleting it.
+		stale, tags = tags, None
 
 	if tags is None:
 		try:
 			tags = fetch_tags(api_url)
 			save_cache(cache_file, tags)
-			cache_age = 0.0 if cache_age is None else cache_age
-			print(f"# Updating cache file ({cache_age}s): {cache_file}", file=sys.stderr)
+			print(f"# Updated cache file: {cache_file}", file=sys.stderr)
 		except requests.RequestException as e:
 			print(f"Failed to fetch tags: {e}", file=sys.stderr)
-			# If the cache exists, try to use it.
-			tags = load_cache(cache_file)
-			if tags is None:
+			if stale is None:
 				return 1
+			print("# Using stale cache file.", file=sys.stderr)
+			tags = stale
 	else:
 		print(f"# Using cache file ({cache_age:.0f}s): {cache_file}", file=sys.stderr)
 

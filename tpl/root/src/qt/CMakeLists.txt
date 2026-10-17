@@ -11,7 +11,7 @@ find_package(QT NAMES Qt6 Qt5 COMPONENTS Core REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
 
 # Set the actual executable target.
-Sf_AddTarget("${PROJECT_NAME}" FLAGS gui pack VERSION EXIF SUFFIX)
+Sf_AddTarget("${PROJECT_NAME}" FLAGS gui pack qt VERSION EXIF SUFFIX)
 
 # Explicitly tell the compiled code the QT libraries are included.
 target_compile_definitions(${PROJECT_NAME} PRIVATE TARGET_QT)
@@ -34,8 +34,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_compile_definitions(QT_MESSAGELOGCONTEXT)
 endif()
 
+# //! [all]
+
 # Fix for running in Wine11 since it is missing function 'WcsCreateIccProfile()' in 'mscms.dll'.
 # Function used in Qt 6.12.0 and up.
-Sf_Wine11DllFixForQt(${PROJECT_NAME} ${QT_VERSION})
-
-# //! [all]
+#Sf_Wine11DllFixForQt(${PROJECT_NAME} ${QT_VERSION})

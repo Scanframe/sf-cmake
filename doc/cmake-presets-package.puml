@@ -1,0 +1,114 @@
+@startuml cmake-presets-package
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDDA0
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+		FontColor #black
+		BackgroundColor #D5F5E3-#27AE60
+		.condition {
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.base {
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+}
+</style>
+
+'skinparam linetype ortho
+skinparam RankSep 90
+skinparam NodeSep 10
+
+title "CMake Package Presets Inheritance"
+
+top to bottom direction
+
+legend top
+	**Legend:**
+	**<<base>>** — Hidden base preset with common settings
+	**<<condition>>** — Platform condition (Linux/Windows)
+	**<<package>>** — Package-type preset
+end legend
+
+frame "Package Presets" as package {
+	left to right direction
+
+	rectangle ".pack" as packBase <<base>>
+	rectangle ".lnx-only" as packLnx <<condition>>
+	rectangle ".w64-only" as packW64 <<condition>>
+
+	rectangle "gnu-debug" as pGnuDebug <<package>>
+	rectangle "ga-debug" as pGaDebug <<package>>
+	rectangle "gw-debug" as pGwDebug <<package>>
+	rectangle "gnu-release" as pGnuRel <<package>>
+	rectangle "ga-release" as pGaRel <<package>>
+	rectangle "gw-release" as pGwRel <<package>>
+	rectangle "mingw-debug" as pMingwDebug <<package>>
+	rectangle "mingw-release" as pMingwRel <<package>>
+	rectangle "msvc-debug" as pMsvcDebug <<package>>
+	rectangle "msvc-release" as pMsvcRel <<package>>
+
+	packBase --> pGnuDebug
+	packLnx --> pGnuDebug
+
+	packBase --> pGaDebug
+	packLnx --> pGaDebug
+
+	packBase --> pGwDebug
+	packLnx --> pGwDebug
+
+	packBase --> pGnuRel
+	packLnx --> pGnuRel
+
+	packBase --> pGaRel
+	packLnx --> pGaRel
+
+	packBase --> pGwRel
+	packLnx --> pGwRel
+
+	packW64 --> pMingwDebug
+	packBase --> pMingwDebug
+
+	packW64 --> pMingwRel
+	packBase --> pMingwRel
+
+	packW64 --> pMsvcDebug
+	packBase --> pMsvcDebug
+
+	packW64 --> pMsvcRel
+	packBase --> pMsvcRel
+}
+
+@enduml

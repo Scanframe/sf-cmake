@@ -10,9 +10,7 @@ endif ()
 if (SF_BUILD_TESTING)
 	add_subdirectory(tests/catch)
 	# Somehow Windows MinGW compiler causes errors: undefined reference to '__imp__Exit' and to '__imp_quick_exit'.
-	if (NOT SF_COMPILER STREQUAL "mingw")
-		add_subdirectory(tests/google)
-	endif ()
+	add_subdirectory(tests/google)
 endif ()
 
 # Add a files as examples.

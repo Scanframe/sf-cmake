@@ -1,0 +1,138 @@
+@startuml
+<style>
+	root
+	{
+		FontName Arial
+		FontSize 13
+		Padding 0
+		Margin 5
+		'HorizontalAlignment Left
+		BackgroundColor #white
+	}
+	title{
+		FontStyle Bold
+		FontSize 16
+		FontColor #black
+	}
+	frame {
+		FontColor Black
+		LineColor Gray
+		BackgroundColor #F9F9F9-#E9E9E9
+		RoundCorner 10
+	}
+	' Global Styles for the Legend Box
+	legend, note {
+		' Adds 15 pixels of breathing room inside the border
+		Padding 8
+		' Optional: Adds spacing outside the border
+		Margin 5
+		BackgroundColor #FEFFDD
+	}
+	note {
+		BackgroundColor #FEFFDD
+	}
+	arrow {
+		LineColor darkred
+	}
+	rectangle {
+		FontColor #black
+		.wine
+		{
+			BackgroundColor #FCF3CF-#F39C12
+		}
+		.docker
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+		}
+		.toolchain
+		{
+			BackgroundColor #D5F5E3-#27AE60
+		}
+	}
+	frame
+	{
+		.windows
+		{
+			BackgroundColor #D6EAF8-#2E86C1
+			BackgroundColor #E8DAEF-#8E44AD
+		}
+	}
+	arrow {
+		LineColor darkred
+	}
+}
+</style>
+
+skinparam RankSep 30
+skinparam NodeSep 10
+
+title "Cross-Platform Build Environments"
+
+'top to bottom direction
+left to right direction
+
+frame "Host: Linux" as linux <<linux>> {
+	rectangle "Native GNU (gnu)" <<toolchain>> as gnu
+	note right of gnu
+	  Build + Run tests
+	end note
+
+	rectangle "Cross ARM (ga)" <<toolchain>> as ga
+	note right of ga
+	  Build + Run tests
+	end note
+
+	rectangle "Cross MinGW (gw)" <<toolchain>> as gw
+	left to right direction
+	note right of gw
+	  Build only,
+	  Run via Wine
+	end note
+
+	rectangle "Wine Environment" <<wine>> as wine {
+		rectangle "MinGW (mingw)" <<toolchain>> as mingw
+		note right of mingw
+		  Build + Run tests
+		  (via Wine on Linux)
+		end note
+
+		rectangle "MSVC (msvc)" <<toolchain>> as msvc
+		note right of msvc
+		  Build + Run tests
+		  (via Wine on Linux)
+		end note
+	}
+
+	rectangle "Docker Container" <<docker>> as docker {
+		rectangle "GNU (gnu)" <<toolchain>> as dockerGnu
+		rectangle "GA (ga)" <<toolchain>> as dockerGa
+		rectangle "Wine Environment" <<wine>> as dockerWine {
+			rectangle "MinGW (mingw)" <<toolchain>> as dockerWineMinGW
+			rectangle "MSVC (msvc)" <<toolchain>> as dockerWineMSVC
+		}
+		dockerGa <-[hidden]- dockerWine
+	}
+	note top of docker
+		Isolated environment with
+		pre-configured toolchains.
+		Used for CI/CD pipelines.
+	end note
+}
+
+frame "Host: Windows" <<windows>> as windows {
+	rectangle "MinGW (mingw)" <<toolchain>> as winMingw
+	note right of winMingw
+	  Build + Run tests
+	  (Native Windows)
+	end note
+
+	rectangle "MSVC (msvc)" <<toolchain>> as winMsvc
+	note right of winMingw
+	  Build + Run tests
+	  (Native Windows)
+	end note
+}
+
+windows -[hidden]-> dockerWine
+
+@enduml

@@ -36,3 +36,11 @@ find_package(SfGoogleTest 1.15.2 CONFIG REQUIRED)
 target_link_libraries(MyTargetName PRIVATE gtest)
 
 ]]
+
+# In SfGoogleTestConfig.cmake (or wherever you FetchContent / add_subdirectory gtest),
+# after the gtest targets exist.
+if (SF_COMPILER STREQUAL "mingw")
+	# Work around libmingw32.a's UCRT-only '_Exit'/'quick_exit' wrappers on msvcrt toolchains.
+	# INTERFACE deps are emitted after 'gtest' on the link line, which is required.
+	target_link_libraries(gtest INTERFACE mingwex)
+endif ()
