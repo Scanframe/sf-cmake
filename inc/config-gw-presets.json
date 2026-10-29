@@ -1,0 +1,60 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"toolchain-gw-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": "gw-coverage",
+			"hidden": false,
+			"displayName": "Coverage GW",
+			"description": "Coverage config Windows GW compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gw",
+				".cfg-win"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Coverage"
+				}
+			}
+		},
+		{
+			"name": "gw-debug",
+			"hidden": false,
+			"displayName": "Debug GW",
+			"description": "Debug config for Windows GW compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gw",
+				".cfg-win"
+			]
+		},
+		{
+			"name": "gw-release",
+			"hidden": false,
+			"displayName": "Release GW",
+			"description": "Release config for Windows GW compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gw",
+				".cfg-win"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
+		}
+	]
+}

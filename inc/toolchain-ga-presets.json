@@ -1,0 +1,30 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": ".tc-ga",
+			"description": "Toolchain for generic GA",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "ga"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "gcc_64/bin"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GA"
+				}
+			}
+		}
+	]
+}

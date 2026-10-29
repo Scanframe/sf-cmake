@@ -1,0 +1,47 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-gw-presets.json"
+	],
+	"packagePresets": [
+		{
+			"name": "gw-debug",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Debug GW",
+			"description": "GW ZIP + NSIS package debug.",
+			"configurePreset": "gw-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		},
+		{
+			"name": "gw-release",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Release GW",
+			"description": "GW ZIP + NSIS package release.",
+			"configurePreset": "gw-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		}
+	]
+}

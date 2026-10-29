@@ -1,0 +1,68 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"config-ga-presets.json",
+		"build-ga-presets.json",
+		"test-ga-presets.json",
+		"package-ga-presets.json"
+	],
+	"workflowPresets": [
+		{
+			"name": "ga-debug",
+			"displayName": "Debug GA",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "ga-debug"
+				},
+				{
+					"type": "build",
+					"name": "ga-debug"
+				},
+				{
+					"type": "test",
+					"name": "ga-debug"
+				},
+				{
+					"type": "package",
+					"name": "ga-debug"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		},
+		{
+			"name": "ga-release",
+			"displayName": "Release GA",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "ga-release"
+				},
+				{
+					"type": "build",
+					"name": "ga-release"
+				},
+				{
+					"type": "test",
+					"name": "ga-release"
+				},
+				{
+					"type": "package",
+					"name": "ga-release"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		}
+	]
+}

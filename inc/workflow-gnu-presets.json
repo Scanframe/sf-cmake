@@ -1,0 +1,90 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"config-gnu-presets.json",
+		"build-gnu-presets.json",
+		"test-gnu-presets.json",
+		"package-gnu-presets.json"
+	],
+	"workflowPresets": [
+		{
+			"name": "gnu-debug",
+			"displayName": "Debug GNU",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gnu-debug"
+				},
+				{
+					"type": "build",
+					"name": "gnu-debug"
+				},
+				{
+					"type": "test",
+					"name": "gnu-debug"
+				},
+				{
+					"type": "package",
+					"name": "gnu-debug"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		},
+		{
+			"name": "gnu-coverage",
+			"displayName": "Coverage GNU",
+			"description": "Coverage workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gnu-coverage"
+				},
+				{
+					"type": "build",
+					"name": "gnu-coverage"
+				},
+				{
+					"type": "test",
+					"name": "gnu-coverage"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		},
+		{
+			"name": "gnu-release",
+			"displayName": "Release GNU",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gnu-release"
+				},
+				{
+					"type": "build",
+					"name": "gnu-release"
+				},
+				{
+					"type": "test",
+					"name": "gnu-release"
+				},
+				{
+					"type": "package",
+					"name": "gnu-release"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		}
+	]
+}

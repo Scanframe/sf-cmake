@@ -1,0 +1,62 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"toolchain-gnu-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": "gnu-debug",
+			"hidden": false,
+			"displayName": "Debug GNU",
+			"description": "Debug config GNU compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gnu",
+				".cfg-lnx"
+			],
+			"cacheVariables": {
+			}
+		},
+		{
+			"name": "gnu-coverage",
+			"hidden": false,
+			"displayName": "Coverage GNU",
+			"description": "Coverage config GNU compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gnu",
+				".cfg-lnx"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Coverage"
+				}
+			}
+		},
+		{
+			"name": "gnu-release",
+			"hidden": false,
+			"displayName": "Release GNU",
+			"description": "Release config GNU compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-gnu",
+				".cfg-lnx"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,48 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-ga-presets.json"
+	],
+	"packagePresets": [
+		{
+			"name": "ga-debug",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Debug GA",
+			"description": "GA TGZ + DEB package debug.",
+			"configurePreset": "ga-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
+			"generators": [
+				"TGZ",
+				"DEB",
+				"AppImage"
+			]
+		},
+		{
+			"name": "ga-release",
+			"hidden": false,
+			"displayName": "Release GA",
+			"description": "GA Debian package release.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "ga-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/ga",
+			"generators": [
+				"TGZ",
+				"DEB"
+			]
+		}
+	]
+}

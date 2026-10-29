@@ -1,0 +1,150 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": ".lnx-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			}
+		},
+		{
+			"name": ".w64-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		},
+		{
+			"name": ".cfg-lnx",
+			"inherits": [
+				".lnx-only",
+				".cfg"
+			],
+			"hidden": true,
+			"displayName": "Debug Linux Template",
+			"description": "Debug config Linux template.",
+			"environment": {
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/lnx64$penv{SF_EXEC_DIR_SUFFIX}",
+				"LD_LIBRARY_PATH": "$env{SF_LIBRARY_DIR}:$penv{LD_LIBRARY_PATH}"
+			},
+			"cacheVariables": {
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			}
+		},
+		{
+			"name": ".cfg-win",
+			"inherits": [
+				".lnx-only",
+				".cfg"
+			],
+			"hidden": true,
+			"displayName": "Debug Windows Template",
+			"description": "Debug config Windows template.",
+			"environment": {
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/win64$penv{SF_EXEC_DIR_SUFFIX}"
+			},
+			"cacheVariables": {
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			}
+		},
+		{
+			"name": ".cfg-w64",
+			"inherits": [
+				".w64-only",
+				".cfg"
+			],
+			"hidden": true,
+			"displayName": "Debug Windows Template",
+			"description": "Debug config Windows template.",
+			"environment": {
+				"SF_EXECUTABLE_DIR": "${sourceDir}/bin/win64$penv{SF_EXEC_DIR_SUFFIX}",
+				"PATH": "$env{SF_LIBRARY_DIR};$penv{PATH}"
+			},
+			"cacheVariables": {
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": ".lnx-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			}
+		},
+		{
+			"name": ".w64-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		}
+	],
+	"testPresets": [
+		{
+			"name": ".lnx-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			}
+		},
+		{
+			"name": ".w64-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		}
+	],
+	"packagePresets": [
+		{
+			"name": ".lnx-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Linux"
+			}
+		},
+		{
+			"name": ".w64-only",
+			"hidden": true,
+			"condition": {
+				"type": "equals",
+				"lhs": "${hostSystemName}",
+				"rhs": "Windows"
+			}
+		}
+	]
+}

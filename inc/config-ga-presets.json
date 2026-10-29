@@ -1,0 +1,45 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"toolchain-ga-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": "ga-debug",
+			"hidden": false,
+			"displayName": "Debug GA",
+			"description": "Debug config GNU Arm compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-ga",
+				".cfg-lnx"
+			],
+			"cacheVariables": {
+			}
+		},
+		{
+			"name": "ga-release",
+			"hidden": false,
+			"displayName": "Release GA",
+			"description": "Release config GNU Arm compiler on Linux.",
+			"inherits": [
+				".qt",
+				".tc-ga",
+				".cfg-lnx"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
+		}
+	]
+}

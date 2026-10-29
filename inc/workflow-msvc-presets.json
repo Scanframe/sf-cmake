@@ -1,0 +1,62 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"config-msvc-presets.json",
+		"build-msvc-presets.json",
+		"test-msvc-presets.json",
+		"package-msvc-presets.json"
+	],
+	"workflowPresets": [
+		{
+			"name": "msvc-debug",
+			"displayName": "Debug MSVC",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "build",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "test",
+					"name": "msvc-debug"
+				},
+				{
+					"type": "package",
+					"name": "msvc-debug"
+				}
+			]
+		},
+		{
+			"name": "msvc-release",
+			"displayName": "Release MSVC",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "msvc-release"
+				},
+				{
+					"type": "build",
+					"name": "msvc-release"
+				},
+				{
+					"type": "test",
+					"name": "msvc-release"
+				},
+				{
+					"type": "package",
+					"name": "msvc-release"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,47 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-mingw-presets.json"
+	],
+	"packagePresets": [
+		{
+			"name": "mingw-debug",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MinGW ZIP + NSIS",
+			"description": "MinGW ZIP + NSIS package debug.",
+			"configurePreset": "mingw-debug",
+			"packageDirectory": "$env{TMP}/mingw",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		},
+		{
+			"name": "mingw-release",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MinGW ZIP + NSIS",
+			"description": "MinGW ZIP + NSIS package debug.",
+			"configurePreset": "mingw-release",
+			"packageDirectory": "$env{TMP}/mingw",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		}
+	]
+}

@@ -1,0 +1,37 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-ga-presets.json"
+	],
+	"testPresets": [
+		{
+			"name": "ga-debug",
+			"hidden": false,
+			"displayName": "Debug GA",
+			"description": "Debug test ARM GNU Arm compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "ga-debug"
+		},
+		{
+			"name": "ga-release",
+			"hidden": false,
+			"displayName": "Release GA",
+			"description": "Release with GNU Arm compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "ga-release"
+		}
+	]
+}

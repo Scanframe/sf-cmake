@@ -1,0 +1,30 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"build-gnu-presets.json",
+		"build-ga-presets.json",
+		"build-gw-presets.json",
+		"build-mingw-presets.json",
+		"build-msvc-presets.json",
+		"test-gnu-presets.json",
+		"test-ga-presets.json",
+		"test-gw-presets.json",
+		"test-mingw-presets.json",
+		"test-msvc-presets.json",
+		"package-gnu-presets.json",
+		"package-ga-presets.json",
+		"package-gw-presets.json",
+		"package-mingw-presets.json",
+		"package-msvc-presets.json",
+		"workflow-gnu-presets.json",
+		"workflow-ga-presets.json",
+		"workflow-gw-presets.json",
+		"workflow-mingw-presets.json",
+		"workflow-msvc-presets.json"
+	]
+}

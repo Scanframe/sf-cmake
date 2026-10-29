@@ -784,9 +784,10 @@ endfunction()
 # @param SUFFIX Optional flag which sets the '.bin' to targets on Linux.
 # @param EXIF Optional flag for adding a target with the 'exif_' prefixed name reporting target info after the build.
 # @param COVERAGE Optional flag which adds this target as a object for coverage.
+# @param EXCL_COV Optional flag which exclude the target from a coverage build.
 #
 function(Sf_AddTarget _Target)
-	set(_options VERSION SUFFIX EXIF SHARED STATIC COVERAGE)
+	set(_options VERSION SUFFIX EXIF SHARED STATIC COVERAGE EXCL_COV)
 	set(_one_value_args)
 	set(_multi_value_args FLAGS)
 	cmake_parse_arguments(PARSE_ARGV 1 _arg "${_options}" "${_one_value_args}" "${_multi_value_args}")
@@ -823,13 +824,20 @@ function(Sf_AddTarget _Target)
 		# Add version resource to the target.
 		Sf_AddVersionResource("${_Target}")
 	endif ()
-	if (_arg_EXIF AND NOT _arg_STATIC)
-		# Add custom target to report resource stored versions.
-		Sf_AddExifTarget("${_Target}")
-	endif ()
 	if (_arg_COVERAGE)
 		# Adds the compiler and linker options for coverage.
 		Sf_AddTargetForCoverage("${_Target}")
+	endif ()
+	if (_arg_EXCL_COV AND CMAKE_BUILD_TYPE STREQUAL "Coverage")
+		# Conditionally exclude it from the default build when Coverage is active.
+		set_target_properties(${_Target} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+		message(STATUS "Excluding from all, with coverage build: ${_Target}")
+	else ()
+		# When excluded form all cannot be implicitly be included by an exif target.
+		if (_arg_EXIF AND NOT _arg_STATIC)
+			# Add custom target to report resource stored versions.
+			Sf_AddExifTarget("${_Target}")
+		endif ()
 	endif ()
 endfunction()
 

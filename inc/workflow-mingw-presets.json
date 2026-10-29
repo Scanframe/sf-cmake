@@ -1,0 +1,68 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"config-mingw-presets.json",
+		"build-mingw-presets.json",
+		"test-mingw-presets.json",
+		"package-mingw-presets.json"
+	],
+	"workflowPresets": [
+		{
+			"name": "mingw-debug",
+			"displayName": "Debug MinGW",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "mingw-debug"
+				},
+				{
+					"type": "build",
+					"name": "mingw-debug"
+				},
+				{
+					"type": "test",
+					"name": "mingw-debug"
+				},
+				{
+					"type": "package",
+					"name": "mingw-debug"
+				}
+			],
+			"vendor": {
+				"target_os": "Cygwin"
+			}
+		},
+		{
+			"name": "mingw-release",
+			"displayName": "Release MinGW",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "mingw-release"
+				},
+				{
+					"type": "build",
+					"name": "mingw-release"
+				},
+				{
+					"type": "test",
+					"name": "mingw-release"
+				},
+				{
+					"type": "package",
+					"name": "mingw-release"
+				}
+			],
+			"vendor": {
+				"target_os": "Cygwin"
+			}
+		}
+	]
+}

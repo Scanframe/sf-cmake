@@ -1,0 +1,48 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-gw-presets.json"
+	],
+	"testPresets": [
+		{
+			"name": "gw-debug",
+			"hidden": false,
+			"displayName": "Debug GW",
+			"description": "Debug test Windows GW compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gw-debug"
+		},
+		{
+			"name": "gw-coverage",
+			"hidden": false,
+			"displayName": "Coverage GW",
+			"description": "Coverage with Windows GW compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gw-coverage"
+		},
+		{
+			"name": "gw-release",
+			"hidden": false,
+			"displayName": "Release GW",
+			"description": "Release test Windows GW compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gw-release"
+		}
+	]
+}

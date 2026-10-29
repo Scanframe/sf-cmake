@@ -1,0 +1,37 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-msvc-presets.json"
+	],
+	"buildPresets": [
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"displayName": "Debug MSVC",
+			"description": "Debug build MSVC compiler on Windows.",
+			"configurePreset": "msvc-debug",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"displayName": "Release MSVC",
+			"description": "Release build MSVC compiler on Windows.",
+			"configurePreset": "msvc-release",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		}
+	]
+}

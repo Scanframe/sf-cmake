@@ -1,0 +1,47 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-msvc-presets.json"
+	],
+	"packagePresets": [
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MSVC ZIP + NSIS",
+			"description": "MSVC ZIP + NSIS package debug.",
+			"configurePreset": "msvc-debug",
+			"packageDirectory": "$env{TMP}/msvc",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"inherits": [
+				".w64-only",
+				".pack"
+			],
+			"displayName": "MSVC ZIP + NSIS",
+			"description": "MSVC ZIP + NSIS package debug.",
+			"configurePreset": "msvc-release",
+			"packageDirectory": "$env{TMP}/msvc",
+			"generators": [
+				"ZIP",
+				"NSIS64"
+			]
+		}
+	]
+}

@@ -1,0 +1,20 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": ".base",
+			"hidden": true,
+			"cacheVariables": {
+				"____BASE_TEST___": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			}
+		}
+	]
+}

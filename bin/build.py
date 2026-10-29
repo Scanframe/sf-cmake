@@ -1527,30 +1527,75 @@ def get_merged_presets() -> dict:
 	user_path = os.path.join(RUN_DIR, "CMakeUserPresets.json")
 	# Array Fields: Concatenate preset arrays (configure, build, test, etc.)
 	preset_type_fields = [f"{item.value}Presets" for item in list(PresetTypes)]
-	# Load files (handle missing UserPresets gracefully)
-	with open(base_path, 'r') as f:
-		merged.update(json.load(f))
-	if os.path.exists(user_path):
-		with open(user_path, 'r') as f:
-			data = json.load(f)
-		# Versioning: UserPresets version typically takes precedence for the union.
-		merged['version'] = max(merged.get('version', 1), data.get('version', 1))
-		if int(merged['version']) < 6:
-			raise RuntimeError(f"{base_path} file is required to be version 6 or higher!")
+
+	def merge_preset_data(source: dict, destination: dict):
+		"""
+		Merges preset data from source into destination according to CMakePresets rules.
+		"""
+		if not source:
+			return
+		if "version" in source:
+			destination['version'] = max(destination.get('version', 1), source.get('version', 1))
+		if "cmakeMinimumRequired" in source:
+			destination['cmakeMinimumRequired'] = copy.deepcopy(source['cmakeMinimumRequired'])
 		for field in preset_type_fields:
-			if field in data:
-				# Initialize the field in merged if it doesn't exist.
-				if field not in merged:
-					merged[field] = []
-				# Overwrite Rule: If a user preset has the same name as a base preset, the user preset overrides it.
-				user_presets_dict = {p['name']: p for p in data[field]}
-				# Remove existing presets in a base that usernames override.
-				merged[field] = [p for p in merged[field] if p['name'] not in user_presets_dict]
-				# Append all user presets (including the overrides)
-				merged[field].extend(data[field])
-		# Vendor Maps: Shallow merge vendor-specific data
-		if "vendor" in data:
-			merged.setdefault("vendor", {}).update(data["vendor"])
+			if field in source:
+				destination.setdefault(field, [])
+				for p in source[field]:
+					if not isinstance(p, dict) or 'name' not in p:
+						continue
+					name = p['name']
+					# If a preset with the same name already exists, update in-place to preserve order.
+					for idx, existing in enumerate(destination[field]):
+						if existing.get('name') == name:
+							destination[field][idx] = copy.deepcopy(p)
+							break
+					else:
+						destination[field].append(copy.deepcopy(p))
+		if "vendor" in source:
+			destination.setdefault("vendor", {}).update(copy.deepcopy(source["vendor"]))
+
+	visited_files: set[str] = set()
+
+	def load_preset_file(file_path: str) -> dict:
+		"""
+		Loads a preset file and recursively processes all include files first before applying the file's own presets.
+		"""
+		canonical_path = os.path.realpath(file_path)
+		if not os.path.exists(file_path) or canonical_path in visited_files:
+			return {}
+		visited_files.add(canonical_path)
+
+		with open(file_path, 'r') as f:
+			data = json.load(f)
+		result: dict = {}
+		base_dir = os.path.dirname(os.path.abspath(file_path))
+		# Include files are applied first.
+		if "include" in data and isinstance(data["include"], list):
+			for inc in data["include"]:
+				inc_path = os.path.normpath(os.path.join(base_dir, inc)) if not os.path.isabs(inc) else inc
+				inc_data = load_preset_file(inc_path)
+				merge_preset_data(inc_data, result)
+		# Now apply the current file's content.
+		merge_preset_data(data, result)
+		return result
+
+	# Load base presets including all includes.
+	base_data = load_preset_file(base_path)
+	merged.update(base_data)
+
+	# Load user presets including all includes if present.
+	if os.path.exists(user_path):
+		user_data = load_preset_file(user_path)
+		merge_preset_data(user_data, merged)
+
+	if int(merged.get('version', 1)) < 6:
+		raise RuntimeError(f"{base_path} file is required to be version 6 or higher!")
+
+	# Ensure all preset type fields exist in merged.
+	for field in preset_type_fields:
+		if field not in merged:
+			merged[field] = []
 	# Merge all in inherited presets.
 	for field in preset_type_fields:
 		# Assemble a dictionary of presets by name in tuple containing a hash for a sanity check.

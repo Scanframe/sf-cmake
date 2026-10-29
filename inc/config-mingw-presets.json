@@ -1,0 +1,43 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"toolchain-mingw-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": "mingw-debug",
+			"hidden": false,
+			"displayName": "Debug MinGW",
+			"description": "Debug config for MinGW compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-mingw",
+				".cfg-w64"
+			]
+		},
+		{
+			"name": "mingw-release",
+			"hidden": false,
+			"displayName": "Release MinGW",
+			"description": "Release config for MinGW compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-mingw",
+				".cfg-w64"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
+		}
+	]
+}

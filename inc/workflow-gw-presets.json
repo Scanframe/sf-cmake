@@ -1,0 +1,90 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"config-gw-presets.json",
+		"build-gw-presets.json",
+		"test-gw-presets.json",
+		"package-gw-presets.json"
+	],
+	"workflowPresets": [
+		{
+			"name": "gw-debug",
+			"displayName": "Debug GW",
+			"description": "Debug workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gw-debug"
+				},
+				{
+					"type": "build",
+					"name": "gw-debug"
+				},
+				{
+					"type": "test",
+					"name": "gw-debug"
+				},
+				{
+					"type": "package",
+					"name": "gw-debug"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		},
+		{
+			"name": "gw-coverage",
+			"displayName": "Coverage GW",
+			"description": "Coverage workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gw-coverage"
+				},
+				{
+					"type": "build",
+					"name": "gw-coverage"
+				},
+				{
+					"type": "test",
+					"name": "gw-coverage"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		},
+		{
+			"name": "gw-release",
+			"displayName": "Release GW",
+			"description": "Release workflow.",
+			"steps": [
+				{
+					"type": "configure",
+					"name": "gw-release"
+				},
+				{
+					"type": "build",
+					"name": "gw-release"
+				},
+				{
+					"type": "test",
+					"name": "gw-release"
+				},
+				{
+					"type": "package",
+					"name": "gw-release"
+				}
+			],
+			"vendor": {
+				"target_os": "GNU/Linux"
+			}
+		}
+	]
+}

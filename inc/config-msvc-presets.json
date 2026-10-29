@@ -1,0 +1,45 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"toolchain-msvc-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": "msvc-debug",
+			"hidden": false,
+			"displayName": "Debug MSVC",
+			"description": "Debug config for MSVC compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-msvc-2022",
+				".cfg-w64"
+			],
+			"cacheVariables": {
+			}
+		},
+		{
+			"name": "msvc-release",
+			"hidden": false,
+			"displayName": "Release MSVC",
+			"description": "Release config for MSVC compiler on Windows.",
+			"inherits": [
+				".qt",
+				".tc-msvc-2022",
+				".cfg-w64"
+			],
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Release"
+				}
+			}
+		}
+	]
+}

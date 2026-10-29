@@ -1,0 +1,30 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": ".tc-gw",
+			"description": "Toolchain for generic GW",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gw"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "mingw_64/bin"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GW"
+				}
+			}
+		}
+	]
+}

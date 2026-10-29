@@ -1,0 +1,49 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-gnu-presets.json"
+	],
+	"packagePresets": [
+		{
+			"name": "gnu-debug",
+			"hidden": false,
+			"displayName": "Debug GNU",
+			"description": "GNU Debian package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"TGZ",
+				"DEB",
+				"AppImage"
+			]
+		},
+		{
+			"name": "gnu-release",
+			"hidden": false,
+			"displayName": "Release GNU",
+			"description": "GNU Debian package release.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"TGZ",
+				"DEB",
+				"AppImage"
+			]
+		}
+	]
+}

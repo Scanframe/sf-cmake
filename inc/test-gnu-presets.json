@@ -1,0 +1,48 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-gnu-presets.json"
+	],
+	"testPresets": [
+		{
+			"name": "gnu-debug",
+			"hidden": false,
+			"displayName": "Debug GNU",
+			"description": "Debug with GNU compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug"
+		},
+		{
+			"name": "gnu-coverage",
+			"hidden": false,
+			"displayName": "Coverage GNU",
+			"description": "Coverage with GNU compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-coverage"
+		},
+		{
+			"name": "gnu-release",
+			"hidden": false,
+			"displayName": "Release GNU",
+			"description": "Release with GNU compiler on Linux.",
+			"inherits": [
+				".test",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-release"
+		}
+	]
+}

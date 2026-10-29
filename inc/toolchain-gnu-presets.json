@@ -1,0 +1,30 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": ".tc-gnu",
+			"description": "Toolchain for generic GNU",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": "gnu"
+				},
+				"SF_QT_BIN_SUBDIR": {
+					"type": "STRING",
+					"value": "gcc_64/bin"
+				}
+			},
+			"vendor": {
+				"jetbrains.com/clion": {
+					"toolchain": "GNU"
+				}
+			}
+		}
+	]
+}

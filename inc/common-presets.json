@@ -1,0 +1,115 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"../../base-config-presets.json"
+	],
+	"configurePresets": [
+		{
+			"name": ".cfg",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/cmake-build$penv{SF_BIN_DIR_SUFFIX}/${presetName}",
+			"environment": {
+				"SF_LIBRARY_DIR": "$env{SF_EXECUTABLE_DIR}/lib"
+			},
+			"inherits": [
+				".base"
+			],
+			"cacheVariables": {
+				"CMAKE_RUNTIME_OUTPUT_DIRECTORY": {
+					"type": "STRING",
+					"value": "$env{SF_EXECUTABLE_DIR}"
+				},
+				"CMAKE_LIBRARY_OUTPUT_DIRECTORY": {
+					"type": "STRING",
+					"value": "$env{SF_LIBRARY_DIR}"
+				},
+				"CMAKE_COLOR_DIAGNOSTICS": {
+					"type": "BOOL",
+					"value": "ON"
+				},
+				"CMAKE_MESSAGE_LOG_LEVEL": {
+					"type": "STRING",
+					"value": "STATUS"
+				},
+				"CMAKE_VERBOSE_MAKEFILE": {
+					"type": "BOOL",
+					"value": "OFF"
+				},
+				"CMAKE_BUILD_TYPE": {
+					"type": "STRING",
+					"value": "Debug"
+				},
+				"CPACK_OUTPUT_FILE_PREFIX": {
+					"type": "PATH",
+					"value": "${sourceDir}/bin/pkg"
+				},
+				"SF_BUILD_QT": {
+					"type": "BOOL",
+					"value": "OFF"
+				},
+				"SF_BUILD_TESTING": {
+					"type": "BOOL",
+					"value": "OFF"
+				},
+				"SF_COMPILER": {
+					"type": "STRING",
+					"value": ""
+				},
+				"SF_COVERAGE_ONLY_TARGETS": {
+					"type": "STRING",
+					"value": ""
+				}
+			}
+		},
+		{
+			"name": ".qt",
+			"hidden": true,
+			"cacheVariables": {
+				"SF_BUILD_QT": {
+					"type": "BOOL",
+					"value": "ON"
+				}
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": ".build",
+			"hidden": true,
+			"cleanFirst": false,
+			"verbose": false
+		}
+	],
+	"testPresets": [
+		{
+			"name": ".test",
+			"hidden": true,
+			"output": {
+				"outputOnFailure": true
+			},
+			"execution": {
+				"noTestsAction": "error",
+				"stopOnFailure": true
+			}
+		}
+	],
+	"packagePresets": [
+		{
+			"hidden": true,
+			"name": ".pack",
+			"displayName": "Package Template",
+			"description": "Template for packaging.",
+			"packageDirectory": "",
+			"output": {
+				"verbose": false,
+				"debug": false
+			}
+		}
+	]
+}

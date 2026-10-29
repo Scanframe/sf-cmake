@@ -1,0 +1,37 @@
+{
+	"version": 8,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+		"common-presets.json",
+		"constraint-presets.json",
+		"config-mingw-presets.json"
+	],
+	"buildPresets": [
+		{
+			"name": "mingw-debug",
+			"hidden": false,
+			"displayName": "Debug MinGW",
+			"description": "Debug build MinGW compiler on Windows.",
+			"configurePreset": "mingw-debug",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		},
+		{
+			"name": "mingw-release",
+			"hidden": false,
+			"displayName": "Release MinGW",
+			"description": "Release build MinGW compiler on Windows.",
+			"configurePreset": "mingw-release",
+			"inherits": [
+				".w64-only",
+				".build"
+			]
+		}
+	]
+}
