@@ -117,9 +117,7 @@ user=user.ini
 nexus=.nexus-credentials.ini
 
 ; Pulse audio server config. Need volume mapping from host.
-[pulse-audio]
-; Location for the pulse audio server to find the users socket (check with: pactl info).
-PULSE_SERVER=unix:/run/user/${UID}/pulse/native
+[desktop]
 ; To get the Qt theme as on the host.
 QT_QPA_PLATFORMTHEME=xdgdesktopportal
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${UID}/bus
@@ -168,7 +166,7 @@ __inherit__=env.msvc@
 
 ; Environment added before running Wine in the Docker container.
 [env.wine.docker@]
-__inherit__=pulse-audio,qt-12-fix
+__inherit__=qt-12-fix
 ; Overrides QT_VER_DIR for subcommand 'run'.
 RUN_QT_VER_DIR=Z:\home\${USER}\lib\qt\w64-${MACHINE}\${RUN_QT_VER}
 
@@ -190,7 +188,7 @@ PATH=${RUN_DIR}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/bin:${RUN_DIR}/lib/to
 
 ; Environment added before running the 'gnu' compiler in the Docker container.
 [env.gnu.docker@]
-__inherit__=pulse-audio
+__inherit__=desktop
 SF_EXEC_DIR_SUFFIX=-gnu
 ; Normally the RUN_PATH is dealing with this but when compiled differently it must be set.
 LD_LIBRARY_PATH=/home/${USER}/lib/qt/lnx-${MACHINE}/${RUN_QT_VER}/gcc_64/lib
@@ -230,7 +228,7 @@ PATH=Z:\home\${USER}\toolchain\w64-${MACHINE}-mingw-1320-posix\bin;Z:\home\${USE
 
 ; Environment added before running the 'ga' compiler in Docker.
 [env.ga.docker@]
-__inherit__=pulse-audio
+__inherit__=desktop
 ; Puts the binary in 'bin/lnx64-ga'.
 SF_EXEC_DIR_SUFFIX=-ga
 ; Make the 'appimagetool' available from the PATH.
@@ -238,7 +236,7 @@ PATH=${HOME}/lib/qt/lnx-aarch64/${RUN_QT_VER}/gcc_64/bin:${HOME}/toolchain/lnx-$
 
 ; Environment added before running the 'gw' compiler in the Docker container.
 [env.gw.docker@]
-__inherit__=pulse-audio,qt-12-fix
+__inherit__=qt-12-fix
 SF_EXEC_DIR_SUFFIX=-gw
 ; Provides compiler std libraries to be found.
 WINEPATH=Z:\usr\x86_64-w64-mingw32\lib;Z:\usr\lib\gcc\x86_64-w64-mingw32\13-posix;
@@ -1398,7 +1396,7 @@ def get_compiler_type(preset_name: str, preset_type: PresetTypes = PresetTypes.C
 			# Return the type.
 			return compiler_type
 	else:
-		logger.warning(f"! No {PresetTypes.CONFIGURE.value} preset found for '{preset_type.value}/{preset_name}'!")
+		logger.warning(f"! No '{PresetTypes.CONFIGURE.value}' preset found for '{preset_type.value}/{preset_name}'!")
 	return None
 
 
@@ -1799,8 +1797,9 @@ def get_configure_preset_name(preset_type: PresetTypes, preset_name: str) -> str
 		if p is not None:
 			steps = p.get("steps", "")
 			# Sanity check on the first step.
-			if len(steps) and all(k in steps[0] for k in ["name", "type"]) and steps[0]["type"] == PresetTypes.CONFIGURE:
-				return steps[0]["name"]
+			if len(steps) and all(k in steps[0] for k in ["name", "type"]):
+				if steps[0]["type"] == PresetTypes.CONFIGURE.value:
+					return steps[0]["name"]
 	return None
 
 
@@ -2159,7 +2158,7 @@ examples:
 			if preset_name is None:
 				return 0
 			# Set the environment variables according to the 'configure' preset.
-			set_environment_by_preset(preset_name, PresetTypes.PACKAGE)
+			set_environment_by_preset(preset_name, PresetTypes.WORKFLOW)
 			cmd = ["cmake", "--workflow", "--preset", preset_name]
 			run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 			if args.verbose:
@@ -2200,6 +2199,7 @@ examples:
   Compile using Microsoft Visual C++ on Linux
     ./{self.script} {self.command} -- -b msvc-debug
 """
+		return parser
 
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
@@ -2255,8 +2255,9 @@ class SubCommandDocker(SubCommand):
 
 	def __init__(self):
 		super().__init__("docker", ["d"])
-		# The default container name.
-		self._container: str = self._config.get("docker-container-name", "cpp_builder")
+		# The default container name is a hash of the RUN_DIR.
+		self._container = "CPP-" + hashlib.sha256(RUN_DIR.encode('utf-8')).hexdigest().upper()[:8]
+		self._container: str = self._config.get("docker-container-name", self._container)
 
 	def create_parser(self, subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
 		self.parser = subparsers.add_parser(self.command, aliases=self.aliases, add_help=False,
@@ -2302,17 +2303,20 @@ Docker image from configuration: {self._config["docker-image"]}
 This ignores the options: --platform'
 """
 		parser.add_argument("-D", "--debug", action="store_true", dest="flag_debug", default=False,
-			help=f"Sets the DEBUG environment flag for the entrypoint script.")
+			help="Sets the DEBUG environment flag for the entrypoint script.")
 		parser.add_argument("-p", "--platform", default=default_platform, choices=['amd64', 'arm64'],
 			help=f"Platform part forming the Docker image (default: '{default_platform}').")
-		parser.add_argument("-b", "--build-dir", dest="build_dir", default="prj", choices=["prj", "tmp", "ntv", "vol"],
+		parser.add_argument("-H", "--headless", action="store_true", dest="flag_headless", default=False,
+			help=f"Do not pass the X11 display and audio to the container.")
+		parser.add_argument("-b", "--build-dir", dest="build_dir", default="prj", choices=["prj", "tmp", "ntv", "mem"],
 			help="""Mount for the build directory.
 Choices are:
   ntv  - Same as the host and no mount made for the container.
   prj  - Mount in the project directory as a subdirectory from 'cmake-build' named as docker image used.
   tmp  - Mount in the operating systems's temporary directory.
-  vol  - Mount a docker volume directory.
+  mem  - Mount a docker tmpfs in memory.
 """)
+		return parser
 
 	def get_container_id(self) -> str:
 		"""Returns the ID of the running container if it exists."""
@@ -2365,29 +2369,32 @@ Choices are:
 		# Only add TTY and interactive flags when stdin is a terminal.
 		if sys.stdin.isatty():
 			docker_opts += ["--tty", "--interactive"]
-		# Handle X11 Display forwarding if available on the host.
-		if os.environ.get("DISPLAY"):
-			# noinspection SpellCheckingInspection
-			xauth = os.environ.get("XAUTHORITY")
-			if not xauth:
+		# Do not attach the anything from the host when headless.
+		if not args.flag_headless:
+			# Handle X11 Display forwarding if available on the host.
+			if os.environ.get("DISPLAY"):
 				# noinspection SpellCheckingInspection
-				xauth = Path.home() / ".Xauthority"
-			# noinspection SpellCheckingInspection
-			docker_opts += ["--env", "DISPLAY", "--volume", f"{xauth}:/home/user/.Xauthority:ro"]
-		if "XDG_RUNTIME_DIR" in RUN_ENV:
-			audio_socket = f"{RUN_ENV["XDG_RUNTIME_DIR"]}/pulse/native"
-			# And the pulse socket is valid.
-			if os.path.exists(audio_socket):
-				logger.info(f"# Mapping pulse audio socket: {audio_socket}")
-				docker_opts += ["--volume", f"{RUN_ENV["XDG_RUNTIME_DIR"]}:/run/user/{os.getuid()}"]
-				# Add the graphics card for acceleration. The Piper library uses this.
-				if os.path.exists("/dev/dri"):
-					logger.info(f"# Granting access to the GPU")
-					docker_opts += ["--device", "/dev/dri"]
-				# When 'DBUS_SESSION_BUS_ADDRESS' environment variable is present.
-				if "DBUS_SESSION_BUS_ADDRESS" in RUN_ENV:
-					# This is needed when a Qt application wants to match the host's theme.
-					docker_opts += ["--volume", f"/home/{RUN_ENV["USER"]}/.config:/home/user/.config"]
+				xauth = os.environ.get("XAUTHORITY")
+				if not xauth:
+					# noinspection SpellCheckingInspection
+					xauth = Path.home() / ".Xauthority"
+				# noinspection SpellCheckingInspection
+				docker_opts += ["--env", "DISPLAY", "--volume", f"{xauth}:/home/user/.Xauthority:ro"]
+			if "XDG_RUNTIME_DIR" in RUN_ENV:
+				audio_socket = f"{RUN_ENV["XDG_RUNTIME_DIR"]}/pulse/native"
+				# And the pulse socket is valid.
+				if os.path.exists(audio_socket):
+					logger.info(f"# Mapping pulse audio socket: {audio_socket}")
+					docker_opts += ["--volume", f"{RUN_ENV["XDG_RUNTIME_DIR"]}:/run/user/{os.getuid()}"]
+					docker_opts += ["--env", f"XDG_RUNTIME_DIR=/run/user/{os.getuid()}"]
+					# When 'DBUS_SESSION_BUS_ADDRESS' environment variable is present.
+					if "DBUS_SESSION_BUS_ADDRESS" in RUN_ENV:
+						# This is needed when a Qt application wants to match the host's theme.
+						docker_opts += ["--volume", f"/home/{RUN_ENV["USER"]}/.config:/home/user/.config"]
+			# Add the graphics card for acceleration. The Piper library uses this.
+			if os.path.exists("/dev/dri"):
+				logger.info(f"# Granting access to the GPU")
+				docker_opts += ["--device", "/dev/dri"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
 		build_dir: Path = Path()
@@ -2401,10 +2408,13 @@ Choices are:
 		if args.build_dir == "vol":
 			# Mount a Docker volume.
 			docker_opts += ["--mount", f"type=volume,source=cmake-build,target=/mnt/project/{PROJECT_SUBDIR}/cmake-build"]
+		elif args.build_dir == "mem":
+			# Mount a Docker temporary filesystem in memory with a maximum of 2GB.
+			docker_opts += ["--mount", f"type=tmpfs,destination=/mnt/project/{PROJECT_SUBDIR}/cmake-build,tmpfs-size=2G,tmpfs-mode=1777"]
 		# Otherwise use the volume option.
 		else:
 			build_dir /= f"docker-{args.platform}-{qt_ver}".strip("-")
-			logger.info(f"= Build Dir: [{PROJECT_SUBDIR}] {build_dir}")
+			logger.info(f"# Build Dir: [{PROJECT_SUBDIR}] {build_dir}")
 			build_dir.mkdir(parents=True, exist_ok=True)
 			docker_opts += ["--volume", f"{build_dir}:/mnt/project/{PROJECT_SUBDIR}/cmake-build:rw"]
 		# Set the working directory within the container.
@@ -2449,8 +2459,9 @@ Choices are:
 					dbg_mode=DebugMode.REPORT_ONLY).returncode
 				if returncode == 0:
 					logger.info(f"# Running 'winepath' to prevent a failure when used for the first time.")
+					# When running headless the first winepath call shows an error.
 					returncode = run_command(docker_command([], img_name, ["winepath"]),
-						dbg_mode=DebugMode.REPORT_ONLY).returncode
+						dbg_mode=DebugMode.REPORT_ONLY, capture_output=args.flag_headless).returncode
 			return returncode
 		#
 		elif command == "attach":
@@ -2552,6 +2563,7 @@ Choices are depended on the host platform:
 """)
 		parser.add_argument("-e", "--env-file", type=str, metavar="<preset>",
 			help="Create an environment file for the toolchain configured by the given configure preset.")
+		return parser
 
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
@@ -3654,6 +3666,7 @@ examples:
 			help="Shows information when the command is executed for error analysis.")
 		parser.add_argument("-n", "--native", action="store_true",
 			help="Run the command natively when the preset commands Wine (Linux only).")
+		return parser
 
 	def handle(self, args: argparse.Namespace, args_left: List[str], args_right: List[str] | None) -> int:
 		"""
