@@ -246,7 +246,7 @@ if (NOT WIN32)
 			# Create a launcher script in the build directory.
 			set(_FilePath "${_dir_out}/${_OutputName}")
 			message(STATUS "Creating launcher '${_OutputName}': ${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}")
-			file(WRITE "${_FilePath}" [[#!/bin/env bash
+			file(WRITE "${_FilePath}" [[#!/usr/bin/env bash
 
 # Get the script's directory.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -254,6 +254,10 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 			file(APPEND "${_FilePath}" "
 exec \"\${script_dir}/../..${CPACK_PACKAGING_INSTALL_PREFIX}/${_OutputName}${_OutputSuffix}\" \"$@\"
 	")
+			# Create a symlink to the primary executable which is the first one when sorted.
+			if (CPACK_GENERATOR STREQUAL "AppImage" AND "${SF_APP_IMAGE_PRIMARY}" STREQUAL "${_bin_file}")
+				file(CREATE_LINK "${_OutputName}" "${_dir_out}/_" SYMBOLIC)
+			endif ()
 		endforeach ()
 	endif ()
 	# Prevent copying by removing the files for generators not needing them.

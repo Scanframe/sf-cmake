@@ -142,6 +142,11 @@ foreach (_ExecTarget IN LISTS _ExecTargets)
 		message(STATUS "Skipping target: ${_ExecTarget}")
 		continue()
 	endif ()
+	# Check ig this is the primary AppImage executable target.
+	Sf_HasTargetFlag(_is_primary "${_ExecTarget}" "pri")
+	if ("${_is_primary}")
+		set(SF_APP_IMAGE_PRIMARY "${_OutputPath}")
+	endif ()
 	list(APPEND SF_OUTPUT_PATHS_${SF_DEFAULT_COMPONENT_NAME} "${_OutputPath}")
 	get_target_property(_OutputSuffix "${_ExecTarget}" SUFFIX)
 	# Check if the executable target depends on the QT framework by checking the 'qt' flag set fo the target.

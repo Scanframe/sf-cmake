@@ -52,11 +52,12 @@ if (SF_CMAKE_ROLE STREQUAL "PROJECT")
 	# - doc: part of the documentation.
 	# - pack: included in the CPack packaging.
 	# - qt: a dependency on the Qt framework for executables (no test apps).
+	# - pri: application is the primary application (AppImage) to start  when no symlink i used.
 	#
 	define_property(
 		TARGET PROPERTY SF_FLAGS
 		BRIEF_DOCS "Package-selection flags."
-		FULL_DOCS "Semicolon-separated package-selection flags like 'gui', 'cli', 'test', 'plugin' and 'doc'."
+		FULL_DOCS "Semicolon-separated package-selection flags like 'gui', 'cli', 'test', 'plugin', 'pri', 'qt' and 'doc'."
 	)
 endif ()
 
