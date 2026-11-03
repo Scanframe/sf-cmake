@@ -6,4 +6,3 @@ Exec=hello-world-qt %U
 Icon=org.scanframe.HelloWorldQt
 Terminal=false
 Categories=Utility;
-StartupNotify=true

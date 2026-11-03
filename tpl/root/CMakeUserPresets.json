@@ -1,5 +1,12 @@
 {
 	"version": 6,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 29,
+		"patch": 0
+	},
+	"include": [
+	],
 	"configurePresets": [
 		{
 			"name": "d-gnu-debug",
@@ -102,6 +109,21 @@
 	],
 	"packagePresets": [
 		{
+			"name": "gnu-debug-appimg",
+			"hidden": false,
+			"displayName": "Debug GNU (AppImage only)",
+			"description": "GNU AppImage package debug.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-debug",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
+			"generators": [
+				"AppImage"
+			]
+		},
+		{
 			"name": "gnu-debug-deb",
 			"hidden": false,
 			"displayName": "Debug GNU (DEB only)",
@@ -147,15 +169,45 @@
 			]
 		},
 		{
-			"name": "gnu-debug-appimg",
+			"name": "gnu-release-deb",
 			"hidden": false,
-			"displayName": "Debug GNU (AppImage only)",
-			"description": "GNU AppImage package debug.",
 			"inherits": [
 				".pack",
 				".lnx-only"
 			],
-			"configurePreset": "gnu-debug",
+			"displayName": "Release GNU",
+			"description": "GNU DEB package release.",
+			"configurePreset": "gnu-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/deb",
+			"generators": [
+				"DEB"
+			]
+		},
+		{
+			"name": "gw-release-zip",
+			"hidden": false,
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"displayName": "Release GW",
+			"description": "GW ZIP package release.",
+			"configurePreset": "gw-release",
+			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
+			"generators": [
+				"ZIP"
+			]
+		},
+		{
+			"name": "gnu-release-appimg",
+			"hidden": false,
+			"displayName": "Release GNU (AppImage only)",
+			"description": "GNU AppImage package release.",
+			"inherits": [
+				".pack",
+				".lnx-only"
+			],
+			"configurePreset": "gnu-release",
 			"packageDirectory": "/tmp/$env{USER}-cpack/gnu",
 			"generators": [
 				"AppImage"
@@ -171,21 +223,6 @@
 			"displayName": "Debug GW",
 			"description": "GW ZIP package debug.",
 			"configurePreset": "gw-debug",
-			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
-			"generators": [
-				"ZIP"
-			]
-		},
-		{
-			"name": "gw-release-zip",
-			"hidden": false,
-			"inherits": [
-				".pack",
-				".lnx-only"
-			],
-			"displayName": "Debug GW",
-			"description": "GW ZIP package debug.",
-			"configurePreset": "gw-release",
 			"packageDirectory": "/tmp/$env{USER}-cpack/gw",
 			"generators": [
 				"ZIP"

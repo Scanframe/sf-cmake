@@ -2124,6 +2124,8 @@ examples:
 				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 			else:
 				cmd = ["ctest", "--preset", preset_name]
+				# By default, ignore when no tests are there.
+				cmd += ["--no-tests=ignore"]
 				if args.list_only:
 					cmd.append("--show-only")
 				if args.test_regex:
@@ -2397,25 +2399,26 @@ Choices are:
 				docker_opts += ["--device", "/dev/dri"]
 		# Map the project root directory.
 		docker_opts += ["--volume", f"{RUN_DIR}:/mnt/project/{PROJECT_SUBDIR}:rw"]
-		build_dir: Path = Path()
+		build_dir: str = ""
 		# Configure a specific build directory volume if requested.
 		if args.build_dir == "tmp":
-			build_dir = Path("/tmp") / "cmake-build" / Path(PROJECT_SUBDIR)
+			build_dir = os.path.join("/tmp", "cmake-build", PROJECT_SUBDIR)
 			if sys.platform == "win32":
-				build_dir = Path(RUN_ENV.get("TEMP", r"C:\TEMP")) / "cmake-build" / Path(PROJECT_SUBDIR)
+				build_dir = os.path.join(RUN_ENV.get("TEMP", r"C:\TEMP"), "cmake-build", PROJECT_SUBDIR)
 		elif args.build_dir == "prj":
-			build_dir = Path(RUN_DIR) / "cmake-build"
+			build_dir = os.path.join(RUN_DIR, "cmake-build")
 		if args.build_dir == "vol":
 			# Mount a Docker volume.
 			docker_opts += ["--mount", f"type=volume,source=cmake-build,target=/mnt/project/{PROJECT_SUBDIR}/cmake-build"]
 		elif args.build_dir == "mem":
 			# Mount a Docker temporary filesystem in memory with a maximum of 2GB.
-			docker_opts += ["--mount", f"type=tmpfs,destination=/mnt/project/{PROJECT_SUBDIR}/cmake-build,tmpfs-size=2G,tmpfs-mode=1777"]
+			docker_opts += ["--mount",
+				f"type=tmpfs,destination=/mnt/project/{PROJECT_SUBDIR}/cmake-build,tmpfs-size=2G,tmpfs-mode=1777"]
 		# Otherwise use the volume option.
-		else:
-			build_dir /= f"docker-{args.platform}-{qt_ver}".strip("-")
+		elif len(build_dir):
+			os.path.join(build_dir, f"docker-{args.platform}-{qt_ver}".strip("-"))
 			logger.info(f"# Build Dir: [{PROJECT_SUBDIR}] {build_dir}")
-			build_dir.mkdir(parents=True, exist_ok=True)
+			os.makedirs(build_dir, exist_ok=True)
 			docker_opts += ["--volume", f"{build_dir}:/mnt/project/{PROJECT_SUBDIR}/cmake-build:rw"]
 		# Set the working directory within the container.
 		docker_opts += ["--workdir", f"/mnt/project/{PROJECT_SUBDIR}/"]
