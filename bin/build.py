@@ -2124,8 +2124,9 @@ examples:
 				run_command(cmd, dbg_mode=DebugMode.REPORT_ONLY)
 			else:
 				cmd = ["ctest", "--preset", preset_name]
-				# By default, ignore when no tests are there.
-				cmd += ["--no-tests=ignore"]
+				# Do explicitly not ignore no-tests when not in a CI-pipeline a user must no
+				if not "CI" in RUN_ENV:
+					cmd += ["--no-tests=error"]
 				if args.list_only:
 					cmd.append("--show-only")
 				if args.test_regex:
@@ -2133,7 +2134,7 @@ examples:
 				if args.label_regex:
 					cmd.extend(["--label-regex", args.label_regex])
 				if args.verbose:
-					cmd.append("--verbose")
+					cmd.append("--extra-verbose")
 				# Add the additional arguments from the command line to the executable run by ctest.
 				if args_right:
 					# Add separator as ctest requires it to pass the arguments to the test executable.

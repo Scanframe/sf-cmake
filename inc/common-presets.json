@@ -91,10 +91,11 @@
 			"name": ".test",
 			"hidden": true,
 			"output": {
+				"verbosity": "extra",
 				"outputOnFailure": true
 			},
 			"execution": {
-				"noTestsAction": "error",
+				"noTestsAction": "ignore",
 				"stopOnFailure": true
 			}
 		}
